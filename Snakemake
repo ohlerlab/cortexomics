@@ -1,0 +1,23 @@
+#This first rule will check if we have everything on the gdrive, and download it if not
+
+
+configfilename = 'config.yaml'
+configfile: configfilename
+configfile: 'config.yaml'
+
+workdir: config['snk_workdir']
+
+#use a custom R profile for this project
+shell.prefix("export R_PROFILE_USER=src/R/Rprofile.R;")
+
+
+rule all:
+	input:
+		config['logs']['gdrive_download_report']
+
+rule gdrive_download:
+	output:
+		config['logs']['gdrive_download_report']
+	shell:
+		"echo 'foobar' > {config[gdrive_download_report]}"
+
