@@ -1,0 +1,20 @@
+#This is a (mock for now)
+
+snakemake file jsut to remind me of what tall the different fuckings cripts are doing
+
+
+#pipeline.snake in data folder
+snakemake of alignments etc, ribotaper
+
+#read_utr_counts
+makes averagograms like fp_ribo_fixed_averageogram.pdf
+
+#
+plot_confint_trajectories
+Produces the big messy trajectory plot with everything in it.
+
+#gviz_mRNA_plots
+produces the plots of read coverage over different genes
+
+#plots of the riboseq and mRNA
+produces the plots of read coverage over different genes

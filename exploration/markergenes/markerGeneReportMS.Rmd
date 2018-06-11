@@ -1,0 +1,344 @@
+---
+title: "Marker Gene Report"
+output: pdf_document
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(rtracklayer)
+library(stringr)
+library(magrittr)
+library(assertthat)
+library(tidyverse)
+library(here)
+
+select =dplyr::select
+source('~/Dropbox/code_new/df_functions.R')
+
+
+```
+
+
+## Our Marker genes
+We want an expression profile from RNAseq across development, for Riboseq and Total Rnaseq, for these genes:
+
+1. PA2G4 (EBP1), both isoforms there are two isoforms in mouse - long ("p48") vs. short ("p42") - differing in the N-terminus
+see attached about the isoforms' sequences
+
+2. Pax  shows timing of stem cell expression timing
+
+3. Tle4 shows timing of lower layer neuron differentiation
+
+4. Bcl11b (Ctip2) shows timing of lower-middle layer neuron differentiation
+
+5. Satb2 shows timing of upper layer neuron differentiation 
+
+6. Cdp (Cux1) also shows timing of upper layer neuron differentiation
+
+To do this we'll need to...
+
+1. Load up information linking transcripts to genes - I manually used gencode IDs to be safe.
+
+2. Get normalized expression values (TPM - transcripts per million) for our transcripts. I did this using Kallisto. The GENCODE M12 annotation release was used, with the mm10 mouse genome.
+
+3. Sum the expression values for most genes, keeping our isoforms seperate for PA2G4
+
+4. Calculate translational efficiency as the ratio of the Total RNAseq reads to the Riboseq reads.
+
+5. Finally plot these values over our developmental timepoints.
+
+
+
+```{r load_data, include=FALSE,cache=TRUE}
+
+kallistodir = here("./data/kallisto/")
+metacols = c('time','assay','replicate')
+#create table for 
+sep_iso_genes <- 'ENSMUSG00000025364'
+#datasets = list.files("~/cortexomics/data/input/")
+#stages <-
+# datasets%>%
+#  str_extract('[^_]+')%>%
+#  unique
+
+
+# #get the htseq counts for each gene
+# htseqcounts<- 
+#   "~/cortexomics/data/htseq/data/" %>% 
+#   list.files(full=TRUE,rec=TRUE)%>%
+#   setNames(.,basename(.)%>%str_extract('[^\\.]+'))%>%
+#   map(read_tsv,col_names=c('ID','count'))%>%
+#   bind_rows(.id='dataset')
+
+#get list of genes in genera
+annotation_gr <- rtracklayer::import("~/bih_cluster/projects/cubit/current/static_data/annotation/GENCODE/M12/GRCm38/gencode.vM12.annotation.gff3")
+
+
+kallistodir%>%dir
+
+kallistocounts <- kallistodir %>%
+  list.files(full=TRUE, patt="abundance.tsv",recurs=TRUE)%>%
+  setNames(.,basename(dirname(dirname(.))))%>%
+  map(read_tsv,col_types=cols())%>%
+  map(select,target_id,tpm)%>%
+  bind_rows(.id = 'dataset')
+
+#we need to ensure each entry of our kallisto table has a unique gene ID
+stopifnot(kallistocounts$target_id%>%str_count('ENSMUSG\\d+\\.\\d+')%>%equals(1)%>%all)
+kallistocounts <- mutate(kallistocounts,gene = str_extract(target_id,'ENSMUSG\\d+'))
+
+
+markergenestbl <- readr::read_tsv(here::here("./data/marker_genes.tsv"),col_names = TRUE)
+markergenestbl$gencode%<>%str_replace('\\.\\d+','')
+markergenes <- markergenestbl$gencode %>% str_split(',') %>% flatten_chr
+markergenestbl[24:28,]
+# #code for adding maker genes
+# data_frame(gene_name=c('Ccnd3-ps','Slc9a2','Wnt3','Snord73a','Gm44669','Abcg8','Gm37194','Tmem200b'))%>%
+#   filter(!gene_name=='Snord73a')%>%
+#   left_join(as_data_frame(mcols(annotation_gr)[c('gene_name','gene_id')]),by='gene_name')%>%
+#   distinct(gene_name,.keep_all =TRUE)%>%
+#   mutate(notes='')%>%
+#   select(gene_name,gencode=gene_id,notes)%>%
+#   bind_rows(markergenestbl)%>%
+#   group_by(gene_name)%>%dplyr::slice(1)%>%
+#   write_tsv("~/cortexomics/data/marker_genes.tsv",col_names = TRUE)
+
+
+#get the correct genes
+annotation_gr$stripped_gene_ID <-  str_replace(annotation_gr$gene_id,'\\.\\d+$','')
+markergene_gr <- annotation_gr%>% subset( (.$type=='transcript') & (stripped_gene_ID %in% markergenes) )
+message(markergenes)
+message(markergene_gr$stripped_gene_ID%>%sample(10))
+stopifnot(all(markergenes %in% markergene_gr$stripped_gene_ID))
+markergenes[!markergenes %in% markergene_gr$stripped_gene_ID]
+
+#get counts for specific genes
+# markergene_counts <- markergene_gr%>%mcols%>%as.data.frame%>%select(ID,gene_name)%>%left_join(htseqcounts)
+kallistocounts <- kallistocounts %>% mutate(ID = str_extract(target_id,'ENSMUST\\d+\\.\\d+'))
+markertranscript_tpm <- markergene_gr%>%mcols%>%as.data.frame%>%select(ID,transcript_name,gene_name)%>%left_join(kallistocounts%>%select(-target_id),by='ID')
+
+#some genes really are missing from the riboseq
+# annotation_gr%>%subset(gene_name%>%str_detect('Gm44669'))
+# kallistocounts%>%filter(gene%>%str_detect('ENSMUSG00000109115'))
+
+#   
+# #now get transcript exon lengths
+# exons <-annotation_gr[annotation_gr$type=='exon']
+# exons$width = width(exons)
+# exons = unique(exons)
+# exonlengthdf = exons%>%mcols%>%as.data.frame%>%group_by(gene_id)%>%summarize(length = sum(width))
+
+markertranscript_tpm
+
+#this table now contains the transcripts and genes requested
+marker_tpm <- bind_rows(
+  markertranscript_tpm%>%subset(gene%in%sep_iso_genes)%>%select(ID=ID,name=transcript_name,dataset,tpm),
+  markertranscript_tpm%>%subset(! gene%in%sep_iso_genes)%>%group_by(gene,dataset,gene_name)%>%summarise(tpm = sum(tpm))%>%select(ID=gene,name=gene_name,dataset,tpm)
+)
+
+marker_tpm <- marker_tpm %>% rename(TPM = tpm)
+
+#metadata for our datasets
+marker_tpm <- 
+  marker_tpm%>%
+	mutate(tmp = dataset%>%str_replace('_28_30','-28-30'))%>%
+	separate(tmp,metacols,sep='_')%>%
+  mutate(assay = str_replace(assay,'-28-30',''))
+
+
+#calculate translational efficiency
+markerTE <-  marker_tpm%>%
+        # filter(name==name_i)%>%
+  select(assay,ID,name,time,replicate,TPM)%>%
+  spread(assay,TPM)%>%
+  mutate(TE = ribo/total)%>%select(-ribo,-total)
+
+validvalue <- function(x) is.finite(x) & Negate(is.na)(x) & Negate(is.nan)(x) & `>`(x,0) 
+markerTE<-
+      markerTE%>%
+      # filter(name==name_i)%>%
+      mutate(validvalue(TE))%>%
+      group_by(name)%>%
+      mutate(reftime = first(time[validvalue(TE)]))%>%
+    mutate(refTE=mean(TE[(time==reftime)&validvalue(TE)]))%>%
+    group_by(name)%>%mutate(TE = log2(TE/refTE))%>%
+    select(-refTE,-reftime)%>%
+    mutate(TE =  replace(TE,is_in(TE,c(Inf)),NA))
+
+#summarise tpms by their 
+# marker_tpm <- marker_tpm %>%group_by(name,time,assay)%>%  summarise(TPM = sum(TPM))
+#check tbls look right
+# stopifnot(marker_tpm %>% has_name(c('TPM','time','name','assay')) %>% all ,msg = 'names missing')
+# markerTE %>% has_name(c('TE','time','name')) %>% all %>% assert_that(msg = 'names missing')
+
+```
+
+Finally, load the mass spec data
+
+```{r,cache=FALSE}
+library(here)
+
+# './data/ms_cortexomics_dec_2017/325_new_2_all_log2_LFQ_n7464.txt'%>%readLines(10)
+
+ms_data=
+  # read_tsv(here('./data/ms_cortexomics_dec_2017/325_new_1_all_n7464.txt'),comment = '#')%>%
+  read_tsv(here('./data/ms_cortexomics_dec_2017/325_new_2_all_log2_LFQ_n7464.txt'),comment = '#')%>%
+  {colnames(.) = str_replace_all(colnames(.),' ','_');.}%>%
+  select(gene_name=Gene_names,everything())
+
+delete_japanese<-function(dblstring) str_extract(dblstring,'(NA)|(NaN)|(\\d+\\.?\\d*)')%>%as.numeric
+
+ms_data<-ms_data%>%mutate_at(vars(matches('^(E\\d\\d|P0)')),funs(delete_japanese))
+
+ms_data$gene_name%>%str_subset(regex('foxp2|CAGH44|SPCH1|TNRC10|2810043D05Rik|D0Kist7',ignore_case=TRUE))
+ms_data$gene_name%>%str_subset(regex('fezf2|fezl|Zfp312',ignore_case=TRUE))
+ms_data$gene_name%>%str_subset(regex('cux2|cutl2|cux-2',ignore_case=TRUE))
+
+# #i need to deal witht he m ultiple protein groups somehow
+# ms_data%>%
+#   group_by(gene_name)%>%
+  # mutate(is_group = str_detect(Protein_IDs,';'))
+
+ms_tall <- 
+  ms_data %>%
+  # select(gene_name,matches('iBAQ_'))%>%
+  select(gene_name,matches('^(E\\d\\d|P0)'))%>%
+  filter(!is.na(gene_name))%>%
+  gather(dataset,signal,-gene_name)%>%
+  mutate(dataset=paste0('LFQ_',dataset))%>%
+  mutate(signal = 2^signal)
+
+ms_tall <- ms_tall %>%
+  separate(dataset,c('tmp','time','replicate'),remove = FALSE)%>%
+  select(-tmp)%>%
+  mutate(signal = ifelse(signal==0,NA,signal))%>%
+  group_by(time,replicate)%>%
+  mutate(signal = (1e6*signal) / sum (na.omit(signal)) )
+   
+
+# 
+# ms_tall%>%.$gene_name%>%table%>%sort%>%rev%>%head
+# ms_data%>%.$gene_name%>%table%>%sort%>%rev%>%head
+# ms_data%>%.$gene_name%>%sample(10)
+# ms_data%>%.$gene_name%>%str_subset(';')
+
+stopifnot(ms_data$Protein_IDs%>%str_split(';')%>%unlist%>%duplicated%>%any%>%not)
+# ms_data
+# ms_data%>%colnames%>%grep(value=TRUE,inver=TRUE,pattern='iBAQ|Oxidation|Deamination',x=.)%>%sort
+# ms_data%>%colnames%>%grep(value=TRUE,pattern='iBAQ',x=.)
+
+# t=assert_that(ms_tall %has_name% 'IMS')
+# t=assert_that(ms_tall %has_name% 'iBAQ')
+t=assert_that(ms_tall %has_name% 'signal')
+t=assert_that(ms_tall %has_name% 'time')
+t=assert_that(ms_tall %has_name% 'gene_name')
+
+ms_data$Fasta_headers%>%sample(1)
+
+expression_table<-
+  ms_tall%>%
+  filter(tolower(gene_name) %in% (tolower(markergenestbl$gene_name)%>%str_split(',')%>%unlist) )%>%
+  select(signal,name=gene_name,dataset,replicate,time = time)%>%
+  mutate(assay='MS')%>%
+  bind_rows(marker_tpm%>%rename(signal=TPM))
+
+expression_table$assay<-expression_table$assay%>%recode_factor(.,'total'='TotalRNASeq','ribo'='RiboSeq','MS'='MassSpec')
+
+```
+<!-- ## Total And Ribocapture RNAseq read TPM (Transcripts Per Million), and MS IMS (ibaq microshares) for our marker genes: -->
+## Total And Ribocapture RNAseq read TPM (Transcripts Per Million), and LFQ LMS (LFQ microshares) for our marker genes:
+
+(dots represent individual replicate values)
+Y axis log2 scaled (break labels not transformed) 
+(Y axes scaled relative to E13)
+
+
+```{r TPMplots, echo=FALSE,cache = FALSE,plot.width = 18,plot.height=4}
+make_expr_dotplot<-function(name_i,expression_table){
+
+  assert_that(all(expression_table %has_name% c('signal','name','assay','time')))
+  assert_that(name_i %in% expression_table$name)
+  scale_y_log2_linlabels<-scale_y_continuous(
+        breaks = function(lims) {
+          nb = 7
+          step = ceiling((lims[2] - lims[1])/7)
+          lims[1] = nb*(floor(lims[1]/nb))
+          lims[2] = nb*(ceiling(lims[2]/nb))
+          seq(from=lims[1],to=lims[2],by=step);
+        },
+        labels = function(x) format((2^x),digits = 2)
+      )
+  names_i = c(name_i,str_replace(name_i,'\\-\\d+$',''))
+  message(names_i)
+  
+    expression_table %>% 
+    filter(name%in%names_i)%>%
+    mutate(signal = signal+0.001)%>%
+    group_by(name,assay)%>%
+    mutate(signal = log2(signal/mean(na.omit(signal[time=='E13']))))%>%
+    { 
+      ggplot(data=.,aes(y=signal,x = time))+
+        geom_point(position='identity')+
+        facet_grid( scale = 'free',.~assay )+
+        expand_limits(y=c(floor(min(.$signal)),ceiling(max(.$signal))))+
+        scale_y_log2_linlabels+
+        ggplot2::labs( ylab =  'T/T0 (TPM or LFQshares)')+
+        ggtitle(str_interp("TPM/IMS for ${name_i}"))+
+        theme_bw()+
+        theme(text = element_text(size = 16))
+    
+    }
+
+  
+}
+
+unames <- expression_table$name%>%unique
+ms_data%>%filter(gene_name=='Satb2')%>%.$Protein_IDs
+ms_data%>%filter(Protein_IDs%>%str_detect('H3BKH3'))
+ms_data%>%filter(Protein_IDs%>%str_detect('H3BJX4'))
+
+ms_data%>%filter(gene_name=='Satb2')
+make_expr_dotplot('Satb2',expression_table)
+
+for(name_i in unames) print(make_expr_dotplot(name_i,expression_table))
+
+```
+
+<!-- ## Translational Efficiency (RiboTotal) per timepoint/replicate -->
+<!-- (replicates divided seperately) -->
+
+<!-- Note that in some cases the total counts are very low - this will render the TE - which is a ratio, unreliable. -->
+
+<!-- I'm also unsure if transcript specific TE can be trusted - there may be differences in the ability to attribute total reads and Riboseq reads to their parent transcript... -->
+
+<!-- Note that values are not displayed if the TotalSeq reads are zero. -->
+
+<!-- ```{r te, echo=FALSE,cache = FALSE} -->
+<!-- names = unique(markerTE$name) -->
+<!-- for(name_i in names){ -->
+
+
+<!-- markerTE %>% filter(name==name_i)%>% -->
+<!--   {  -->
+<!-- # browser() -->
+<!--   ymax = ungroup(.)%>%select(.,`TE`)%>%.[[1]]%>%keep(is.finite)%>%keep(Negate(is.na))%>%keep(Negate(is.nan))%>%max%>%multiply_by(1.2) -->
+
+<!--   # message(ymax) -->
+<!--   if(!any(validvalue(.$TE))){  -->
+<!--     qplot(label=str_interp('cannot calculate TE\nfor ${name_i}'),geom='text',x=1,y=1,size=I(15))+theme_bw() -->
+<!--   }else{ -->
+<!--   qplot(data=.,y=`TE`,x = time, geom = 'point' ,ylab = 'TE - T/T0')+ -->
+<!--       expand_limits(y=c(floor(min(.$TE)),ceiling(max(.$TE))))+ -->
+<!--       scale_y_log2_linlabels+     -->
+<!--       ggtitle(str_interp("Translational Efficiency for ${name_i}"))+ -->
+<!--       theme_bw()+ -->
+<!--       theme(text = element_text(size = 16)) -->
+<!--   } -->
+
+<!--   }%>%print -->
+<!-- } -->
+
+<!-- ``` -->
+
+

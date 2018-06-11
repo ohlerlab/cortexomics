@@ -1,0 +1,47 @@
+---
+title: "Kallisto Star Comparison"
+output: html_notebook
+---
+
+We're going to compare the output of kallisto and STAR mapping Procedures
+We might want to do this for RSEM and kallisto later....
+
+First let's load up the kallisto data
+```{r load kallisto data}
+kallistodir = "~/cortexomics/data/kallisto_out/"
+metacols = c('time','assay','replicate')
+
+#read them all in bind
+kallistocounts <- kallistodir %>%
+  list.files(full=TRUE, patt="abundance.tsv",recurs=TRUE)%>%
+  setNames(.,basename(dirname(.)))%>%
+  map(read_tsv,col_types=cols())%>%
+  map(select,target_id,tpm)%>%
+  bind_rows(.id = 'dataset')
+
+#we need to ensure each entry of our kallisto table has a unique gene ID
+stopifnot(kallistocounts$target_id%>%str_count('ENSMUSG\\d+\\.\\d+')%>%equals(1)%>%all)
+kallistocounts <- mutate(kallistocounts,gene = str_extract(target_id,'ENSMUSG\\d+'))
+kallistocounts$gene%>%table%>%sort%>%tail
+#we have targetid, which is a super long string, andthe extract gene
+#nwo get the star counts
+
+```
+
+
+
+```{r}
+feature_counts_data <-
+   read_featurecounts(here('data', 'feature_counts', 'data'), sample_list,allow_feature_diff = TRUE)
+
+#our feature ID column has gene names in id, let's make sure these are unique and that they match the kallisto stuff
+feature_counts_data$counts <- mutate(feature_counts_data$counts,gene = str_extract(feature_id,'ENSMUSG\\d+'))
+stopifnot(feature_counts_data$counts$gene%>%str_count('ENSMUSG\\d+\\.\\d+')%>%equals(1)%>%all)
+feature_counts_data$counts$gene%>%table%>%table
+```
+
+The kallisto data and the STAR data aren't really directly comparable - star is at the gene level, and kallisto is at the transcript level. Kallisto also gives us TPMs rather than counts
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).

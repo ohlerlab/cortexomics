@@ -1,0 +1,410 @@
+---
+title: "prot_ubiqu_plots"
+author: "Dermot Harnett"
+date: "February 2, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r getGOs}
+library(tidyverse)
+library(GO.db)
+# library(dbplyr)
+library(dplyr)
+library(stringr)
+library(magrittr)
+library(assertthat)
+library(data.table)
+library(biomaRt)
+
+catagorize <- function(vals,cats,warn_if_nomatch=TRUE,default=NA) {
+	#this function takes in a vector of values, and a list describing named sets of values
+	stopifnot(is.vector(vals))
+	stopifnot(is.list(cats),!is.null(names(cats)))	
+	stopifnot(all(map_lgl(cats,is.vector)))
+	#These sets shoudl be non overlapping
+	stopifnot(!anyDuplicated(unlist(cats%>%map(unique))))
+	#it then produces a recoded vector using the names of the list
+	st <- stack(cats,stringsAsFactors=FALSE)
+	st <- st$ind[match(vals,st$values)]
+  levels(st)<-c(levels(st),default)
+  st <- factor(st,c(levels(st)[match(names(cats),levels(st))],default))
+	st[is.na(st)] <- default
+	st
+}
+
+select<-dplyr::select
+
+group_slice<-function(dt,v){
+  stopifnot('data.frame'%in%class(dt))
+  stopifnot(v>0,(v%%1)==0)
+  if(n_groups(dt)==1) warning('Only 1 group to slice')
+  #get the grouping variables
+  groups=
+    unique(dt%>%dplyr::select())%>%
+    group_by()%>%
+    dplyr::slice(v)
+  out=dplyr::inner_join(dt,groups)
+  out
+}
+
+SCATTERSIGTYPE <- 'LFQ'
+SCATTERSIGTYPE <- 'iBAQ'
+
+# gofile <- dbfile(GO.db)
+# con <- DBI::dbConnect(RSQLite::SQLite(),gofile)
+# db_list_tables(con)
+
+# tbl(con,'go_ontology')%>%as_tibble
+# goterms<-tbl(con,'go_term')%>%as_tibble
+
+# ligaseterms <- goterms%>%
+#   filter(ontology=='MF')%>%
+#   filter(str_detect(term,'ubiq'))%>%
+#   filter(str_detect(term,'ligase'))%>%
+#   filter(str_detect(term,'ligase'))%>%
+#   filter(str_detect(term,'ligase'))
+
+# ubligasegoid <- ligaseterms%>%filter(term=='ubiquitin protein ligase activity')%>%.$go_id
+
+#browse GO terms assicated with Ubiq
+listMarts(verbose=TRUE)
+mart <- useMart(biomart = "ENSEMBL_MART_MOUSE")
+listDatasets(mart,verbose=TRUE)
+mart <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
+# attributePages(mart)
+# listAttributes(mart,'feature_page')%>%filter(description%>%str_detect('Gene stable ID'))
+# listAttributes(mart,'feature_page')%>%filter(description%>%str_detect('GO'))
+# listAttributes(mart,'feature_page')%>%filter(description%>%str_detect('UniProt'))
+# listAttributes(mart,'feature_page')%>%filter(description%>%str_detect('name'))
+# listAttributes(mart,'feature_page')%>%filter(description%>%str_detect('description'))
+
+# listFilters(mart)%>%.$name%>%str_subset('go')
+
+
+
+# results <- getBM(attributes = c("ensembl_gene_id",'uniprot_gn','go_id','name_1006','uniprotswissprot','uniprotsptrembl'), 
+#                  filters=('go'),values=ubligasegoid,
+#                  mart = mart)
+
+
+# ubliggids <- results%>%filter(go_id==ubligasegoid)%>%.$ensembl_gene_id
+# ubliprotids <- results%>%filter(go_id==ubligasegoid)%>%select(matches('uniprot'))%>%unlist%>%unique
+
+# #find genes associated with ubiquitionation
+# results <- getBM(attributes = c("ensembl_gene_id",'go_id','name_1006','uniprot_gn'), 
+#                  filters=('go'),values=ubligasegoid,
+#                  mart = mart)
+
+
+#now let's find out all GO terms the irobosomal genes have in common
+# ProtIDs_ribo <- 
+rids<-read_tsv(file.path(root,'ext_data/riboprotids.tsv'))
+rids %<>% filter(`RPL_+` | `RPS_+`=='+')
+ridssplit<-rids%>%.$`Protein_IDs`%>%str_split(';')%>%unlist
+#get info for these...
+ ridsgoinfo<-getBM(attributes = c("ensembl_gene_id",'go_id','name_1006','uniprot_gn','external_gene_name','description'), 
+                 filters=('uniprot_gn'),values=ridssplit,
+                 mart = mart)
+#the most common listed go term is... RIBOSOME!
+ ribogoterm<-ridsgoinfo$go_id%>%table%>%sort%>%names%>%last
+ 
+ 
+ 
+#this one may be better
+ribostructgo<-'GO:0003735'
+ 
+ #let's get all the protein IDs associated with it.
+allribosomal_ids<-getBM(attributes = c("ensembl_gene_id",'go_id','name_1006','uniprot_gn','description','external_gene_name'), 
+                 filters=('go'),values=ribostructgo,
+                 mart = mart)
+allrids<-allribosomal_ids$uniprot_gn%>%unique
+
+allribosomal_ids%>%distinct(uniprot_gn,go_id)
+
+allribosomal_ids%>%filter('external_gene_name'=='Rpl7a')
+
+#let's see which of these are not in matt's list
+ribostructpids<-allribosomal_ids%>%filter(go_id==ribostructgo)%>%.$uniprot_gn
+
+#actually need to make sure neither they nor their semicoloned partners have it
+notinstruct<-str_split(ms_data_all$Protein_IDs[],';')%>%
+  setNames(ms_data_all$Protein_IDs[])%>%
+  stack%>%
+  mutate(ribostructid = values %in% ribostructpids)%>%
+  group_by(ind)%>%
+  filter((!any(ribostructid)) & any(values %in% ridssplit))
+
+
+ridsgoinfo%>%filter(uniprot_gn%in%notinstruct$values)%>%distinct(external_gene_name,description)
+
+ go_2_protids<-function(goterm){
+  getBM(
+    # attributes = c("ensembl_gene_id",'go_id','name_1006','uniprot_gn','description','external_gene_name'), 
+    attributes = c('uniprot_gn'),
+                 filters=('go'),values=goterm,
+                 mart = mart)%>%.$uniprot_gn
+ }
+
+
+#there are a few....
+  
+
+```
+
+```{r get_ms_data}
+
+sigdists<-ms_tall%>%
+  group_by(sigtype)%>%
+  do({sigtype=.$sigtype[1];.$signal%>%data.frame(x=.)%>%qplot(data=.,log='x',x=x,geom='histogram', main = str_interp('Distribution of ${sigtype} intensity'),fill=I('blue'),color=I('black'))%>%list%>%data_frame(plot=.)})
+pdf(useDingbats=FALSE,file.path(root,'plots/sig_distribution_histogram.pdf'),w=12,h=18)
+do.call(gridExtra::grid.arrange,c(sigdists$plot,ncol=2))
+dev.off()
+
+
+
+#I need a table with the gene_name-ProteinID-Protein mapping
+protiddt<-
+  str_split(ms_tall$Protein_IDs[],';')%>%
+  setNames(ms_tall$Protein_IDs[])%>%
+  stack%>%mutate_all(funs(as.character))%>%
+  data.table
+protiddt<-
+  protiddt%>%
+  left_join(by=c('ind'='Protein_IDs'),
+            ms_data_all%>%select(Protein_IDs,gene_name=gene_name.x)
+  )
+protiddt%<>%as_data_frame
+protiddt%<>%distinct(values,ind,gene_name)
+protiddt%<>%select(Protein_IDs=ind,ProtID=values,gene_name)
+
+translationprotids <- protiddt%>%filter(ProtID %in% go_2_protids('GO:0006412'))%>%.$Protein_IDs
+
+```
+
+```{r plots_of_magnitude}
+
+
+#Plot magnitude of LFQs across timepoints - they are more or less equal
+sig_distributions_plot<-ms_tall%>%
+  # sample_frac(0.01)%>%
+  filter(sigtype==SCATTERSIGTYPE)%>%
+  group_by(Protein_IDs)%>%
+  # mutate(scaled_sig = signal / median(na.omit(signal)))%>%
+  ggplot(aes(x=log10(signal),facet=time))+facet_grid(time~fraction)+geom_histogram()
+ggsave(sig_distributions_plot,file=file.path(root,str_interp('plots/${SCATTERSIGTYPE}_sig_distribution_plots.pdf')))
+#lfq distribution pretty much the same from sample to sample...
+
+
+```
+
+```{r scatterplots}
+
+#
+ebp1pids<-ms_data_all%>%filter(gene_name.x=='Pa2g4')%>%.$Protein_IDs
+#did we add any
+
+
+#let's replicate Matt's scatter plots
+lfqe13<-ms_tall%>%filter(sigtype==SCATTERSIGTYPE)%>%
+    filter(time=='E13')%>%
+    group_by(Protein_IDs,fraction)%>%
+    summarize(Signal_E13=median(na.omit(signal)))
+lfqlater<-ms_tall%>%filter(sigtype==SCATTERSIGTYPE)%>%
+    filter(!time=='E13')%>%
+    group_by(Protein_IDs,fraction,time)%>%
+    summarize(Signal=median(na.omit(signal)))
+scatterdf<-left_join(by=c('fraction','Protein_IDs'),lfqe13,lfqlater)
+
+#most protein ids appear once, 30% or so appear twice
+# protiddt%>%group_by(ProtID)%>%tally%>%.$n%>%hist
+
+#mediansig
+mediansigtbl = ms_tall%>%group_by(Protein_IDs)%>%filter(sigtype==SCATTERSIGTYPE)%>%summarise(mediansig=median(na.omit(signal)))
+# mratio<-protiddt%>%left_join(mediansigtbl)%>%group_by(ProtID)%>%summarise(ratio=max(mediansig)/min(mediansig))
+
+translationprotids%<>%keep(~ ! . %in% rids$Protein_IDs)
+protcatlist<-list(
+  'RPL +'=rids %>% filter((`RPL_+`))%>%.$`Protein IDs`,
+  'RPS +'=rids %>% filter((`RPS_+`))%>%.$`Protein IDs`,
+  'Translation Associated' = translationprotids,
+  'Ebp1'=ebp1pids)
+
+scattercoldf<-file.path(root,'exploration/tables/scattercolors.tsv')%>%read_tsv
+gethex <- function(color){
+  c<-(col2rgb(color)[,1])
+  sprintf("#%02X%02X%02X", c[1],c[2],c[3])
+}
+# scattercoldf%>%mutate(col = map2(fill,border,averagehexes))%>%unnest%>%write_tsv('~/cortexomics/scattercolors.tsv')
+protcatcols = setNames(c(scattercoldf$col,gethex('grey'),gethex('black')),c('RPL +','RPS +','Ebp1','Other','Translation Associated'))
+
+
+# onegeneprotgroups = protiddt%>%
+ggdf<-scatterdf%>%
+  # filter(time=='P0')%>%
+  filter(fraction %in% c('poly','cyto','80S'))%>%
+  mutate(Protein = Protein_IDs%>%catagorize(protcatlist,default='Other'))%>%
+  mutate(label=ifelse(Protein=='Ebp1','Ebp1',''))%>%
+  filter(Protein_IDs%>%str_detect(';'))
+
+    # facet_grid(fraction~time)+
+scatterplots<-ggdf%>%
+  group_by(fraction,time)%>%
+  # group_slice(1)%>%
+  do({
+    # browser();
+    list(
+    ggplot(.,aes(label=label,color = Protein,y=Signal_E13,x=Signal))+
+
+    scale_color_manual(values=protcatcols)+
+    geom_point(alpha=I(0.2),data=filter(.,Protein=='Other'),size=I(3))+
+    geom_point(alpha=I(1),data=filter(.,Protein!='Other'),size=I(3))+
+    geom_point(alpha=I(1),data=filter(.,Protein=='Ebp1'),size=I(3))+
+    geom_text(show.legend=FALSE,nudge_x = 0.5,nudge_y=-0.5)+
+    scale_x_log10(name = paste0('LFQ ',.$time[1]),lim=c(1e5,1e11))+
+    scale_y_log10(name = paste0('LFQ ','E13'    ),lim=c(1e5,1e11))+
+    geom_abline(slope=1,linetype='dashed')+
+    ggtitle(paste0('Fraction: ',.$fraction[1]))+
+    guides(text=FALSE)+
+    theme_bw()+theme(aspect.ratio=1)+ 
+    theme(plot.title = element_text(hjust = 0.5))
+  )%>%data_frame(plot=.)})
+
+
+scatterplotfile<-file.path(root,str_interp('plots/ms_fraction_scatterplots_${SCATTERSIGTYPE}.pdf'))
+pdf(scatterplotfile,useDingbats=FALSE,w=24,h=18)
+do.call(gridExtra::grid.arrange,c(scatterplots$plot,ncol=4))
+dev.off()
+scatterplotfile%>%message
+stop()
+
+#now trajectory plots
+traj_data<-
+  ms_tall%>%select(Protein_IDs,sigtype,signal,fraction)%>%
+  filter(sigtype=='LFQ')%>%
+  mutate(Protein = Protein_IDs%>%catagorize(list('ribosomal'=rids$`Protein IDs`,'Ebp1'=ebp1pids),default='other'))%>%
+  group_by(Protein,Protein_IDs,fraction,time)%>%
+  summarize(signal = median(na.rm=TRUE,signal))%>%
+  group_by(Protein,Protein_IDs,fraction)%>%
+  mutate(relative_signal = signal/median(na.rm=TRUE,signal))
+
+
+#and plot trajectories
+traj_plot<-
+  traj_data%>%
+  group_by(Protein_IDs)%>%
+  # group_slice(1:10)%>%
+  ggplot(aes(x=as.numeric(as.factor(time)),y=log2(relative_signal),facet=fraction,color=Protein,group=Protein_IDs))+
+  geom_smooth()+
+  coord_cartesian(ylim=c(-4,4))+
+  facet_grid(scale='free',fraction~.)
+
+traj_data%>%filter(as.numeric(as.factor(time))==1)%>%filter(fraction=='total')
+
+ms_tall%>%filter(Protein_IDs=='P14131',fraction=='total',time%in%c('E13'))
+
+```
+
+
+```{r now do plots}
+
+#get the concatenated protein ids at least one of which are annotated as a ligase
+matching_protids<-
+  str_split(ms_tall$Protein_IDs[],';')%>%
+  setNames(ms_tall$Protein_IDs[])%>%
+  stack%>%
+  filter(values %in% ubliprotids)%>%
+  .$ind%>%as.character%>%unique
+
+stopifnot(ms_tall%>%group_by(Protein_IDs)%>%filter(all(is.na(signal)))%>%nrow%>%`==`(0))
+
+
+make_prot_dotplot<-function(expression_table){
+  #
+  assert_that(nrow(expression_table)>0)
+  assert_that(all(expression_table %has_name% c('signal','gene_name','fraction','time')))
+
+  scale_y_log2_linlabels<-scale_y_continuous(
+    breaks = function(lims) {
+      nb = 7
+      step = ceiling((lims[2] - lims[1])/9)
+      lims[1] = nb*(floor(lims[1]/nb))
+      lims[2] = nb*(ceiling(lims[2]/nb))
+      seq(from=lims[1],to=lims[2],by=step);
+    },
+    labels = function(x) format((2^x),digits = 2)
+  )
+
+  #
+
+  expression_table %>% 
+    # mutate(signal = signal+0.001)%>%
+    group_by(gene_name,fraction)%>%
+    mutate(refpoint = ifelse(all(is.na(signal)),NA,median(na.omit(signal))))%>%
+    mutate(signal = log2(signal/refpoint))%>%
+    { 
+      ggplot(data=.,aes(y=signal,x = time,color= fraction))+
+        geom_point(position='identity')+
+        facet_grid( scale = 'free',gene_name~fraction )+
+        expand_limits(y=c(floor(min(na.omit(.$signal))),ceiling(max(na.omit(.$signal)))))+
+        scale_y_log2_linlabels+
+        ggplot2::labs( ylab =  'T/T0 (TPM or LFQshares)')+
+        ggtitle(str_interp("TPM/IMS"))+
+        theme_bw()+
+        theme(text = element_text(size = 16),axis.text.x = element_text(angle=45,vjust=0.5))
+      
+    }
+}
+pgnum<-ms_tall%>%group_by(gene_name)%>%summarise(np = n_distinct(Protein_IDs))
+pgnum$np%>%table
+
+
+ligaseplotfolder<-paste0('~/cortexomics/figures/ubiquitin_ligase_protplots/')
+dir.create(ligaseplotfolder)
+list.files('~/cortexomics/figures/',patt='pdf',full=TRUE)%>%file.remove
+ms_tall_match<-ms_tall%>%filter(Protein_IDs %in% matching_protids)
+mclapply(seq_along(matching_protids),function(i){
+  
+  nmm = matching_protids[i]
+  dat =ms_tall_match%>%
+      # ungroup%>%filter(Protein_IDs %in% sample(unique(Protein_IDs),1))%>%
+      ungroup%>%
+      # filter(Protein_IDs == i)%>%
+      filter(Protein_IDs == nmm)
+  
+  gnmm = dat[1,]%>%.$gene_name
+  if(is.na(gnmm)) gnmm <- dat[1,]$Protein_IDs
+  
+  pdf(paste0(ligaseplotfolder,i,'_',gnmm,'_ubiquitin_ligase_scatters.pdf'),w=8,h=4)
+  dat  %>%    make_prot_dotplot%>%print
+  dev.off()
+
+})
+
+
+#get rid of things that have 0 or 1 data points
+#for all fractions
+pdf(file.path(root,'plots/nearzeroexampleplots.pdf'))
+for(i in 1:10){
+ms_tall%>%
+      # ungroup%>%filter(Protein_IDs %in% sample(unique(Protein_IDs),1))%>%
+        group_by(Protein_IDs)%>%filter(any(nearzero))%>%
+      group_slice(sample(1:n_groups(.),1))%>%
+      make_prot_dotplot%>%print
+}
+dev.off()
+
+
+
+ubligasegoid
+
+results%>%str
+
+
+```
