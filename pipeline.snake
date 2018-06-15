@@ -99,7 +99,7 @@ ASSAY_DICT            = tab_to_dict(SAMPLELINES, 'assay')
 GTF_DICT              = {k: CDSGTF if 'ribo' in v else GTF for k, v in ASSAY_DICT.items()}
 KINDEXDICT            = {k: KINDEXCDS if 'ribo' in v else KINDEX for k,v in ASSAY_DICT.items()}
 
-
+print(READ_PATTERN_DICT)
 #the group dict is structured differently, returns a list of samples
 GROUP_DICT = tab_to_dict(SAMPLELINES,'group')
 GROUP_SAMPLES = {}
@@ -136,8 +136,8 @@ GENEREGIONS = ['gene','cds','fputrs','tputrs']
 TRNAs = ['tRNAs']
 # print(expand("feature_counts/data/{sample}/{generegions}.done", sample = SAMPLES, generegions = generegions))
 
-READRANGES = ['1_26','27_28','29_100','1_300']
-READRANGENUM = [[1,26],[27,28],[29,100],[1,300]]
+READRANGES = ['25_30','1_26','27_28','29_100','1_300']
+READRANGENUM = [[25,30],[1,26],[27,28],[29,100],[1,300]]
 READRANGEDICT = dict(zip(READRANGES,READRANGENUM))
 
 rule all:
@@ -151,21 +151,20 @@ rule all:
     # expand("fastqc/data/{sample}/.done", sample = SAMPLES),
     # "fastqc/summary/fastqc_summary.tsv",
     expand("star/data/{sample}/.done", sample = SAMPLES),
-    expand("infer_experiment/data/{sample}/.done", sample = SAMPLES),
+    # expand("infer_experiment/data/{sample}/.done", sample = SAMPLES),
     # expand("qc/data/{sample}/.done", sample = SAMPLES),
     # expand("dupradar/data/{sample}/.done", sample = SAMPLES),
     # expand("htseq/data/{sample}/.done", sample = SAMPLES),
-    # expand("feature_counts/data/{sample}/.done", sample = SAMPLES),
-    expand('feature_counts/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
-    expand('feature_counts/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.values(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES[3]),
-
+    expand('feature_counts_readrange/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
+    expand("feature_counts/data/{sample}/.done", sample = SAMPLES),
+    expand("feature_counts/all_feature_counts"),
+    
     # expand("feature_counts/data/{sample}/{generegions}/{readrange}/.done", sample = SAMPLES, generegions = generegions+TRNAs, readrange = READRANGES),
     # expand("kallisto/data/{sample}/.done", sample = SAMPLES),
     # expand("bigwigs/{group}/{strand}/{istrans}.done",group = SAMPLES,strand=strands,istrans=istransvals),
     # expand("mergedbigwigs/{group}/{strand}/{istrans}.done",group = GROUPS,strand=strands,istrans=istransvals),
     # expand("ribotaper/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
-    # expand("ribotapermetaplots/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
-
+    expand("ribotapermetaplots/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
 
 
 MINREADLENGTH=20
@@ -192,9 +191,11 @@ rule make_test_fastq:
   input: '../gdrive/RiboSeq_Ribo_Transcriptome','../gdrive/RNASeq_Total_Transcriptome/'
   output: 'preprocessed_reads/test/test.fastq.gz'
   shell:r"""
+    set -e
     mkdir -p preprocessed_reads/test/
     seqtk sample -s100 ../gdrive/RNASeq_Total_Transcriptome/E13_1.fastq.gz 10000 | gzip > {output}
-    #ln -s /fast/projects/cubit/0.12.0/static_data/annotation/GENCODE/M12/GRCm38/GRCm38.p5.genome.chr_scaff.fa my_GRCm38.p5.genome.chr_scaff.fa
+    if [ 0 -eq $(gzip -l {output} | awk 'NR==2 {{print $2}}') ]; then rm {output} ; fi
+
       """
 
 rule link_in_ref:
@@ -255,7 +256,7 @@ rule cutadapt_reads:
 
 rule trim_reads:
   input: 'cutadapt_reads/{sample}/.done'
-  output: touch('processed_reads/{sample,[^/]+}/.done')
+  output: touch('processed_reads/{sample,(.*ribo.*)|(test)}/.done')
   run:
     sample = wildcards['sample']
     shell(r"""
@@ -263,11 +264,28 @@ rule trim_reads:
       
       mkdir -p processed_reads/{sample}/     
       
-      {REMOVE8NBIN}  cutadapt_reads/{sample}/{sample}.uniq.qual20.fastq
-      gzip -f cutadapt_reads/{sample}/{sample}.uniq.qual20-2xNNNN.fastq;
+      infile="cutadapt_reads/{sample}/{sample}.uniq.{MINREADLENGTH}_{MAXREADLENGTH}.qual{QUALLIM}.fastq"
+      trimfile="cutadapt_reads/{sample}/{sample}.uniq.{MINREADLENGTH}_{MAXREADLENGTH}.qual{QUALLIM}-2xNNNN.fastq"
+      {REMOVE8NBIN}  $infile
+
+      if [ ! -s $trimfile ] ; then exit; fi
+      
+      gzip -f $trimfile
 
       mkdir -p processed_reads/{sample}/
-      ln -sf $(readlink -f cutadapt_reads/{sample}/{sample}.uniq.qual20-2xNNNN.fastq.gz) processed_reads/{sample}/{sample}.fastq.gz
+      ln -sf $(readlink -f ${{trimfile}}.gz) processed_reads/{sample}/{sample}.fastq.gz
+    # ln -rsf $(readlink -f {input}/*) processed_reads/{sample}/{sample}.fastq.gz
+    """)
+
+rule link_total_fastq:
+  input: 'preprocessed_reads/{sample}/{sample}.fastq.gz'
+  output: touch('processed_reads/{sample,.*total.*}/.done')
+  run:
+    sample = wildcards['sample']
+    shell(r"""
+      set -evx
+      mkdir -p processed_reads/{sample}/
+      ln -sf $(readlink -f {input}) processed_reads/{sample}/{sample}.fastq.gz
     # ln -rsf $(readlink -f {input}/*) processed_reads/{sample}/{sample}.fastq.gz
     """)
 
@@ -396,8 +414,6 @@ rule star:
           {SCRIPTDIR}/run_my_star.sh -m -@ {threads} -i $(dirname {input.fastqs}) {read_pattern} -o $(dirname {output}) \
           -r star/reports/{wildcards.sample} -t {TMPDIR} -l NoSharedMemory -x {STARINDEX} 
           """)
-
-
 rule cutsite_kmers:
   input: 'star/data/{sample}/{sample}.bam',REF
   output: 'cutsequences/{sample}/cutseqs.txt.gz'
@@ -411,24 +427,35 @@ rule cutsite_kmers:
         samtools view -H {input} | grep "SQ" | sed -r 's/^@SQ\s+SN://' | sed -r "s/\s+LN:/\t/" > {chromsizes} 
         mkdir -p cutsequences/{wildcards.sample}
 
-        bedtools bamtobed -i {input[0]} \
-          |grep '+$' \
-          |bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
-          |bedtools slop -i - -b -{halfKMERSIZE} -g {chromsizes}  \
-          |bedtools flank -b {KMERSIZE} -i /dev/stdin -g {chromsizes} \
-          | awk 'NR%2==1'  \
-          |bedtools getfasta -bed /dev/stdin -fi {REF} -fo /dev/stdout -s \
+        samtools view -bF 0x10 {input[0]} \
+          | bedtools bamtobed -i stdin | head -n 100000 \
+          | bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
+          | awk -v OFS="\t" '{{print $1,$2-{halfKMERSIZE},$2+{halfKMERSIZE}}}' \
+          | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s \
           | grep -v ">"  | sort | uniq -c  | gzip > {output}
+       
 
-        bedtools bamtobed -i {input[0]} \
-          |grep '+$' \
-          |bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
-          |bedtools slop -i - -b -{halfKMERSIZE} -g {chromsizes}  \
-          |bedtools flank -b {KMERSIZE} -i /dev/stdin -g {chromsizes} \
-          |awk 'NR%2==0'  \
-          |bedtools getfasta -bed /dev/stdin -fi {REF} -fo /dev/stdout -s \
+        samtools view -bF 0x10 {input[0]} \
+          | bedtools bamtobed -i stdin | head -n 100000 \
+          | bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
+          | awk -v OFS="\t" '{{print $1,$3-{halfKMERSIZE},$3+{halfKMERSIZE}}}' \
+          |bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s \
           | grep -v ">"  | sort | uniq -c  | gzip > {output}.right.gz
+
+          # |bedtools slop -i - -b -{halfKMERSIZE} -g {chromsizes}  \
+          # |bedtools flank -b {KMERSIZE} -i /dev/stdin -g {chromsizes} \
+          # | awk 'NR%2==0' 
+
+        # bedtools bamtobed -i {input[0]} \
+        #   |grep '+$' \
+        #   |bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
+        #   |bedtools slop -i - -b -{halfKMERSIZE} -g {chromsizes}  \
+        #   |bedtools flank -b {KMERSIZE} -i /dev/stdin -g {chromsizes} \
+        #   |awk 'NR%2==1'  \
+        #   |bedtools getfasta -bed /dev/stdin -fi {REF} -fo /dev/stdout -s \
+        #   | grep -v ">"  | sort | uniq -c  | gzip > {output}.right.gz
   """)
+
 
 
 # TESTSECTION="1:1-1260071"
@@ -939,72 +966,6 @@ rule scikit_ribo:
 #           &> feature_counts/reports/{wildcards.sample}/{wildcards.sample}.feature_counts.log
 #           """)
 
-rule feature_counts:
-     input:
-          'star/data/{sample}/.done',GTF,CDSGTF,'tputrs.gtf','fputrs.gtf',
-          expand('feature_counts/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
-          expand('feature_counts/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.values(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES[3]),
-
-     output:
-          done = touch('feature_counts/data/{sample,[^/]+}/.done')
-     threads: 2
-     run:       
-        bamfile = 'star/data/'+wildcards['sample']+'/'+wildcards['sample']+'.bam' 
-        if 'ribo' in wildcards['sample']:
-          selregion='cds'
-          selreadrange='27_28'
-        else:
-          selregion='gene'
-          selreadrange='1_300'
-        shell(r"""
-          head -n2 feature_counts/data/{wildcards.sample}/{selregion}/{selreadrange}/feature_counts \
-          | tail -n1 \
-          | awk '{{$7= {bamfile}}}' \
-          >    feature_counts/data/{wildcards.sample}/{wildcards.sample}.feature_counts
-          """)
-
-# rule feature_counts:
-#      input:
-#           'star/data/{sample}/.done',GTF,CDSGTF,'tputrs.gtf','fputrs.gtf'
-#      output:
-#           done = touch('feature_counts/data/{sample,[^/]+}/.done')
-#      threads: 2
-#      run:
-#           GTF = GTF_DICT[wildcards['sample']]
-#           protocol = PROTOCOL_DICT[wildcards['sample']]
-#           if (protocol == 'no'):
-#                protocol = 0
-#           elif (protocol == 'yes'):
-#                protocol = 1
-#           elif (protocol == 'reverse'):
-#                protocol = 2
-#           else:
-#                sys.exit('Protocol not known!')
-
-#           library = LIBRARY_DICT[wildcards['sample']]
-
-#           if (library == 'PAIRED'):
-#                library = '-p'
-#           else:
-#                library = ''
-
-#           shell(r"""
-#           set -e
-#           module purge
-#           module load subread/1.4.6-p5
-
-#           mkdir -p feature_counts/reports/{wildcards.sample}
-#           mkdir -p feature_counts/data/{wildcards.sample}
-
-#           featureCounts \
-#           -T {threads} \
-#           -t exon -gg ene_id \
-#           -a {GTF} \
-#           -s {protocol} {library} \
-#           -o feature_counts/data/{wildcards.sample}/{wildcards.sample}.feature_counts \
-#           star/data/{wildcards.sample}/{wildcards.sample}.bam \
-#           &> feature_counts/reports/{wildcards.sample}/{wildcards.sample}.feature_counts.log
-#           """)
 
 rule readlenfilt:
   input: 'star/data/{sample}/.done'
@@ -1027,9 +988,9 @@ rule feature_counts_readrange:
           readrangefilt='readlenfilt/data/{sample}/{readrange}/readlenfilt.bam'
 
      output:
-          done = touch('feature_counts/data/{sample,[^/]+}/{generegions}/{readrange}/.done')
+          done = touch('feature_counts_readrange/data/{sample,[^/]+}/{generegions}/{readrange}/.done')
      threads: 2
-     log: r"""feature_counts/reports/{sample}/{generegions}/{readrange}/feature_counts.log"""
+     log: r"""feature_counts_readrange/reports/{sample}/{generegions}/{readrange}/feature_counts.log"""
      run:
           if (wildcards['generegions'] in ['gene','cds']):
             GTF = GTF_DICT[wildcards['sample']]
@@ -1079,8 +1040,8 @@ rule feature_counts_readrange:
           module purge
           module load subread/1.4.6-p5
 
-          mkdir -p feature_counts/reports/{sample}
-          mkdir -p feature_counts/data/{sample}
+          mkdir -p feature_counts_readrange/reports/{sample}
+          mkdir -p feature_counts_readrange/data/{sample}
 
 
           featureCounts \
@@ -1088,15 +1049,64 @@ rule feature_counts_readrange:
             -t {featuretype} -g {groupcol} \
             -a {GTF} \
             -s {protocol} {library} \
-            -o feature_counts/data/{sample}/{generegions}/{readrange}/feature_counts \
+            -o feature_counts_readrange/data/{sample}/{generegions}/{readrange}/feature_counts \
             {countmultimappers} \
             {rangebam}
 
-
-
-
-
           """)
+
+rule feature_counts:
+     input:
+          'star/data/{sample}/.done',GTF,CDSGTF,'tputrs.gtf','fputrs.gtf',
+          expand('feature_counts_readrange/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
+          expand('feature_counts_readrange/data/{sample}/{generegions}/{readrange}/.done', sample=RIBO_TOTAL_DICT.values(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES[-1]),
+     output:
+          done = touch('feature_counts/data/{sample,[^/]+}/.done')
+     threads: 2
+     run:       
+        bamfile = 'star/data/'+wildcards['sample']+'/'+wildcards['sample']+'.bam' 
+        if 'ribo' in wildcards['sample']:
+          selregion='cds'
+          selreadrange='25_30'
+        else:
+          selregion='cds'
+          selreadrange='1_300'
+        shell(r"""
+
+          mkdir -p feature_counts/reports/{wildcards.sample}
+          mkdir -p feature_counts/data/{wildcards.sample}
+
+          head -n2 feature_counts_readrange/data/{wildcards.sample}/{selregion}/{selreadrange}/feature_counts \
+          | tail -n1 \
+          | awk '{{$7= "{bamfile}"}}' \
+          >    feature_counts/data/{wildcards.sample}/{wildcards.sample}.feature_counts
+
+          tail -n+3 feature_counts_readrange/data/{wildcards.sample}/{selregion}/{selreadrange}/feature_counts \
+          >    feature_counts/data/{wildcards.sample}/{wildcards.sample}.feature_counts
+          """)
+
+rule aggregate_feature_counts:
+  input : expand("feature_counts/data/{sample}/.done", sample = SAMPLES),
+  output: 'feature_counts/all_feature_counts'
+  run:
+    fcountfiles = expand("feature_counts/data/{sample}/{sample}.feature_counts", sample = SAMPLES)
+    shell(r""" 
+
+       #( (sed '2q;d' {fcountfiles[0]} | cut -f1,7 && tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1,7) > {output})
+       tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1,7 > {output}
+       
+       #now for eahc fcount table, join it to the ids
+       for fcountfile in $(echo {fcountfiles}); do
+
+          tail -n+3 $fcountfile| sort -k1 | cut -f1,7 | join {output} - | sort -k1 > {output}tmp
+          mv {output}tmp {output}
+       
+       done
+
+      echo "feature_id {SAMPLES}" | cat - {output} > {output}tmp
+      mv {output}tmp {output}
+    
+      """)
 
 # ule feature_counts_select:
 #      input:
@@ -1148,7 +1158,6 @@ rule feature_counts_readrange:
 #           rangebam = input['readrangefilt']
 
 #           shell(r"""
-
             
 #           """)
 # #this is going to count reads in each library over 5'UTRS, CDS, and 3' UTRs
