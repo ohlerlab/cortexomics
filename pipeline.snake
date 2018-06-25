@@ -165,7 +165,9 @@ rule all:
     # expand("mergedbigwigs/{group}/{strand}/{istrans}.done",group = GROUPS,strand=strands,istrans=istransvals),
     # expand("ribotaper/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
     expand("ribotapermetaplots/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
-
+    ('ms_tables/.done'),
+    ('limma_fold_changes/.done'),
+    ('run_ribodiff/.done'),
 
 MINREADLENGTH=20
 MAXREADLENGTH=300
@@ -414,6 +416,7 @@ rule star:
           {SCRIPTDIR}/run_my_star.sh -m -@ {threads} -i $(dirname {input.fastqs}) {read_pattern} -o $(dirname {output}) \
           -r star/reports/{wildcards.sample} -t {TMPDIR} -l NoSharedMemory -x {STARINDEX} 
           """)
+          
 rule cutsite_kmers:
   input: 'star/data/{sample}/{sample}.bam',REF
   output: 'cutsequences/{sample}/cutseqs.txt.gz'
@@ -1092,8 +1095,8 @@ rule aggregate_feature_counts:
     fcountfiles = expand("feature_counts/data/{sample}/{sample}.feature_counts", sample = SAMPLES)
     shell(r""" 
 
-       #( (sed '2q;d' {fcountfiles[0]} | cut -f1,7 && tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1,7) > {output})
-       tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1,7 > {output}
+       #( (sed '2q;d' {fcountfiles[0]} | cut -f1 && tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1) > {output})
+       tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1 > {output}
        
        #now for eahc fcount table, join it to the ids
        for fcountfile in $(echo {fcountfiles}); do
@@ -1206,3 +1209,33 @@ rule aggregate_feature_counts:
 #           -o feature_counts/data/{wildcards.sample}/{wildcards.sample}.{wildcards.generegions}feature_counts \
 #           star/data/{wildcards.sample}/{wildcards.sample}.bam
 #           """)
+
+
+ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
+ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
+
+rule make_id_table:
+  input: GTF
+  output: 'ids.txt'
+  shell: r"""R -e 'library(tidyverse,quiet=T); library(rtracklayer,quiet=T);import("{input}") %>%mcols%>%as.data.frame%>% select(gene_id,gene_name)%>%write.table("{output}", col.names=TRUE, row.names=FALSE)'"""
+
+rule create_ms_exprtables:
+  input: ms_total_file,ms_spec_file
+  output: touch('ms_tables/.done')
+  shell: r"""Rscript ../exploration/load_data/create_ms_exprtables.R {input[0]} {input[1]} $(dirname {output})"""
+
+rule run_ribodiff:
+  input: 'feature_counts/all_feature_counts'
+  output: touch('run_ribodiff/.done')
+  shell: r"""Rscript ../exploration/pipeline/run_ribodiff.R {input} $(dirname {output})"""
+
+rule get_limma_fold_changes:
+  input: 'ms_tables/.done','feature_counts/all_feature_counts'
+  output: touch('limma_fold_changes/.done')
+  shell: r"""Rscript ../exploration/modeling/get_limma_fold_changes.R {input[0]} {input[1]} $(dirname {output})"""
+
+
+#rule run_template:
+#  input: templatefinput
+#  output: touch('run_template/.done')
+#  shell: r"""template {input} $(dirname {output})"""

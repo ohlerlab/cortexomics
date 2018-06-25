@@ -87,7 +87,6 @@ kallistocounts<-read_tsv(file.path(root,'exploration/tables/kallistocounts.tsv')
 
 delete_japanese<-function(dblstring) str_extract(dblstring,'(NA)|(NaN)|(\\d+\\.?\\d*)')%>%as.numeric
 
-
 ms_data=
   read_tsv('/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt',comment = '#')%>%
   {colnames(.) = str_replace_all(colnames(.),' ','_');.}%>%
@@ -206,7 +205,7 @@ ms_tall <- ms_tall %>%
 ms_tall%<>%left_join(ms_data_all%>%select(Protein_IDs,gene_name.x),by='Protein_IDs')
 colnames(ms_tall)%<>%str_replace('gene_name.x','gene_name')
 
-ms_tall%>%ungroup%>%filter(gene_name=='Pa2g4',sigtype=='LFQ')%>%qplot(data=.,x=time,y=signal,ylab='LFQ',main='MS for Pa2g4 in different fractions')+facet_grid(~fraction)
+# ms_tall%>%ungroup%>%filter(gene_name=='Pa2g4',sigtype=='LFQ')%>%qplot(data=.,x=time,y=signal,ylab='LFQ',main='MS for Pa2g4 in different fractions')+facet_grid(~fraction)
 
 #i need to characterize genes by their presence of data
 ms_tall<-ms_tall%>%
@@ -232,7 +231,6 @@ totalmslfq<-ms_tall%>%
   identity 
 
 ########Normalized iBAQs
-
 message('normalizing iBAQ')
 mscolinfo = ms_tall%>%ungroup%>%distinct(dataset,sigtype,time,fraction,replicate)
 
@@ -263,3 +261,4 @@ for(sigtype in sigtypes){
   dir.create(dirname(mstallfile),showWarn=FALSE)
   write_tsv(ms_tall%>%filter(sigtype==sigtype),mstallfile)
 }
+

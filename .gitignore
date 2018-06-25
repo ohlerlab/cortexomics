@@ -30,3 +30,7 @@ static_local
 processed_reads*
 archived_res
 pipeline
+*riboseqtbl*txt
+*riboseqres*txt
+*ribodiff_counts*txt
+*.pkl
