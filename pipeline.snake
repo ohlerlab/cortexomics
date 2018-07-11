@@ -120,8 +120,8 @@ istransvals = ['.transcript','.chr']
 BEXTS={istransvals[0]:'.star_transcript',istransvals[1]:''}
 
 
-print('Samples are: ',SAMPLES)
-print('Groups are: ',GROUPS)
+# print('Samples are: ',SAMPLES)
+# print('Groups are: ',GROUPS)
 
 
 RIBO_TOTAL_DICT = dict(zip(
@@ -134,11 +134,23 @@ GENEREGIONS = ['gene','cds','fputrs','tputrs']
 
 # TRNAs = ['gencode.vM12.tRNAs.gtf.gz']
 TRNAs = ['tRNAs']
-# print(expand("feature_counts/data/{sample}/{generegions}.done", sample = SAMPLES, generegions = generegions))
 
 READRANGES = ['25_30','1_26','27_28','29_100','1_300']
 READRANGENUM = [[25,30],[1,26],[27,28],[29,100],[1,300]]
 READRANGEDICT = dict(zip(READRANGES,READRANGENUM))
+
+
+clustermethods = ['kmeans','tsne']
+clusterdata=[
+'cent_scaled_exprdata',
+'limma_fold_changes',
+# 'composite_fold_changes',
+# 'composite_fold_changes_ribodfilt',
+'cent_scaled_exprdata_ribodfilt',
+'limma_fold_changes_ribodfilt']
+
+
+
 
 rule all:
   input:
@@ -166,8 +178,10 @@ rule all:
     # expand("ribotaper/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
     expand("ribotapermetaplots/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
     ('ms_tables/.done'),
-    ('limma_fold_changes/.done'),
-    ('run_ribodiff/.done'),
+    expand('exprdata/{clusterdata}.txt',clusterdata=clusterdata),
+    ('ribodiff/.done'),
+    expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
+    expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods)
 
 MINREADLENGTH=20
 MAXREADLENGTH=300
@@ -1217,23 +1231,62 @@ ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomi
 rule make_id_table:
   input: GTF
   output: 'ids.txt'
-  shell: r"""R -e 'library(tidyverse,quiet=T); library(rtracklayer,quiet=T);import("{input}") %>%mcols%>%as.data.frame%>% select(gene_id,gene_name)%>%write.table("{output}", col.names=TRUE, row.names=FALSE)'"""
+  shell: r"""R -e 'library(tidyverse,quiet=T); library(rtracklayer,quiet=T);import("{input}") %>%mcols%>%as.data.frame%>% select(gene_id,gene_name)%>%distinct%>%write.table("{output}", col.names=TRUE, row.names=FALSE)'"""
 
 rule create_ms_exprtables:
   input: ms_total_file,ms_spec_file
   output: touch('ms_tables/.done')
   shell: r"""Rscript ../exploration/load_data/create_ms_exprtables.R {input[0]} {input[1]} $(dirname {output})"""
 
+
+DISPDIFF = 0
 rule run_ribodiff:
   input: 'feature_counts/all_feature_counts'
-  output: touch('run_ribodiff/.done')
-  shell: r"""Rscript ../exploration/pipeline/run_ribodiff.R {input} $(dirname {output})"""
+  conda: '/fast/users/harnettd_c/miniconda3/envs/ribodiff/'
+  output: touch('ribodiff/.done')
+  shell: r"""Rscript ../exploration/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
+
+
+MS_MEASURE_TO_USE = 'LFQ'
+mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
+
+
+
+rule integrate_exprdata:
+  input: 'feature_counts/all_feature_counts',mstbl
+  output: 'exprdata/transformed_data.txt','exprdata/cent_scaled_exprdata.txt','exprdata/designmatrix.txt'
+  shell: r"""mkdir -p exprdata;
+  Rscript ../exploration/load_data/integrate_exprdata.R {input[0]} {input[1]} {output}"""
 
 rule get_limma_fold_changes:
-  input: 'ms_tables/.done','feature_counts/all_feature_counts'
-  output: touch('limma_fold_changes/.done')
-  shell: r"""Rscript ../exploration/modeling/get_limma_fold_changes.R {input[0]} {input[1]} $(dirname {output})"""
+  input: 'exprdata/transformed_data.txt','exprdata/designmatrix.txt'
+  output: 'exprdata/limma_fold_changes.txt','exprdata/limma_fold_changes.txtfull.txt'
+  shell: r"""Rscript ../exploration/modeling/get_limma_fold_changes.R {input[0]} {input[1]} {output[0]}"""
 
+rule perform_clustering:
+  input: 'exprdata/{clusterdata}.txt',
+  output: touch('clusters/{clusterdata}/{clustermethod}/.done')
+  shell: r"""Rscript ../exploration/modeling/cluster_{wildcards.clustermethod}.R {input} $(dirname {output}) 10"""
+
+rule comp_ribodiff_limma:
+  input: 'ribodiff/.done','exprdata/limma_fold_changes.txtfull.txt'
+  output: 'ribodiff_limma_comp/.done'
+  shell: r""" ../exploration/modeling/comp_ribodiff_limma.R $(dirname {input[0]}) $(dirname {input[1]}) $(dirname {output}) """
+
+rule ribodiff_filt:
+  input: 'ribodiff/.done','ids.txt','exprdata/cent_scaled_exprdata.txt','exprdata/limma_fold_changes.txt',
+  output: 'exprdata/{clusterdata,.+_ribodfilt.txt}'
+  shell: r"""Rscript ../exploration/pipeline/ribodiff_filter.R {input}"""
+
+rule assess_clustering:
+  input: 'clusters/{clusterdata}/{clustermethod}/.done'
+  output: 'cluster_assessment/{clusterdata}/{clustermethod}/.done'
+  shell: r"""Rscript ../exploration/modelling/assessclusters.R $(dirname {output}) $(dirname {output})"""
+
+rule find_motifs:
+  input: 'clusters/{clusterdata}/{clustermethod}/.done'
+  output: 'sequence_analysis/{clusterdata}/{clustermethod}/.done'
+  shell: r"""Rscript ../exploration/modeling/find_motifs.R $(dirname {input}) $(dirname {output})"""
 
 #rule run_template:
 #  input: templatefinput
