@@ -1283,10 +1283,20 @@ rule assess_clustering:
   output: 'cluster_assessment/{clusterdata}/{clustermethod}/.done'
   shell: r"""Rscript ../exploration/modelling/assessclusters.R $(dirname {output}) $(dirname {output})"""
 
+rule reg_seqs:
+  input: genome=REF,tputrs='tputrs.gtf',seqs='ribodiff/riboseqres_P0.txt'
+  output: 'regulated_sequences.fa'
+  shell: r"""
+    R -e   'library(magrittr);library(GenomicRanges);library(data.table);myfasta <- Rsamtools::FaFile("{input.genome}") ; myutrs <- rtracklayer::import("{input.tputrs}") ; diffIDs <-  "{input.seqs}"%>% fread %>% dplyr::filter(padj<0.05) %>% .$geneID; myutrs %>% subset(gene_id %in% diffIDs) %>%split(.,.$gene_id) %>% reduce %>% {{GenomicFeatures::extractTranscriptSeqs(x=myfasta,.)}} %>% {{Biostrings::writeXStringSet(., "{output[0]}")}}'
+  """
+
+
 rule find_motifs:
   input: 'clusters/{clusterdata}/{clustermethod}/.done'
   output: 'sequence_analysis/{clusterdata}/{clustermethod}/.done'
   shell: r"""Rscript ../exploration/modeling/find_motifs.R $(dirname {input}) $(dirname {output})"""
+
+
 
 #rule run_template:
 #  input: templatefinput

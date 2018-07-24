@@ -255,6 +255,7 @@ Y axis log2 scaled (break labels not transformed)
 
 
 ```{r TPMplots, echo=FALSE,cache = FALSE,plot.width = 18,plot.height=4}
+
 make_expr_dotplot<-function(name_i,expression_table){
 
   assert_that(all(expression_table %has_name% c('signal','name','assay','time')))
@@ -269,7 +270,9 @@ make_expr_dotplot<-function(name_i,expression_table){
         },
         labels = function(x) format((2^x),digits = 2)
       )
+  
   names_i = c(name_i,str_replace(name_i,'\\-\\d+$',''))
+
   message(names_i)
   
     expression_table %>% 

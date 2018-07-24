@@ -46,6 +46,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+
+
+
+
+#lets do a very simple thing, and first just look at doing ribodiff with edward.
+
+
+
+
+
 k=2
 concentration_vector = tf.ones(k)/k
 #so these give us k dimensional vectors
