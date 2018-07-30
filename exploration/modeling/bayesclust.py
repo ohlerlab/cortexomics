@@ -55,7 +55,6 @@ import matplotlib.pyplot as plt
 
 
 
-
 k=2
 concentration_vector = tf.ones(k)/k
 #so these give us k dimensional vectors
@@ -161,8 +160,9 @@ plt.close()
 
 
 
-
-
+############################
+############################
+############################
 # x = Normal(loc=tf.gather(beta, z), scale=tf.ones([N, D]))
 
 
