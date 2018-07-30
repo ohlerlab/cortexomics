@@ -31,7 +31,7 @@ plot(1)
 ```
 ##Figure Two - include_graphics svg
 ```{r fig2, out.width = "85%", fig.cap = "caption"}
-include_graphics(file.path(root,"tmp.svg")%T>%{normalizePath(.,must=T)%>%cat})
+include_graphics("plots/tmp.svg"))
 
 ```
 ## include_graphics pdf
