@@ -15,16 +15,13 @@ plot(1)
 ```
 
 <img src="cortexomics_files/figure-gfm/fig1-1.svg" title="caption" alt="caption" width="85%" />
-\#\#Figure Two - include\_graphics
-svg
+\#\#Figure Two - include\_graphics svg
 
 ``` r
-include_graphics(file.path(root,"tmp.svg")%T>%{normalizePath(.,must=T)%>%cat})
+include_graphics("plots/tmp.svg")
 ```
 
-    ## /fast/groups/ag_ohler/dharnet_m/cortexomics/plots/tmp.svg
-
-<img src="plots//tmp.svg" title="caption" alt="caption" width="85%" />
+<img src="plots/tmp.svg" title="caption" alt="caption" width="85%" />
 \#\# include\_graphics
 pdf
 
