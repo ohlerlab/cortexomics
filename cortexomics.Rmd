@@ -36,7 +36,7 @@ include_graphics("plots/tmp.svg")
 ```
 ## include_graphics pdf
 ```{r pdf, out.width = "85%", fig.cap = "caption", dev='cairo_pdf'}
-include_graphics(file.path(root,"tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
+include_graphics(file.path(root,"plots/tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
 
 ```
 
