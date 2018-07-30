@@ -13,7 +13,7 @@ output:
 
 knitr::opts_chunk$set(echo = TRUE,dev='svg')
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
-root <- '/home/zslastman'
+root <- 'plots/'
 library(knitr)
 library(magrittr)
 
