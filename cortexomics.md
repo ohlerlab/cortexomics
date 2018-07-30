@@ -11,11 +11,10 @@ July 30, 2018
 One
 
 ``` r
-include_graphics("tmp.pdf")
+plot(1)
 ```
 
-<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
-
+<img src="cortexomics_files/figure-gfm/fig1-1.svg" title="caption" alt="caption" width="85%" />
 \#Figure
 Two
 
