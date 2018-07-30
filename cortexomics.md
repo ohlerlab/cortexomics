@@ -14,7 +14,8 @@ One
 plot(1)
 ```
 
-<img src="cortexomics_files/figure-gfm/fig1-1.svg" title="caption" alt="caption" width="85%" />
+<embed src="cortexomics_files/figure-gfm/fig1-1.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+
 \#\#Figure
 Two
 
