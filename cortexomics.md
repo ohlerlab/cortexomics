@@ -4,59 +4,63 @@ Dermot Harnett
 July 30, 2018
 
 <!-- ## R Markdown -->
-
 <!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
-
-\#\#Figure
-One
+Figure One - generate in doc
+----------------------------
 
 ``` r
 plot(1)
 ```
 
-<embed src="cortexomics_files/figure-gfm/fig1-1.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+<img src="cortexomics_files/figure-markdown_github/fig1-1.svg" alt="caption" width="85%" />
+<p class="caption">
+caption
+</p>
 
-\#\#Figure
-Two
+Figure Two - include\_graphics svg
+----------------------------------
+
+``` r
+include_graphics(file.path(root,"tmp.svg")%T>%{normalizePath(.,must=T)%>%cat})
+```
+
+    ## /home/zslastman/tmp.svg
+
+<img src="/home/zslastman/tmp.svg" alt="caption" width="85%" />
+<p class="caption">
+caption
+</p>
+
+include\_graphics pdf
+---------------------
 
 ``` r
 include_graphics(file.path(root,"tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
 ```
 
-    ## /fast/groups/ag_ohler/dharnet_m/cortexomics/tmp.pdf
+    ## /home/zslastman/tmp.pdf
 
-<embed src="/fast/groups/ag_ohler/dharnet_m/cortexomics//tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+<img src="/home/zslastman/tmp.pdf" alt="caption" width="85%" />
+<p class="caption">
+caption
+</p>
 
-<!-- ##Figure Three -->
+Figure Three - svg display direct in markdown
+---------------------------------------------
 
-<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
+![imagename](/home/zslastman/tmp.svg)
 
-<!-- include_graphics(file.path(root,"tmp.pdf")) -->
+Figure Three - pdf display direct in markdown
+---------------------------------------------
 
-<!-- ``` -->
-
-<!-- ##Figure Four -->
-
-<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
-
-<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
-
-<!-- ``` -->
+![imagename](/home/zslastman/tmp.pdf) <!-- ##Figure Three --> <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} --> <!-- include_graphics(file.path(root,"tmp.pdf")) --> <!-- ``` --> <!-- ##Figure Four --> <!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} --> <!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) --> <!-- ``` -->
 
 <!-- ```{r cars} -->
-
 <!-- summary(cars) -->
-
 <!-- ``` -->
-
 <!-- ## Including Plots -->
-
 <!-- You can also embed plots, for example: -->
-
 <!-- ```{r pressure, echo=FALSE} -->
-
 <!-- plot(pressure) -->
-
 <!-- ``` -->
-
 <!-- Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
