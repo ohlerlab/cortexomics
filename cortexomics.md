@@ -4,24 +4,59 @@ Dermot Harnett
 July 30, 2018
 
 <!-- ## R Markdown -->
+
 <!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
+
+\#Figure
+One
+
 ``` r
-summary(cars)
+include_graphics("tmp.pdf")
 ```
 
-    ##      speed           dist       
-    ##  Min.   : 4.0   Min.   :  2.00  
-    ##  1st Qu.:12.0   1st Qu.: 26.00  
-    ##  Median :15.0   Median : 36.00  
-    ##  Mean   :15.4   Mean   : 42.98  
-    ##  3rd Qu.:19.0   3rd Qu.: 56.00  
-    ##  Max.   :25.0   Max.   :120.00
+<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-Including Plots
----------------
+\#Figure
+Two
 
-You can also embed plots, for example:
+``` r
+include_graphics("tmp.pdf")
+```
 
-![](cortexomics_files/figure-markdown_github/pressure-1.png)
+<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+\#Figure
+Three
+
+``` r
+include_graphics("tmp.pdf")
+```
+
+<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+
+\#Figure
+Four
+
+``` r
+include_graphics("tmp.pdf")
+```
+
+<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+
+<!-- ```{r cars} -->
+
+<!-- summary(cars) -->
+
+<!-- ``` -->
+
+<!-- ## Including Plots -->
+
+<!-- You can also embed plots, for example: -->
+
+<!-- ```{r pressure, echo=FALSE} -->
+
+<!-- plot(pressure) -->
+
+<!-- ``` -->
+
+<!-- Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
