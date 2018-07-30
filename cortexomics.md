@@ -20,28 +20,28 @@ plot(1)
 Two
 
 ``` r
-include_graphics("tmp.pdf")
+include_graphics(file.path(root,"tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
 ```
 
-<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+    ## /fast/groups/ag_ohler/dharnet_m/cortexomics/tmp.pdf
 
-\#\#Figure
-Three
+<embed src="/fast/groups/ag_ohler/dharnet_m/cortexomics//tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-``` r
-include_graphics("tmp.pdf")
-```
+<!-- ##Figure Three -->
 
-<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
 
-\#\#Figure
-Four
+<!-- include_graphics(file.path(root,"tmp.pdf")) -->
 
-``` r
-include_graphics("tmp.pdf")
-```
+<!-- ``` -->
 
-<embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+<!-- ##Figure Four -->
+
+<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
+
+<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
+
+<!-- ``` -->
 
 <!-- ```{r cars} -->
 

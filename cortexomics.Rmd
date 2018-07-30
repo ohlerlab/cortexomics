@@ -2,14 +2,20 @@
 title: "Cortexomics"
 author: "Dermot Harnett"
 date: "July 30, 2018"
-output: rmarkdown::github_document
+output:
+  github_document
 ---
 
 
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, dev='CairoPDF')
+#output: rmarkdown::github_document
+
+knitr::opts_chunk$set(echo = TRUE, dev='cairo_pdf')
+root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 library(knitr)
-  
+library(magrittr)
+
 ```
 
 <!-- ## R Markdown -->
@@ -23,16 +29,17 @@ plot(1)
 ```
 ##Figure Two
 ```{r fig2, out.width = "85%", fig.cap = "caption"}
-include_graphics("tmp.pdf")
+include_graphics(file.path(root,"tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
 ```
-##Figure Three
-```{r fig3, out.width = "85%", fig.cap = "caption"}
-include_graphics("tmp.pdf")
-```
-##Figure Four
-```{r fig4, out.width = "85%", fig.cap = "caption"}
-include_graphics("tmp.pdf")
-```
+
+<!-- ##Figure Three -->
+<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
+<!-- include_graphics(file.path(root,"tmp.pdf")) -->
+<!-- ``` -->
+<!-- ##Figure Four -->
+<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
+<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
+<!-- ``` -->
 
 <!-- ```{r cars} -->
 <!-- summary(cars) -->
