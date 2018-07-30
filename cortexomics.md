@@ -7,7 +7,7 @@ July 30, 2018
 
 <!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
 
-\#Figure
+\#\#Figure
 One
 
 ``` r
@@ -15,7 +15,7 @@ plot(1)
 ```
 
 <img src="cortexomics_files/figure-gfm/fig1-1.svg" title="caption" alt="caption" width="85%" />
-\#Figure
+\#\#Figure
 Two
 
 ``` r
@@ -24,7 +24,7 @@ include_graphics("tmp.pdf")
 
 <embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-\#Figure
+\#\#Figure
 Three
 
 ``` r
@@ -33,7 +33,7 @@ include_graphics("tmp.pdf")
 
 <embed src="tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-\#Figure
+\#\#Figure
 Four
 
 ``` r
