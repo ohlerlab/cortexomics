@@ -11,27 +11,41 @@ output:
 ```{r setup, include=FALSE}
 #output: rmarkdown::github_document
 
-knitr::opts_chunk$set(echo = TRUE, dev='cairo_pdf')
+knitr::opts_chunk$set(echo = TRUE,dev='svg')
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
+root <- '/home/zslastman'
 library(knitr)
 library(magrittr)
 
 ```
+
 
 <!-- ## R Markdown -->
 
 <!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
 
 
-##Figure One
+##Figure One - generate in doc
 ```{r fig1, out.width = "85%", fig.cap = "caption"}
 plot(1)
 ```
-##Figure Two
+##Figure Two - include_graphics svg
 ```{r fig2, out.width = "85%", fig.cap = "caption"}
+include_graphics(file.path(root,"tmp.svg")%T>%{normalizePath(.,must=T)%>%cat})
+
+```
+## include_graphics pdf
+```{r pdf, out.width = "85%", fig.cap = "caption", dev='cairo_pdf'}
 include_graphics(file.path(root,"tmp.pdf")%T>%{normalizePath(.,must=T)%>%cat})
+
 ```
 
+
+##Figure Three - svg display direct in markdown
+![imagename](/home/zslastman/tmp.svg)
+
+##Figure Three - pdf display direct in markdown
+![imagename](/home/zslastman/tmp.pdf)
 <!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
 <!-- include_graphics(file.path(root,"tmp.pdf")) -->
