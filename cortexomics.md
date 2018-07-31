@@ -3,6 +3,7 @@ Cortexomics
 Dermot Harnett
 July 30, 2018
 
+\#first header
 <!-- ## R Markdown -->
 
 <!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
@@ -14,36 +15,23 @@ doc
 plot(1)
 ```
 
-<img src="cortexomics_files/figure-gfm/fig1-1.svg" title="caption" alt="caption" width="85%" />
-\#\#Figure Two - include\_graphics svg
+<img src="cortexomics_files/figure-gfm/fig1-1.png" title="caption" alt="caption" width="85%" />
 
-``` r
-include_graphics("plots/tmp.svg")
-```
-
-<img src="plots/tmp.svg" title="caption" alt="caption" width="85%" />
-\#\# include\_graphics
-pdf
+## include\_graphics pdf
 
 ``` r
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" height="85%" type="application/pdf" />
 
-##Figure Three - svg display direct in markdown
-![imagename](plots/tmp.svg)
-
-##Figure Three - pdf display direct in markdown
-![imagename](plots/tmp.pdf) 
-
-## inline HTML
-
-    
-<embed src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" type="application/pdf"/>
-
-
-
+\#\#Figure Three - pdf display direct in markdown  
+![imagename](/home/zslastman/plots/tmp.pdf) <!-- ##Figure Three -->
+<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
+<!-- include_graphics(file.path(root,"tmp.pdf")) --> <!-- ``` -->
+<!-- ##Figure Four -->
+<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
+<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
 <!-- ``` -->
 
 <!-- ```{r cars} -->
