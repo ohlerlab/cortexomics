@@ -38,6 +38,8 @@ include_graphics("plots/tmp.pdf")
 ![imagename](plots/tmp.pdf) 
 
 <iframe src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" style="width:718px; height:700px;" frameborder="0"></iframe>
+![Intro.pdf](https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf)
+
 
 
 
