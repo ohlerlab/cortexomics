@@ -32,15 +32,17 @@ include_graphics("plots/tmp.pdf")
 <embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
 \#\#Figure Three - svg display direct in markdown
-![imagename](/home/zslastman/tmp.svg)
+![imagename](plots/tmp.svg)
 
 \#\#Figure Three - pdf display direct in markdown
-![imagename](/home/zslastman/tmp.pdf) <!-- ##Figure Three -->
+![imagename](plots/tmp.pdf) 
+    
+<!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path(root,"tmp.pdf")) --> <!-- ``` -->
+<!-- include_graphics(file.path("plots/tmp.pdf")) --> <!-- ``` -->
 <!-- ##Figure Four -->
 <!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
+<!-- include_graphics(file.path("plots/tmp.pdf"), auto_pdf = T) -->
 <!-- ``` -->
 
 <!-- ```{r cars} -->
