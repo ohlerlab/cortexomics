@@ -16,8 +16,6 @@ knitr::opts_chunk$set(
   dev = "svglite",
   fig.ext = ".svg"
 )
-library(svglite)
-svglite('plots/tmp.svg');plot(2);dev.off()
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 root <- 'plots/'
 library(knitr)
@@ -41,7 +39,7 @@ include_graphics("plots/tmp.svg")
 
 ```
 ## include_graphics pdf
-```{r pdf, out.width = "85%", fig.cap = "caption", dev='cairo_pdf'}
+```{r pdf, out.width = "85%",out.height = "85%" fig.cap = "caption", dev='cairo_pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
