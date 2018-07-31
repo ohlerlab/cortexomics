@@ -5,7 +5,7 @@ July 30, 2018
 
 fffff
 
-# include\_graphics pdf na
+# include\_graphics pdf nap
 
 ``` r
 include_graphics("plots/tmp.pdf")
