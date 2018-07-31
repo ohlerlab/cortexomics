@@ -46,10 +46,10 @@ include_graphics("plots/tmp.pdf")
 ```
 
 
-##Figure Three - svg display direct in markdown
+##Figure Three - svg display direct in markdown  
 ![imagename](/home/zslastman/plots/tmp.svg)
 
-##Figure Three - pdf display direct in markdown
+##Figure Three - pdf display direct in markdown  
 ![imagename](/home/zslastman/plots/tmp.pdf)
 <!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
