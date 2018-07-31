@@ -11,11 +11,6 @@ output:
 ```{r setup, include=FALSE}
 #output: rmarkdown::github_document
 
-knitr::opts_chunk$set(
-  echo = TRUE,
-  dev = "svglite",
-  fig.ext = ".svg"
-)
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 root <- 'plots/'
 library(knitr)

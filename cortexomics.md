@@ -16,6 +16,14 @@ plot(1)
 ```
 
 <img src="cortexomics_files/figure-gfm/fig1-1.png" title="caption" alt="caption" width="85%" />
+\#\#Figure Two - include\_graphics
+svg
+
+``` r
+include_graphics("plots/tmp.svg")
+```
+
+<img src="plots/tmp.svg" title="caption" alt="caption" width="85%" />
 
 ## include\_graphics pdf
 
@@ -23,16 +31,22 @@ plot(1)
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="800" height="800" type="application/pdf" />
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-\#\#Figure Three - pdf display direct in markdown  
-![imagename](plots/tmp.pdf){out.width=“100%”, out.height=“100%”}
 <!-- ##Figure Three -->
+
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path(root,"tmp.pdf")) --> <!-- ``` -->
+
+<!-- include_graphics(file.path(root,"tmp.pdf")) -->
+
+<!-- ``` -->
+
 <!-- ##Figure Four -->
+
 <!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
+
 <!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
+
 <!-- ``` -->
 
 <!-- ```{r cars} -->
