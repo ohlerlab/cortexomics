@@ -31,14 +31,14 @@ include_graphics("plots/tmp.pdf")
 
 <embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" type="application/pdf" />
 
-\#\#Figure Three - svg display direct in markdown
+##Figure Three - svg display direct in markdown
 ![imagename](plots/tmp.svg)
 
-\#\#Figure Three - pdf display direct in markdown
+##Figure Three - pdf display direct in markdown
 ![imagename](plots/tmp.pdf) 
 
-<iframe src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" style="width:718px; height:700px;" frameborder="0"></iframe>
-![Intro.pdf](https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf)
+## inline HTML
+<embed src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" width="500" height="375" type='application/pdf'>
 
 
 
