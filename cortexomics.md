@@ -40,7 +40,7 @@ include_graphics("plots/tmp.pdf")
 ## inline HTML
 
     
-<embed src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" type="application/pdf">
+<embed src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" type="application/pdf"/>
 
 
 
