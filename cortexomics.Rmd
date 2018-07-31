@@ -19,16 +19,7 @@ library(magrittr)
 ```
 
 #first header
-<!-- ## R Markdown -->
-
-<!-- This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
-
-
-##Figure One - generate in doc
-```{r fig1, out.width = "85%", fig.cap = "caption", dev='pdf'}
-plot(1)
-```
-
+>
 
 ## include_graphics pdf
 ```{r pdf2, dpi = 800, fig.cap = "caption", dev='pdf'}
