@@ -34,11 +34,21 @@ include_graphics("plots/tmp.svg")
 
 ```
  -->
-## include_graphics pdf
-```{r pdf, out.height = "100%", out.width = "100%", fig.cap = "caption", dev='pdf'}
+<!-- ## include_graphics pdf
+```{r pdf, dpi = 800, out.height = "100%", out.width = "100%", fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
+ -->
+
+## include_graphics pdf
+```{r pdf, dpi = 800, fig.cap = "caption", dev='pdf'}
+include_graphics("plots/tmp.pdf")
+
+```
+
+
+
 <!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
 <!-- include_graphics(file.path(root,"tmp.pdf")) -->
