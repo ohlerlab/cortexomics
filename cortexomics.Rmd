@@ -20,7 +20,7 @@ library(magrittr)
 #first header
 
 ## include_graphics pdf
-```{r pdf2, out.height="600px",out.width="400px" ,fig.cap = "caption", dev='pdf'}
+```{r pdf2, out.height="600px",out.width="500px" ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
