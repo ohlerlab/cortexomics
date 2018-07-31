@@ -10,7 +10,6 @@ output:
 
 ```{r setup, include=FALSE}
 #output: rmarkdown::github_document
-
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 root <- 'plots/'
 library(knitr)
@@ -21,7 +20,7 @@ library(magrittr)
 #first header
 
 ## include_graphics pdf
-```{r pdf2, out.height="800px",out.width="800px" ,fig.cap = "caption", dev='pdf'}
+```{r pdf2, out.height="400px",out.width="400px" ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
