@@ -35,7 +35,7 @@ include_graphics("plots/tmp.svg")
 ```
  -->
 ## include_graphics pdf
-```{r pdf, out.width = "85%", fig.cap = "caption", dev='pdf'}
+```{r pdf, out.height = "100%", out.width = "100%", fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
