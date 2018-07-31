@@ -3,7 +3,8 @@ Cortexomics
 Dermot Harnett
 July 30, 2018
 
-\#first header
+\#first
+header
 
 ## include\_graphics pdf
 
@@ -11,4 +12,4 @@ July 30, 2018
 include_graphics("plots/tmp.pdf")
 ```
 
-![caption](plots/tmp.pdf)
+<embed src="plots/tmp.pdf" title="caption" alt="caption" height="100%" type="application/pdf" />
