@@ -3,7 +3,7 @@ Cortexomics
 Dermot Harnett
 July 30, 2018
 
-\#first header \>
+\#first header
 
 ## include\_graphics pdf
 

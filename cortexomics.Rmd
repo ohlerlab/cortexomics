@@ -19,7 +19,6 @@ library(magrittr)
 ```
 
 #first header
->
 
 ## include_graphics pdf
 ```{r pdf2, dpi = 800, fig.cap = "caption", dev='pdf'}
