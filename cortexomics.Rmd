@@ -2,8 +2,7 @@
 title: "Cortexomics"
 author: "Dermot Harnett"
 date: "July 30, 2018"
-output:
-  github_document
+output: html
 ---
 
 
@@ -17,9 +16,9 @@ library(magrittr)
 
 ```
 
-#first header
 
-## include_graphics pdf
+
+# include_graphics pdf
 ```{r pdf2, out.height="800px",out.width="800px" ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
