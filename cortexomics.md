@@ -26,7 +26,7 @@ include_graphics("plots/tmp.pdf")
 ![caption](plots/tmp.pdf)
 
 \#\#Figure Three - pdf display direct in markdown  
-![imagename](/home/zslastman/plots/tmp.pdf) <!-- ##Figure Three -->
+![imagename](plots/tmp.pdf) <!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
 <!-- include_graphics(file.path(root,"tmp.pdf")) --> <!-- ``` -->
 <!-- ##Figure Four -->
