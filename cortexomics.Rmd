@@ -10,6 +10,12 @@ output:
 
 ```{r setup, include=FALSE}
 #output: rmarkdown::github_document
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  dev = "svglite",
+  fig.ext = ".svg"
+)
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 root <- 'plots/'
 library(knitr)
@@ -27,15 +33,17 @@ library(magrittr)
 ```{r fig1, out.width = "85%", fig.cap = "caption"}
 plot(1)
 ```
-
-## include_graphics pdf
-```{r pdf,fig.cap = "caption", dev='pdf', out.width="800", out.height="800"}
-include_graphics("plots/tmp.pdf")
+##Figure Two - include_graphics svg
+```{r fig2, out.width = "85%", fig.cap = "caption"}
+include_graphics("plots/tmp.svg")
 
 ```
 
-##Figure Three - pdf display direct in markdown  
-![imagename](plots/tmp.pdf){out.width="100%", out.height="100%"}
+## include_graphics pdf
+```{r pdf, out.width = "85%",out.height = "85%" fig.cap = "caption", dev='pdf'}
+include_graphics("plots/tmp.pdf")
+
+```
 <!-- ##Figure Three -->
 <!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
 <!-- include_graphics(file.path(root,"tmp.pdf")) -->
