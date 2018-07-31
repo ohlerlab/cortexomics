@@ -12,4 +12,4 @@ header
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="600px" height="700px" type="application/pdf" />
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="600px" height="800px" type="application/pdf" />
