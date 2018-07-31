@@ -16,16 +16,15 @@ plot(1)
 ```
 
 <img src="cortexomics_files/figure-gfm/fig1-1.png" title="caption" alt="caption" width="85%" />
-\#\#Figure Two - include\_graphics
-svg
+<!-- ##Figure Two - include_graphics svg
 
-``` r
+```r
 include_graphics("plots/tmp.svg")
 ```
 
 <img src="plots/tmp.svg" title="caption" alt="caption" width="85%" />
-
-## include\_graphics pdf
+ --> \#\# include\_graphics
+pdf
 
 ``` r
 include_graphics("plots/tmp.pdf")
