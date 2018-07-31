@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
   dev = "svglite",
   fig.ext = ".svg"
 )
-svglite('plots/tmp.svg');plot(2);dev.off()
+svglite::svglite('plots/tmp.svg');plot(2);dev.off()
 root <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/'
 root <- 'plots/'
 library(knitr)
