@@ -42,7 +42,7 @@ include_graphics("plots/tmp.pdf")
  -->
 
 ## include_graphics pdf
-```{r pdf, dpi = 800, fig.cap = "caption", dev='pdf'}
+```{r pdf2, dpi = 800, fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```

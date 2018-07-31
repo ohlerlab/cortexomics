@@ -23,14 +23,22 @@ include_graphics("plots/tmp.svg")
 ```
 
 <img src="plots/tmp.svg" title="caption" alt="caption" width="85%" />
- --> \#\# include\_graphics
-pdf
+ --> <!-- ## include_graphics pdf
+
+```r
+include_graphics("plots/tmp.pdf")
+```
+
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="100%" height="100%" type="application/pdf" />
+ -->
+
+## include\_graphics pdf
 
 ``` r
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="100%" height="100%" type="application/pdf" />
+![caption](plots/tmp.pdf)
 
 <!-- ##Figure Three -->
 
