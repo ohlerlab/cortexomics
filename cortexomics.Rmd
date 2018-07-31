@@ -25,21 +25,10 @@ library(magrittr)
 
 
 ##Figure One - generate in doc
-```{r fig1, out.width = "85%", fig.cap = "caption"}
+```{r fig1, out.width = "85%", fig.cap = "caption", dev='pdf'}
 plot(1)
 ```
-<!-- ##Figure Two - include_graphics svg
-```{r fig2, out.width = "85%", fig.cap = "caption"}
-include_graphics("plots/tmp.svg")
 
-```
- -->
-<!-- ## include_graphics pdf
-```{r pdf, dpi = 800, out.height = "100%", out.width = "100%", fig.cap = "caption", dev='pdf'}
-include_graphics("plots/tmp.pdf")
-
-```
- -->
 
 ## include_graphics pdf
 ```{r pdf2, dpi = 800, fig.cap = "caption", dev='pdf'}
@@ -47,27 +36,3 @@ include_graphics("plots/tmp.pdf")
 
 ```
 
-
-
-<!-- ##Figure Three -->
-<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path(root,"tmp.pdf")) -->
-<!-- ``` -->
-<!-- ##Figure Four -->
-<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path(root,"tmp.pdf"), auto_pdf = T) -->
-<!-- ``` -->
-
-<!-- ```{r cars} -->
-<!-- summary(cars) -->
-<!-- ``` -->
-
-<!-- ## Including Plots -->
-
-<!-- You can also embed plots, for example: -->
-
-<!-- ```{r pressure, echo=FALSE} -->
-<!-- plot(pressure) -->
-<!-- ``` -->
-
-<!-- Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot. -->
