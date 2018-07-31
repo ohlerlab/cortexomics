@@ -18,6 +18,7 @@ library(magrittr)
 ```
 
 
+fffff
 
 # include_graphics pdf na
 ```{r pdf2 nap, out.width ='800px', out.height ='800px' ,fig.cap = "caption", dev='pdf'}
