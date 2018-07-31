@@ -29,7 +29,7 @@ plot(1)
 ```
 
 ## include_graphics pdf
-```{r pdf, out.width = "85%",out.height = "85%" ,fig.cap = "caption", dev='pdf'}
+```{r pdf,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```

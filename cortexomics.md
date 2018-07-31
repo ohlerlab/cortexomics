@@ -23,7 +23,7 @@ plot(1)
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="85%" height="85%" type="application/pdf" />
+![caption](plots/tmp.pdf)
 
 \#\#Figure Three - pdf display direct in markdown  
 ![imagename](/home/zslastman/plots/tmp.pdf) <!-- ##Figure Three -->
