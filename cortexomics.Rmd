@@ -33,20 +33,12 @@ library(magrittr)
 ```{r fig1, out.width = "85%", fig.cap = "caption"}
 plot(1)
 ```
-##Figure Two - include_graphics svg
-```{r fig2, out.width = "85%", fig.cap = "caption"}
-include_graphics("plots/tmp.svg")
 
-```
 ## include_graphics pdf
 ```{r pdf, out.width = "85%",out.height = "85%" fig.cap = "caption", dev='cairo_pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
-
-
-##Figure Three - svg display direct in markdown 
-![imagename](/home/zslastman/plots/tmp.svg)
 
 ##Figure Three - pdf display direct in markdown  
 ![imagename](/home/zslastman/plots/tmp.pdf)
