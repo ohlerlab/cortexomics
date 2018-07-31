@@ -36,13 +36,12 @@ include_graphics("plots/tmp.pdf")
 
 \#\#Figure Three - pdf display direct in markdown
 ![imagename](plots/tmp.pdf) 
-    
-<!-- ##Figure Three -->
-<!-- ```{r fig3, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path("plots/tmp.pdf")) --> <!-- ``` -->
-<!-- ##Figure Four -->
-<!-- ```{r fig4, out.width = "85%", fig.cap = "caption"} -->
-<!-- include_graphics(file.path("plots/tmp.pdf"), auto_pdf = T) -->
+
+<object data="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf" type="application/pdf" width="700px" height="700px">
+    <embed src="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf">
+            <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/zslastman/cortexomics/blob/master/plots/tmp.pdf">Download PDF</a>.</p>
+    </embed>
+</objec>
 <!-- ``` -->
 
 <!-- ```{r cars} -->
