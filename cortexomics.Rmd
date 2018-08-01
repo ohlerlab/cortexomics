@@ -34,7 +34,7 @@ Clustering
 
 
 ### Figure 1 - Data Quality, 
-```{r pdf2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
 Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
@@ -44,7 +44,7 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 
 
 ### Figure 2 Riboseq
-```{r pdf2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
@@ -56,7 +56,7 @@ Basic discussion of Riboseq
 
 
 ### Figure 3 Mass Spec Integration
-```{r pdf2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
@@ -65,7 +65,7 @@ include_graphics("plots/tmp.pdf")
  -  
 
 ### Figure 4 - clustering/sequence analysis
-```{r pdf2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")```
 
 - possible clustering methods
