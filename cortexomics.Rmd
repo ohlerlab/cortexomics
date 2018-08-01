@@ -31,10 +31,10 @@ Sys.time()
 
 
 ## results
-Clustering
 
 
-##  Figure 1 - Data Quality, 
+
+###  Figure 1 - Data Quality, 
 ```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
@@ -42,10 +42,10 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 - Number, size, mapped reads, correlation between replicates
 - Enzymes used, for RIboseq, rationale
 - Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
+- 
 
-
-## Figure 2 Riboseq
-```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+### Figure 2 Riboseq
+```{r f2 nap, out.width ='100%', out.height ='100%' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
@@ -56,7 +56,7 @@ Basic discussion of Riboseq
 - Translational Regulation Tests - Ribodiff
 
 
-## Figure 3 Mass Spec Integration
+### Figure 3 Mass Spec Integration
 ```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
@@ -65,14 +65,14 @@ include_graphics("plots/tmp.pdf")
  - calculation of degredation rates?
  -  
 
-## Figure 4 - clustering/sequence analysis
+### Figure 4 - clustering/sequence analysis
 ```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
 
 - possible clustering methods
 	- timeless
-	- 
+	- self organizing maps
 
 - Sequence analysis
 

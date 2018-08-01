@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 11:58:20 CEST"
+    ## [1] "2018-08-01 11:58:51 CEST"
 
 ## Intro
 
@@ -31,9 +31,7 @@ levels
 
 ## results
 
-Clustering
-
-## Figure 1 - Data Quality,
+### Figure 1 - Data Quality,
 
 ``` r
 include_graphics("plots/tmp.pdf")
@@ -44,23 +42,23 @@ include_graphics("plots/tmp.pdf")
 Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations. -
 Number, size, mapped reads, correlation between replicates - Enzymes
 used, for RIboseq, rationale - Likely effects this has on the data -
-e.g. cyclohexamine (see sup figure for sequence
-preference)
+e.g. cyclohexamine (see sup figure for sequence preference)
+-
 
-## Figure 2 Riboseq
+### Figure 2 Riboseq
 
 ``` r
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="100%" height="100%" type="application/pdf" />
 
 Basic discussion of Riboseq - Periodicity in our Riboseq - Number of
 ORFs recovered - New ORFS recoovered - e.g. - Translational Regulation
 Tests -
 Ribodiff
 
-## Figure 3 Mass Spec Integration
+### Figure 3 Mass Spec Integration
 
 ``` r
 include_graphics("plots/tmp.pdf")
@@ -75,7 +73,7 @@ include_graphics("plots/tmp.pdf")
 rates?
 
   - 
-## Figure 4 - clustering/sequence analysis
+### Figure 4 - clustering/sequence analysis
 
 ``` r
 include_graphics("plots/tmp.pdf")
@@ -85,8 +83,7 @@ include_graphics("plots/tmp.pdf")
 
   - possible clustering methods
       - timeless
-    
-      - 
+      - self organizing maps
   - Sequence analysis
 
 ## Discussion
