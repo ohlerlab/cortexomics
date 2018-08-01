@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 12:08:21 CEST"
+    ## [1] "2018-08-01 12:08:47 CEST"
 
 ## Intro
 
@@ -42,8 +42,8 @@ include_graphics("plots/tmp.pdf")
 Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations. -
 Number, size, mapped reads, correlation between replicates - Enzymes
 used, for RIboseq, rationale - Likely effects this has on the data -
-e.g. cyclohexamine (see sup figure for sequence preference)
--
+e.g. cyclohexamine (see sup figure for sequence
+preference)
 
 ### Figure 2 Riboseq
 
