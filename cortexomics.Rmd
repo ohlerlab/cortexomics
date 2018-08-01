@@ -15,7 +15,7 @@ library(knitr)
 
 
 
-# Intro
+## Intro
 - Importance of understanding gene regulation
 - Importance of understanding gene regulation at multiple levels
 - Specific importance to the brain

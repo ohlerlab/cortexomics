@@ -3,7 +3,7 @@ Cortexomics
 Dermot Harnett
 01 August, 2018
 
-# Intro
+## Intro
 
   - Importance of understanding gene regulation
 
