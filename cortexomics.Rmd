@@ -66,7 +66,8 @@ include_graphics("plots/tmp.pdf")
 
 ### Figure 4 - clustering/sequence analysis
 ```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
-include_graphics("plots/tmp.pdf")```
+include_graphics("plots/tmp.pdf")
+```
 
 - possible clustering methods
 	- timeless
