@@ -1,9 +1,10 @@
 ---
 title: "Cortexomics"
 author: "Dermot Harnett"
-date: "July 30, 2018"
+date: `r format(Sys.time(), "%d %B, %Y")`
 output:
   github_document
+
 ---
 
 
