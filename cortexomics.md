@@ -1,7 +1,6 @@
 Cortexomics
 ================
 Dermot Harnett
-01 August, 2018
 
 ## Intro
 

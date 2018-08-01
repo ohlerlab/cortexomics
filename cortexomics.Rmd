@@ -1,7 +1,6 @@
 ---
 title: "Cortexomics"
 author: "Dermot Harnett"
-date: `r format(Sys.time(), '%d %B, %Y')`
 output: github_document
 ---
 
@@ -12,7 +11,7 @@ output: github_document
 library(knitr)
 ```
 
-```{r setup, include=FALSE}
+```{r timestamp, include=FALSE}
 Sys.time()
 ```
 
