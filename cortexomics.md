@@ -2,6 +2,12 @@ Cortexomics
 ================
 Dermot Harnett
 
+``` r
+Sys.time()
+```
+
+    ## [1] "2018-08-01 11:43:29 CEST"
+
 ## Intro
 
   - Importance of understanding gene regulation

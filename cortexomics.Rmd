@@ -11,7 +11,7 @@ output: github_document
 library(knitr)
 ```
 
-```{r timestamp, include=FALSE}
+```{r timestamp, echo = TRUE}
 Sys.time()
 ```
 
