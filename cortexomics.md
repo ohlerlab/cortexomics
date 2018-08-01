@@ -3,16 +3,29 @@ Cortexomics
 Dermot Harnett
 01 August, 2018
 
-\#Intro - Importance of understanding gene regulation - Importance of
-understanding gene regulation at multiple levels - Specific importance
-to the brain - complexity of translational regulation in the brain -
-importance of complexes - Distinction between intra and inter gene
-variation, discussion of it’s importance - Lack of studies in living
-tissue that examine Gene expression at multiple levels -
+# Intro
 
-\#\#Refs to include
+  - Importance of understanding gene regulation
 
-\#\#results
+  - Importance of understanding gene regulation at multiple levels
+
+  - Specific importance to the brain
+    
+      - complexity of translational regulation in the brain
+      - importance of complexes
+
+  - Distinction between intra and inter gene variation, discussion of
+    it’s importance
+
+  - Lack of studies in living tissue that examine Gene expression at
+    multiple
+levels
+
+  - 
+## Refs to include
+
+## results
+
 Clustering
 
 ## Figure 1 - Data Quality,
@@ -71,23 +84,33 @@ include_graphics("plots/tmp.pdf")
       - 
   - Sequence analysis
 
-\#\#Discussion Resource for study of cortical development For comparison
-to single cell data
+## Discussion
+
+Resource for study of cortical development For comparison to single cell
+data
 
 ## Supplementary Figures
 
-\#\#Supp Figure 1
+## Supp Figure 1
 
-\#\#Supp Figure 2 - Correlation between Riboseq Replicates - Sequence
-biases in the Riboseq replicates - Attemps to compensate? ‘We leveraged
-replicate measurements to assess data quality and its dependence on
-several parameters, including alignment strategy, mRNA enrichment
-method, PCR artifacts, gene length normalization, and batch effects
-(Supplemental Fig. S2A–E; Supplemental Methods).’’ -
+## Supp Figure 2
 
-\#\#Supp Figure 3
+  - Correlation between Riboseq Replicates
 
-\#\#References Javonavic et al 2015
+  - Sequence biases in the Riboseq replicates
+
+  - Attemps to compensate? ‘We leveraged replicate measurements to
+    assess data quality and its dependence on several parameters,
+    including alignment strategy, mRNA enrichment method, PCR artifacts,
+    gene length normalization, and batch effects (Supplemental Fig.
+    S2A–E; Supplemental Methods).’’
+
+  - 
+## Supp Figure 3
+
+## References
+
+Javonavic et al 2015
 <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4506746/>
 
 Cenik et al 2015 <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4617958/>
@@ -103,4 +126,4 @@ note they measure enrichment of reads in coding sequences.
 
 Zahr et al 2018 <https://www.ncbi.nlm.nih.gov/pubmed/29395907>
 
-\#\#Methods
+## Methods
