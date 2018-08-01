@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 12:08:47 CEST"
+    ## [1] "2018-08-01 12:09:18 CEST"
 
 ## Intro
 
@@ -23,8 +23,7 @@ Sys.time()
     it’s importance
 
   - Lack of studies in living tissue that examine Gene expression at
-    multiple
-levels
+    multiple levels
 
   - 
 ## Refs to include
@@ -33,17 +32,17 @@ levels
 
 ### Figure 1 - Data Quality
 
-``` r
-include_graphics("plots/tmp.pdf")
-```
-
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
-
 Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations. -
 Number, size, mapped reads, correlation between replicates - Enzymes
 used, for RIboseq, rationale - Likely effects this has on the data -
 e.g. cyclohexamine (see sup figure for sequence
 preference)
+
+``` r
+include_graphics("plots/tmp.pdf")
+```
+
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
 
 ### Figure 2 Riboseq
 

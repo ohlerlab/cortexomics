@@ -35,15 +35,15 @@ Sys.time()
 
 
 ###  Figure 1 - Data Quality
+Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
+- Number, size, mapped reads, correlation between replicates
+- Enzymes used, for RIboseq, rationale
+- Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
 
 ```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
 
-Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
-- Number, size, mapped reads, correlation between replicates
-- Enzymes used, for RIboseq, rationale
-- Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
 
 ### Figure 2 Riboseq
 
