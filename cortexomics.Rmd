@@ -15,7 +15,7 @@ library(knitr)
 
 
 
-##Intro
+#Intro
 - Importance of understanding gene regulation
 - Importance of understanding gene regulation at multiple levels
 - Specific importance to the brain
@@ -26,14 +26,14 @@ library(knitr)
 -  
 
 
-###Refs to include
+##Refs to include
 
 
 ##results
 Clustering
 
 
-### Figure 1 - Data Quality, 
+## Figure 1 - Data Quality, 
 ```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
@@ -43,7 +43,7 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 - Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
 
 
-### Figure 2 Riboseq
+## Figure 2 Riboseq
 ```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
@@ -55,7 +55,7 @@ Basic discussion of Riboseq
 - Translational Regulation Tests - Ribodiff
 
 
-### Figure 3 Mass Spec Integration
+## Figure 3 Mass Spec Integration
 ```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
@@ -64,7 +64,7 @@ include_graphics("plots/tmp.pdf")
  - calculation of degredation rates?
  -  
 
-### Figure 4 - clustering/sequence analysis
+## Figure 4 - clustering/sequence analysis
 ```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```
@@ -83,18 +83,18 @@ For comparison to single cell data
 
 ## Supplementary Figures
 
-###Supp Figure 1
+##Supp Figure 1
 
-###Supp Figure 2
+##Supp Figure 2
 - Correlation between Riboseq Replicates
 - Sequence biases in the Riboseq replicates
 - Attemps to compensate?
 'We leveraged replicate measurements to assess data quality and its dependence on several parameters, including alignment strategy, mRNA enrichment method, PCR artifacts, gene length normalization, and batch effects (Supplemental Fig. S2A–E; Supplemental Methods).''
 - 
 
-###Supp Figure 3
+##Supp Figure 3
 
-###References
+##References
 Javonavic et al 2015
 https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4506746/
 
@@ -117,5 +117,5 @@ https://www.ncbi.nlm.nih.gov/pubmed/29395907
 
 
 
-###Methods
+##Methods
 
