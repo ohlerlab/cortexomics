@@ -35,6 +35,7 @@ Sys.time()
 
 
 ###  Figure 1 - Data Quality, 
+
 ```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 ```

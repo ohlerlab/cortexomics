@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 12:02:59 CEST"
+    ## [1] "2018-08-01 12:05:51 CEST"
 
 ## Intro
 
