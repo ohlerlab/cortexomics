@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 12:05:51 CEST"
+    ## [1] "2018-08-01 12:08:21 CEST"
 
 ## Intro
 
@@ -31,7 +31,7 @@ levels
 
 ## results
 
-### Figure 1 - Data Quality,
+### Figure 1 - Data Quality
 
 ``` r
 include_graphics("plots/tmp.pdf")
