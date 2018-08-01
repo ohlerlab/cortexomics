@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 11:58:51 CEST"
+    ## [1] "2018-08-01 12:02:19 CEST"
 
 ## Intro
 
@@ -51,7 +51,7 @@ e.g. cyclohexamine (see sup figure for sequence preference)
 include_graphics("plots/tmp.pdf")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="100%" height="100%" type="application/pdf" />
+<embed src="plots/tmp.pdf" title="caption" alt="caption" width="100" height="100%" type="application/pdf" />
 
 Basic discussion of Riboseq - Periodicity in our Riboseq - Number of
 ORFs recovered - New ORFS recoovered - e.g. - Translational Regulation

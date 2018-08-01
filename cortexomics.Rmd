@@ -45,7 +45,7 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 - 
 
 ### Figure 2 Riboseq
-```{r f2 nap, out.width ='100%', out.height ='100%' ,fig.cap = "caption", dev='pdf'}
+```{r f2 nap, out.width ='100', out.height ='100%' ,fig.cap = "caption", dev='pdf'}
 include_graphics("plots/tmp.pdf")
 
 ```
