@@ -5,13 +5,9 @@
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   viewBox="0 0 720.00 576.00"
-   id="svg2"
    version="1.1"
-   inkscape:version="0.91 r13725"
-   sodipodi:docname="tmp2edited.svg">
+   id="svg2"
+   viewBox="0 0 720.00 576.00">
   <metadata
      id="metadata114">
     <rdf:RDF>
@@ -24,31 +20,11 @@
       </cc:Work>
     </rdf:RDF>
   </metadata>
-  <sodipodi:namedview
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1"
-     objecttolerance="10"
-     gridtolerance="10"
-     guidetolerance="10"
-     inkscape:pageopacity="0"
-     inkscape:pageshadow="2"
-     inkscape:window-width="2560"
-     inkscape:window-height="1364"
-     id="namedview112"
-     showgrid="false"
-     inkscape:zoom="2.3177389"
-     inkscape:cx="323.66922"
-     inkscape:cy="235.46755"
-     inkscape:window-x="0"
-     inkscape:window-y="24"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="svg2" />
   <defs
      id="defs4">
     <style
-       type="text/css"
-       id="style6">
+       id="style6"
+       type="text/css">
     line, polyline, path, rect, circle {
       fill: none;
       stroke: #000000;
@@ -59,340 +35,340 @@
   </style>
   </defs>
   <rect
-     width="100%"
-     height="100%"
+     id="rect8"
      style="stroke: none; fill: #FFFFFF;"
-     id="rect8" />
+     height="100%"
+     width="100%" />
   <defs
      id="defs10">
     <clipPath
        id="cpNTkuMDR8Njg5Ljc2fDUwMi41Nnw1OS4wNA==">
       <rect
-         x="59.04"
-         y="59.04"
-         width="630.72"
+         id="rect13"
          height="443.52"
-         id="rect13" />
+         width="630.72"
+         y="59.04"
+         x="59.04" />
     </clipPath>
   </defs>
   <circle
-     cx="374.40"
-     cy="280.80"
-     r="2.70pt"
-     style="stroke-width: 0.75;"
+     id="circle15"
      clip-path="url(#cpNTkuMDR8Njg5Ljc2fDUwMi41Nnw1OS4wNA==)"
-     id="circle15" />
+     style="stroke-width: 0.75;"
+     r="2.70pt"
+     cy="280.80"
+     cx="374.40" />
   <defs
      id="defs17">
     <clipPath
        id="cpMHw3MjB8NTc2fDA=">
       <rect
-         x="0.00"
-         y="0.00"
-         width="720.00"
+         id="rect20"
          height="576.00"
-         id="rect20" />
+         width="720.00"
+         y="0.00"
+         x="0.00" />
     </clipPath>
   </defs>
   <line
-     x1="82.40"
-     y1="502.56"
-     x2="666.40"
+     id="line22"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="502.56"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line22" />
-  <line
-     x1="82.40"
-     y1="502.56"
-     x2="82.40"
-     y2="509.76"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line24" />
-  <line
-     x1="228.40"
-     y1="502.56"
-     x2="228.40"
-     y2="509.76"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line26" />
-  <line
-     x1="374.40"
-     y1="502.56"
-     x2="374.40"
-     y2="509.76"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line28" />
-  <line
-     x1="520.40"
-     y1="502.56"
-     x2="520.40"
-     y2="509.76"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line30" />
-  <line
-     x1="666.40"
-     y1="502.56"
      x2="666.40"
+     y1="502.56"
+     x1="82.40" />
+  <line
+     id="line24"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="509.76"
+     x2="82.40"
+     y1="502.56"
+     x1="82.40" />
+  <line
+     id="line26"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
      style="stroke-width: 0.75;"
+     y2="509.76"
+     x2="228.40"
+     y1="502.56"
+     x1="228.40" />
+  <line
+     id="line28"
      clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line32" />
+     style="stroke-width: 0.75;"
+     y2="509.76"
+     x2="374.40"
+     y1="502.56"
+     x1="374.40" />
+  <line
+     id="line30"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
+     y2="509.76"
+     x2="520.40"
+     y1="502.56"
+     x1="520.40" />
+  <line
+     id="line32"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
+     y2="509.76"
+     x2="666.40"
+     y1="502.56"
+     x1="666.40" />
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g34">
+     id="g34"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="72.86"
-       y="528.48"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text36"
        lengthAdjust="spacingAndGlyphs"
-       id="text36">0.6</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       y="528.48"
+       x="72.86">0.6</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g38">
+     id="g38"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="218.86"
-       y="528.48"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text40"
        lengthAdjust="spacingAndGlyphs"
-       id="text40">0.8</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       y="528.48"
+       x="218.86">0.8</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g42">
+     id="g42"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="364.86"
-       y="528.48"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text44"
        lengthAdjust="spacingAndGlyphs"
-       id="text44">1.0</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       y="528.48"
+       x="364.86">1.0</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g46">
+     id="g46"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="510.86"
-       y="528.48"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text48"
        lengthAdjust="spacingAndGlyphs"
-       id="text48">1.2</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       y="528.48"
+       x="510.86">1.2</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g50">
+     id="g50"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="656.86"
-       y="528.48"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text52"
        lengthAdjust="spacingAndGlyphs"
-       id="text52">1.4</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       y="528.48"
+       x="656.86">1.4</text>
   </g>
   <line
-     x1="59.04"
-     y1="473.30"
+     id="line54"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
+     y2="88.30"
      x2="59.04"
-     y2="88.30"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line54" />
-  <line
-     x1="59.04"
      y1="473.30"
-     x2="51.84"
+     x1="59.04" />
+  <line
+     id="line56"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="473.30"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line56" />
-  <line
-     x1="59.04"
-     y1="409.13"
      x2="51.84"
+     y1="473.30"
+     x1="59.04" />
+  <line
+     id="line58"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="409.13"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line58" />
-  <line
-     x1="59.04"
-     y1="344.97"
      x2="51.84"
+     y1="409.13"
+     x1="59.04" />
+  <line
+     id="line60"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="344.97"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line60" />
-  <line
-     x1="59.04"
-     y1="280.80"
      x2="51.84"
+     y1="344.97"
+     x1="59.04" />
+  <line
+     id="line62"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="280.80"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line62" />
-  <line
-     x1="59.04"
-     y1="216.63"
      x2="51.84"
+     y1="280.80"
+     x1="59.04" />
+  <line
+     id="line64"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="216.63"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line64" />
-  <line
-     x1="59.04"
-     y1="152.47"
      x2="51.84"
+     y1="216.63"
+     x1="59.04" />
+  <line
+     id="line66"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
+     style="stroke-width: 0.75;"
      y2="152.47"
-     style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line66" />
-  <line
-     x1="59.04"
-     y1="88.30"
      x2="51.84"
-     y2="88.30"
+     y1="152.47"
+     x1="59.04" />
+  <line
+     id="line68"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
      style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="line68" />
+     y2="88.30"
+     x2="51.84"
+     y1="88.30"
+     x1="59.04" />
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g70">
+     id="g70"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,482.84) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text72"
        lengthAdjust="spacingAndGlyphs"
-       id="text72">2.5</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,482.84) rotate(-90)">2.5</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g74">
+     id="g74"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,418.68) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text76"
        lengthAdjust="spacingAndGlyphs"
-       id="text76">3.0</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,418.68) rotate(-90)">3.0</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g78">
+     id="g78"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,354.51) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text80"
        lengthAdjust="spacingAndGlyphs"
-       id="text80">3.5</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,354.51) rotate(-90)">3.5</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g82">
+     id="g82"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,290.34) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text84"
        lengthAdjust="spacingAndGlyphs"
-       id="text84">4.0</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,290.34) rotate(-90)">4.0</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g86">
+     id="g86"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,226.18) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text88"
        lengthAdjust="spacingAndGlyphs"
-       id="text88">4.5</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,226.18) rotate(-90)">4.5</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g90">
+     id="g90"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,162.01) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text92"
        lengthAdjust="spacingAndGlyphs"
-       id="text92">5.0</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,162.01) rotate(-90)">5.0</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g94">
+     id="g94"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(41.76,97.84) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="19.08px"
+       id="text96"
        lengthAdjust="spacingAndGlyphs"
-       id="text96">5.5</text>
+       textLength="19.08px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(41.76,97.84) rotate(-90)">5.5</text>
   </g>
   <polyline
-     points="59.04,502.56 689.76,502.56 689.76,59.04 59.04,59.04 59.04,502.56 "
+     id="polyline98"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
      style="stroke-width: 0.75;"
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="polyline98" />
+     points="59.04,502.56 689.76,502.56 689.76,59.04 59.04,59.04 59.04,502.56 " />
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g100">
+     id="g100"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="369.39"
-       y="34.77"
-       style="font-size: 14.40px; font-weight: bold; font-family: DejaVu Sans;"
-       textLength="10.02px"
+       id="text102"
        lengthAdjust="spacingAndGlyphs"
-       id="text102">4</text>
+       textLength="10.02px"
+       style="font-size: 14.40px; font-weight: bold; font-family: DejaVu Sans;"
+       y="34.77"
+       x="369.39">4</text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g104">
+     id="g104"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       x="357.78"
-       y="557.28003"
-       style="font-size:12px;font-family:'DejaVu Sans'"
-       textLength="33.25px"
+       id="text106"
        lengthAdjust="spacingAndGlyphs"
-       id="text106">
+       textLength="33.25px"
+       style="font-size:12px;font-family:'DejaVu Sans'"
+       y="557.28003"
+       x="357.78">
       <tspan
-         style="font-size:15px"
-         id="tspan3450">ThisTexthasbeeneditedt</tspan>
+         id="tspan3450"
+         style="font-size:15px">ThisTexthasbeeneditedt</tspan>
     </text>
   </g>
   <g
-     clip-path="url(#cpMHw3MjB8NTc2fDA=)"
-     id="g108">
+     id="g108"
+     clip-path="url(#cpMHw3MjB8NTc2fDA=)">
     <text
-       transform="translate(12.96,284.62) rotate(-90)"
-       style="font-size: 12.00px; font-family: DejaVu Sans;"
-       textLength="7.63px"
+       id="text110"
        lengthAdjust="spacingAndGlyphs"
-       id="text110">4</text>
+       textLength="7.63px"
+       style="font-size: 12.00px; font-family: DejaVu Sans;"
+       transform="translate(12.96,284.62) rotate(-90)">4</text>
   </g>
   <flowRoot
-     xml:space="preserve"
+     style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="flowRoot3442"
-     style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"><flowRegion
+     xml:space="preserve"><flowRegion
        id="flowRegion3444"><rect
-         id="rect3446"
-         width="431.88644"
-         height="125.12195"
-         x="182.50546"
+         style="fill:none;stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10"
          y="113.91171"
-         style="fill:none;stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" /></flowRegion><flowPara
+         x="182.50546"
+         height="125.12195"
+         width="431.88644"
+         id="rect3446" /></flowRegion><flowPara
        id="flowPara3448">This is edited text</flowPara></flowRoot>  <flowRoot
-     xml:space="preserve"
+     style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
      id="flowRoot3471"
-     style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"><flowRegion
+     xml:space="preserve"><flowRegion
        id="flowRegion3473"><rect
-         id="rect3475"
-         width="493.15305"
-         height="135.90833"
-         x="145.83179"
+         style="fill:none;stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10"
          y="314.53827"
-         style="fill:none;stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10" /></flowRegion><flowPara
-       id="flowPara3477"
-       style="font-size:50px">This is bigger edited txt</flowPara></flowRoot></svg>
+         x="145.83179"
+         height="135.90833"
+         width="493.15305"
+         id="rect3475" /></flowRegion><flowPara
+       style="font-size:50px"
+       id="flowPara3477">This is bigger edited txt</flowPara></flowRoot></svg>
