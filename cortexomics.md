@@ -41,7 +41,7 @@ e.g. cyclohexamine (see sup figure for sequence
 preference)
 
 ``` r
-include_graphics("plots/tmp.pdf")
+include_graphics("plots/tmpedited.svg")
 ```
 
 <embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
@@ -49,7 +49,7 @@ include_graphics("plots/tmp.pdf")
 ### Figure 2 Riboseq
 
 ``` r
-include_graphics("plots/tmp.pdf")
+include_graphics("plots/tmpedited.svg")
 ```
 
 <embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
