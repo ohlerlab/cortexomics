@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-01 12:09:18 CEST"
+    ## [1] "2018-08-02 13:21:42 CEST"
 
 ## Intro
 
@@ -26,7 +26,7 @@ Sys.time()
     multiple levels
 
   - 
-## Refs to include
+### Refs to include
 
 ## results
 
@@ -57,28 +57,28 @@ ORFs recovered - New ORFS recoovered - e.g. - Translational Regulation
 Tests -
 Ribodiff
 
-### Figure 3 Mass Spec Integration
+### Figure 3 Mass Spec Integration (SVG file)
 
 ``` r
-include_graphics("plots/tmp.pdf")
+include_graphics("plots/tmp.svg")
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
+<img src="plots/tmp.svg" title="caption" alt="caption" width="900px" height="900px" />
+- Observation that many genes don’t have perceptible reaction to
+changing riboseq levels - calculation of degredation rates?
+-
 
-  - Observation that many genes don’t have perceptible reaction to
-    changing riboseq levels
-
-  - calculation of degredation
-rates?
-
-  - 
-### Figure 4 - clustering/sequence analysis
+### Figure 4 - clustering/sequence analysis (svg directly made)
 
 ``` r
-include_graphics("plots/tmp.pdf")
+plot(3)
 ```
 
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
+<img src="cortexomics_files/figure-gfm/f4-1.svg" title="caption" alt="caption" width="900px" height="900px" />
+
+``` r
+# include_graphics("plots/tmp.svg")
+```
 
   - possible clustering methods
       - timeless

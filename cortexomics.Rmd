@@ -27,7 +27,7 @@ Sys.time()
 -  
 
 
-## Refs to include
+### Refs to include
 
 
 ## results
@@ -40,14 +40,14 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 - Enzymes used, for RIboseq, rationale
 - Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
 
-```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
 include_graphics("plots/tmp.pdf")
 ```
 
 
 ### Figure 2 Riboseq
 
-```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
+```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
 include_graphics("plots/tmp.pdf")
 
 ```
@@ -59,18 +59,19 @@ Basic discussion of Riboseq
 - Translational Regulation Tests - Ribodiff
 
 
-### Figure 3 Mass Spec Integration
-```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
-include_graphics("plots/tmp.pdf")
+### Figure 3 Mass Spec Integration (SVG file)
+```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
+include_graphics("plots/tmp.svg")
 
 ```
  - Observation that many genes don't have perceptible reaction to changing riboseq levels
  - calculation of degredation rates?
  -  
 
-### Figure 4 - clustering/sequence analysis
-```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='pdf'}
-include_graphics("plots/tmp.pdf")
+### Figure 4 - clustering/sequence analysis (svg directly made)
+```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
+plot(3)
+# include_graphics("plots/tmp.svg")
 ```
 
 - possible clustering methods
