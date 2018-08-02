@@ -6,9 +6,11 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-08-02 13:22:03 CEST"
+    ## [1] "2018-08-02 13:28:46 CEST"
 
 ## Intro
+
+This is a test edit in the browser
 
   - Importance of understanding gene regulation
 
