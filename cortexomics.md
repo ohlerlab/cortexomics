@@ -38,21 +38,13 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations. -
 Number, size, mapped reads, correlation between replicates - Enzymes
 used, for RIboseq, rationale - Likely effects this has on the data -
 e.g. cyclohexamine (see sup figure for sequence
-preference)
+preferenc
 
-``` r
-include_graphics("plots/tmp.pdf")
-```
-
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
+<img src="plots/tmp.svg" title="caption" alt="caption" width="900px" height="900px" />
 
 ### Figure 2 Riboseq
 
-``` r
-include_graphics("plots/tmp.pdf")
-```
-
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
+<img src="plots/tmp2edited.svg" title="caption" alt="caption" width="900px" height="900px" />
 
 Basic discussion of Riboseq - Periodicity in our Riboseq - Number of
 ORFs recovered - New ORFS recoovered - e.g. - Translational Regulation
@@ -61,11 +53,8 @@ Ribodiff
 
 ### Figure 3 Mass Spec Integration (SVG file)
 
-``` r
-include_graphics("plots/tmp.svg")
-```
-
 <img src="plots/tmp.svg" title="caption" alt="caption" width="900px" height="900px" />
+
 - Observation that many genes don’t have perceptible reaction to
 changing riboseq levels - calculation of degredation rates?
 -
@@ -78,9 +67,6 @@ plot(3)
 
 <img src="cortexomics_files/figure-gfm/f4-1.svg" title="caption" alt="caption" width="900px" height="900px" />
 
-``` r
-# include_graphics("plots/tmp.svg")
-```
 
   - possible clustering methods
       - timeless
