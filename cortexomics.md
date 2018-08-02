@@ -68,9 +68,6 @@ plot(3)
 
 <img src="cortexomics_files/figure-gfm/f4-1.svg" title="caption" alt="caption" width="900px" height="900px" />
 
-``` r
-# include_graphics("plots/tmp.svg")
-```
 
   - possible clustering methods
       - timeless
