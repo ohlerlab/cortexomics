@@ -67,7 +67,7 @@ startcodons<-matchPattern(reverseComplement(DNAString('ATG')),Mmusculus[[gchr%>%
   {strand(.)='+';.}%>%
   sort
 
-codtrack =     Gviz::AnnotationTrack(startcodons,feature='start_codon',chr=vtr$transcript_id,shape='box')
+codtrack = Gviz::AnnotationTrack(startcodons,feature='start_codon',chr=vtr$transcript_id,shape='box')
 
 exontrack =
   annotation%>%

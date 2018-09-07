@@ -29,7 +29,7 @@ This is a test edit in the browser
 
 ## results
 
-### Figure 1 - Data Quality
+### Figure 1 - Data Quality (directly generate plot)
 
 Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations. -
 Number, size, mapped reads, correlation between replicates - Enzymes
@@ -38,19 +38,14 @@ e.g. cyclohexamine (see sup figure for sequence
 preference)
 
 ``` r
-include_graphics("plots/tmp.pdf")
+include_graphics("plots/tmp.svg")
 ```
-
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
 
 ### Figure 2 Riboseq
 
 ``` r
-include_graphics("plots/tmp.pdf")
+include_graphics("plots/tmp2edited.svg")
 ```
-
-<embed src="plots/tmp.pdf" title="caption" alt="caption" width="900px" height="900px" type="application/pdf" />
-
 Basic discussion of Riboseq - Periodicity in our Riboseq - Number of
 ORFs recovered - New ORFS recoovered - e.g. - Translational Regulation
 Tests -
@@ -62,17 +57,14 @@ Ribodiff
 include_graphics("plots/tmp.svg")
 ```
 
-<img src="plots/tmp.svg" title="caption" alt="caption" width="900px" height="900px" />
 - Observation that many genes don’t have perceptible reaction to
 changing riboseq levels - calculation of degredation rates?
 -
 
 ### Figure 4 - clustering/sequence analysis (svg directly made)
 
-<img src="cortexomics_files/figure-gfm/f4-1.svg" title="caption" alt="caption" width="900px" height="900px" />
-
 ``` r
-# include_graphics("plots/tmp.svg")
+include_graphics("plots/tmp.svg")
 ```
 
   - possible clustering methods

@@ -8,24 +8,26 @@ suppressMessages(library(assertthat))
 suppressMessages(library(limma))
 suppressMessages(library(DESeq2))
 message('...done')
+filter<-dplyr::filter
+select<-dplyr::select
+slice<-dplyr::slice
 
 LOWCOUNTLIM <- 10
 
-defaultargs <- c(
+lsf.str(dplyr)
+as.character(lsf.str('package:dplyr')[i])
+
+
+args <- c(
 	countfile='feature_counts/all_feature_counts',
 	msfile=file.path('ms_tables/ms_LFQ_total_ms_tall.tsv'),
 	transformdexprfile=file.path('exprdata/transformed_data.txt'),
   transformd_scale_cent_exprfile=file.path('exprdata/cent_scaled_exprdata.txt'),
-  designmatrixfile=file.path('exprdata/designmatrix.txt')
+  designmatrixfile=file.path('exprdata/designmatrix.txt'),
+  normcountstable='exprdata/allcounts_snorm.tsv'
 )
-
-
-args <- coalesce(
-	commandArgs(trailingOnly=TRUE)[1:length(defaultargs)]%>%setNames(names(defaultargs)),
-	defaultargs
-)
+args <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
 for(i in names(args)) assign(i,args[i])
-
 
 # message(str_interp('filtered out ${length(nonmeasured_pids)} protein groups\
 #  that were unique to the total MS data, e.g.\n ${sample(specungenes,10)}'))
@@ -36,7 +38,7 @@ countstable <- data.table::fread(countfile)
 ids <- fread('ids.txt')%>%set_colnames(c('feature_id','gene_name'))%>%distinct
 countstable <- left_join(countstable,ids)
 multidgenes <- countstable$gene_name%>%table%>%keep(~ . > 1)
-countstable <- filter(countstable,!gene_name %in% multidgenes) 
+countstable <- dplyr::filter(countstable,!gene_name %in% multidgenes) 
 countstable %<>% select(gene_name,everything())
 
     
@@ -54,6 +56,9 @@ countsmatrix <- countsmatrix[!lowmediancounts,]
 #and then transform the counts
 countsmatrix<-DESeq2::vst(countsmatrix)
 
+countsmatrix_snorm <- countsmatrix %>% {sweep(.,2,STATS = DESeq2::estimateSizeFactorsForMatrix(.),FUN='/')}
+
+countsmatrix_snorm %>%{cbind(gene_name=rownames(.),as_data_frame(.))} %>% write_tsv(normcountstable)
 
 mstable=data.table::fread(msfile)
 #some formatting differences
@@ -121,7 +126,7 @@ exprmatrix <- inner_join(
 
 #normalize the various 'libraries' with DESeq norm factors
 exprmatrix %<>% sweep(.,2,STATS = estimateSizeFactorsForMatrix(.),FUN='/')
- #centered and scaled data
+#centered and scaled data
 cent_scaled_exprmatrix<-
   exprmatrix%>% 
   sweep(.,1,STATS = rowMeans(.),FUN='-')%>%

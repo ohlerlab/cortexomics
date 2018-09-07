@@ -18,9 +18,6 @@ Sys.time()
 
 ## Intro
 
-This is a test edit in the browser
-
-
 - Importance of understanding gene regulation
 - Importance of understanding gene regulation at multiple levels
 - Specific importance to the brain
@@ -35,6 +32,9 @@ This is a test edit in the browser
 
 
 ## results
+other attached packages:
+[1] gdtools0.1.7 compiler==3.4.3 Rcpp==0.12.18   svglite==1.2.1 
+> 
 
 
 
@@ -44,14 +44,14 @@ Rnaseq, Riboseq, Mass spec correlations, outlier robust correlations.
 - Enzymes used, for RIboseq, rationale
 - Likely effects this has on the data - e.g. cyclohexamine (see sup figure for sequence preference)
 
-```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
+```{r f1 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='jpeg'}
 include_graphics("plots/tmp.pdf")
 ```
 
 
 ### Figure 2 Riboseq
 
-```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
+```{r f2 nap, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='jpeg'}
 include_graphics("plots/tmp.pdf")
 
 ```
@@ -63,19 +63,19 @@ Basic discussion of Riboseq
 - Translational Regulation Tests - Ribodiff
 
 
-### Figure 3 Mass Spec Integration (SVG file)
-```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
-include_graphics("plots/tmp.svg")
+### Figure 3 Mass Spec Integration (jpeg file)
+```{r f3, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='jpeg'}
+include_graphics("plots/tmp.jpeg")
 
 ```
  - Observation that many genes don't have perceptible reaction to changing riboseq levels
  - calculation of degredation rates?
  -  
 
-### Figure 4 - clustering/sequence analysis (svg directly made)
-```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='svg'}
+### Figure 4 - clustering/sequence analysis (jpeg directly made)
+```{r f4, out.width ='900px', out.height ='900px' ,fig.cap = "caption", dev='jpeg'}
 plot(3)
-# include_graphics("plots/tmp.svg")
+# include_graphics("plots/tmp.jpeg")
 ```
 
 - possible clustering methods
@@ -93,6 +93,14 @@ For comparison to single cell data
 ## Supplementary Figures
 
 ## Supp Figure 1
+
+Data quality
+Duplication rates
+
+![The multiqc report](pipeline/multiqc/multiqc.html) shows various summary statistics for the libraries.
+
+
+
 
 ## Supp Figure 2
 - Correlation between Riboseq Replicates
