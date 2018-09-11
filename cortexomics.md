@@ -6,7 +6,7 @@ Dermot Harnett
 Sys.time()
 ```
 
-    ## [1] "2018-09-11 16:08:19 CEST"
+    ## [1] "2018-09-11 16:29:46 CEST"
 
 ## Intro
 
@@ -169,24 +169,25 @@ Zahr et al 2018 <https://www.ncbi.nlm.nih.gov/pubmed/29395907>
 We processed data with a pipeline constructed using [Snakemake](_link),
 and a set of scripts written in R and Python. Code is available on
 github at [github link](_link). Riboseq reads were first trimmed of
-adaptors and UMI barcodes, before being filtered for tRNA and rRNA. tRNA
-and rRNA was removed by aligning to tRNA and (spliced) rRNA sequences
-from gencode, version M12 using bowtie2. Any Riboseq read aligning to
-these sequences, allowing for up to 1 mismatch, was eliminated from
-subsequent analysis. we then used [STAR](_link) with the following
-parameters (insert later) randomly assigning multimapping reads to one
-of their best mapping positions and eliminating reads which mapped to 20
-positions or more. [samtools](_link), [bamtools](_link), [Picard](_link)
-and [multiqc](_link) were then used to produce an aggregated QC report
-for all RNAseq and RIboseq reads. We then applied \_\_\_\_either ORFik
-or Riboqc\_\_\_ to obtain Psite counts from our Riboseq data, and used
-these, along with Rsubread feature counts, to obtain gene-level RNAseq
-and Riboseq counts for our data. [Ribodiff](_link) was then used to
-assess differential translational efficiency. Joint modeling of riboseq
-and rnaseq data was carried out by transforming all data with a variance
-stabilizing transformation (which resulted in approximately
-heteroskedastic data, see figure \_ ) and then fitting a linear model
-with [Limma](_link).
+illumina adaptors and (2xNNNN) UMI barcodes, before being filtered for
+tRNA and rRNA. tRNA and rRNA was removed by aligning to tRNA and
+(spliced) rRNA sequences from gencode, version M12 using bowtie2. Any
+Riboseq read aligning to these sequences, allowing for up to 1 mismatch,
+was eliminated from subsequent analysis. we then used [STAR](_link) with
+the following parameters (insert later) randomly assigning multimapping
+reads to one of their best mapping positions and eliminating reads which
+mapped to 20 positions or more. [samtools](_link), [bamtools](_link),
+[Picard](_link) and [multiqc](_link) were then used to produce an
+aggregated QC report for all RNAseq and RIboseq reads. \[we’ll want some
+stuff about the final results of our QC here\] We then applied
+\[\_\_\_\_either ORFik or Riboqc\_\_\_, assuming we go this route\] to
+obtain Psite counts from our Riboseq data, and used these, along with
+Rsubread feature counts, to obtain gene-level RNAseq and P-site counts
+for our data. [Ribodiff](_link) was then used to assess differential
+translational efficiency. Joint modeling of riboseq and rnaseq data was
+carried out by transforming all data with a variance stabilizing
+transformation (which resulted in approximately heteroskedastic data,
+see figure \_ ) and then fitting a linear model with [Limma](_link).
 
 (Notes on the above - right now I’m assumign we’ll sort out he
 periodicity issue and then get p-sites, if not we might just end up
