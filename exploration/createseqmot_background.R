@@ -2,26 +2,24 @@
 #can probably jsut generate the sequences directly actually.
 message('loading libraries')
 library(magrittr)
-library(GenomicRanges)
 library(data.table)
 library(rtracklayer)
-suppressMessages(library(tidyverse))
 suppressMessages(library(magrittr))
 suppressMessages(library(stringr))
 suppressMessages(library(assertthat))
+suppressMessages(library(tidyverse))
+library(GenomicRanges)
+
 message('...done')
-filter<-dplyr::filter
-slice<-dplyr::slice
-summarize<-dplyr::summarize
 
 #load arguments
 getwd()
-sargs <- c(
+args <- c(
   ribodifffolder = './ribodiff',
   normcountstable='exprdata/allcounts_snorm.tsv',
   annotation='my_gencode.vM12.annotation.gff3',
   genome='my_GRCm38.p5.genome.chr_scaff.fa',
-  outputfolder = 'motif_seqs_backgrounds'
+  outputfolder = 'motseqs'
 )
 args <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
 for(i in names(args)) assign(i,args[i])
@@ -38,7 +36,11 @@ ribodiffcols<-do.call(cols,c(list(col_character()),rep(list(col_double()),6)))
 ribodiffcols$cols%<>%setNames(ribodiffcolsnms)
 ribodiffcontrastobs <- ribodiffresfiles%>%map(read_tsv,skip=1,col_names=ribodiffcolsnms,col_types=ribodiffcols)
 #mark translationally regulated genes
-transregged <- ribodiffcontrastobs%>%bind_rows(.id='time')%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>1)   
+ribodiffcontrastobs%<>%bind_rows(.id='time')
+
+
+#now define the regulated groups to look at
+transregged<-ribodiffcontrastobs%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>1)   
 translgeneids <- transregged$feature_id%>%unique
 downtranslgeneids <- transregged%>%filter(all(log2fc[adj_p_value<0.05]<0))%>%.$feature_id%>%unique
 uptranslgeneids <- transregged%>%filter(all(log2fc[adj_p_value<0.05]>0))%>%.$feature_id%>%unique
@@ -52,24 +54,16 @@ normcount <- fread(normcountstable)%>%
 normcount%<>%filter(!is.na(gene_id))
 normcount%>%colnames
 
-allcds <- annotation%>%subset(type=='CDS') 
-anno <- annotation%>%subset(type=='three_prime_UTR')%>%head(1000)
-subanno <- annotation%>%subset(type=='CDS')%>%head(1000)
-
-subtract_gr<- function(anno,subanno){
-	disjoin <- c(anno[,NULL],subanno[,NULL])%>%disjoin(with=TRUE)
-	disjoin_sub <- disjoin[max(disjoin$revmap) < length(anno)]
-	srevmap <- disjoin_sub$revmap%>%setNames(.,seq_along(.))%>%stack
-	outranges <- disjoin_sub[as.numeric(srevmap$name),]
-	mcols(outranges) <- mcols(anno)[srevmap$value,]
-	outranges
-}
-
-tputrs <- import('tputrs.gtf')
-
-genesetname <- 'tranl_reg'
+genesetname <- 'transl_reg'
 testset <- translgeneids
 
+
+testsets = list(
+	translregged = translgeneids,
+	downtranslregged = downtranslgeneids,
+	uptranslregged = uptranslgeneids,
+	randomset = ribodiffcontrastobs$feature_id%>%sample(1e3)
+)
 
 getmatchingset<-function(testset,data){
 	data$testvar <- data[[1]] %in% testset
@@ -79,24 +73,54 @@ getmatchingset<-function(testset,data){
 	data[[1]][matchobject[[1]]%>%as.numeric]
 }
 
-backgroundset <- getmatchingset(
-	testset,
-	normcount%>%select(gene_id,matches('total'))
-)
+reduce<-GenomicRanges::reduce
+for(genesetname in names(testsets)){
+	backgroundset <- getmatchingset(
+		testset,
+		data = normcount%>%select(gene_id,matches('total'))
+	)
 
-regionname <- 'CDS'
-outseqfile <- file.path(outputfolder,paste0(regionname,'_',genesetname,'.pdf'))
-annotation %>% subset(type==regionname) %>% subset(gene_id %in% testset) %>% reduce %>% getSeq(genome,.) %>% Biostrings::writeXStringSet(outseqfile)
+	#cds set for the genes
+	regionname <- 'CDS'
+	outseqfile <- file.path(outputfolder,regionname,genesetname,paste0(genesetname,'.fa'))
+	outseqfile%>%dirname%>%dir.create(rec=TRUE,showWarnings = FALSE)
 
-regionname <- 'five_prime_UTR'
-outseqfile <- file.path(outputfolder,paste0(regionname,'_',genesetname,'.pdf'))
-annotation %>% subset(type==regionname) %>% reduce %>% setdiff(allcds,ignore.strand=T)%>%getSeq(genome,.) %>% Biostrings::writeXStringSet(outseqfile)
+	#for gene ids set, get teh non redundant sequence of type regionname from anno and pull
+	#the sequence from gen. make sure non overlaps sequence of type subtracttype
+	writeseq <- function(regionname,set,outseqfile,anno=annotation,gen=genome,subtracttype=NA){
+		subseq <- anno%>%subset(type==subtracttype)
+		out = anno %>% 
+			subset(type==regionname) %>% 
+			subset(gene_id %in% set[99:100]) %>% 
+			split(.,.$gene_id)%>% 
+			{GenomicRanges::reduce(.)} 
 
-regionname <- 'three_prime_UTR'
-outseqfile <- file.path(outputfolder,paste0(regionname,'_',genesetname,'.pdf'))
-annotation %>% subset(type==regionname) %>% reduce %>% setdiff(allcds,ignore.strand=T)%>%getSeq(genome,.) %>% Biostrings::writeXStringSet(outseqfile)
+		out%>%setdiff(subseq)
 
+		out
+			%>%
+			lapply(GenomicRanges::setdiff,subseq)%>%
+			GRangesList%>%
+			unlist%>%
+			{gr=.;getSeq(x=gen,gr)%>%setNames(.,names(gr))} %>%
+			split(.,names(.))%>%
+			lapply(FUN=Reduce,f=c)%>%
+			{Biostrings::DNAStringSet(.)}%>%
+			Biostrings::writeXStringSet(outseqfile)
+	}
+	for(regionname in c('CDS','five_prime_UTR','three_prime_UTR')){
+		message(paste0('writing seqs for 'regionname' of 'genesetname))
+		subtractseq <- ifelse(regionname=='CDS',NA,'CDS')
 
+		outseqfile <- file.path(outputfolder,regionname,genesetname,paste0(genesetname,'.fa'))
+		outseqfile%>%dirname%>%dir.create(rec=TRUE,showWarnings = FALSE)
+		writeseq(regionname,set=testset,outseqfile,subtracttype=subtractseq) 
+
+		outseqfile <- outseqfile%>%str_replace('.fa$','_background.fa')
+		writeseq(regionname,backgroundset,outseqfile,subtracttype=subtractseq) 
+	}
+		
+}
 #methods motif searches
 
 # When searching for motifs, we wished to isolate motifs responsible for translational reuglation
@@ -105,31 +129,6 @@ annotation %>% subset(type==regionname) %>% reduce %>% setdiff(allcds,ignore.str
 # which considered similiarity in all RNAseq libraries (i.e. not conting mass spec or riboseq data). 
 # We then output sequences for 3' UTRs, 5' UTRs, and CDS, with UTR sequences considered only when
 # not contained in the coding sequence of any annotated CDS. 
-
-
-outseqfile <- file.path(outputfolder,paste0(regionname,'_',genesetname,'.pdf'))
-
-
-
-#now output each of the sequence types
-
-
-
-reggenes <- unique(transregged$feature_id)
-controlgenes <- normcount$gene_id[matchobject[[1]]%>%as.numeric]
-
-set <- 
-background <- 
-
-#ultimately we want lists of test and non test gene
-
-
-
-
-
-
-
-
 
 
 
