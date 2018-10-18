@@ -9,7 +9,7 @@ suppressMessages(library(stringr))
 suppressMessages(library(assertthat))
 suppressMessages(library(tidyverse))
 library(GenomicRanges)
-
+#
 message('...done')
 
 #load arguments
@@ -28,6 +28,14 @@ dir.create(outputfolder,showWarn=T)
 annotation <- 'my_gencode.vM12.annotation.gff3'%>%import
 genome <- Rsamtools::FaFile('my_GRCm38.p5.genome.chr_scaff.fa')
 
+ids<-fread('ids.txt')%>%distinct
+normcount <- fread(normcountstable)%>%
+	left_join(ids)
+normcount%<>%filter(!is.na(gene_id))
+normcount%>%colnames
+
+stop()
+
 #read in ribodiff
 ribodiffresfiles <- Sys.glob(file.path(ribodifffolder,'/riboseqres_*.txt'))%>%
 	{stopifnot(length(.)>0);.}
@@ -36,34 +44,75 @@ ribodiffcols<-do.call(cols,c(list(col_character()),rep(list(col_double()),6)))
 ribodiffcols$cols%<>%setNames(ribodiffcolsnms)
 ribodiffcontrastobs <- ribodiffresfiles%>%map(read_tsv,skip=1,col_names=ribodiffcolsnms,col_types=ribodiffcols)
 #mark translationally regulated genes
+ribodiffcontrastobs%<>%setNames(ribodiffresfiles%>%str_extract(regex('(?<=_).*(?=.txt)')))
 ribodiffcontrastobs%<>%bind_rows(.id='time')
 
 
+#read in ribodiff
+xtailresfiles <- Sys.glob(file.path('xtail','/xtail_*.txt'))%>%
+	{stopifnot(length(.)>0);.}
+xtailcolsnms=c("feature_id", "mRNA_log2FC", "RPF_log2FC", "log2FC_TE_v1", 
+"pvalue_v1", "E145_log2TE", "E13_log2TE", "log2FC_TE_v2", "pvalue_v2", 
+"log2fc", "p_value", "adj_p_value")
+
+xtailcontrastobs <- xtailresfiles%>%map(read_tsv)
+xtailcontrastobs%<>%setNames(xtailresfiles%>%str_extract(regex('(?<=_).*(?=.txt)')))
+#mark translationally regulated genes
+xtailcontrastobs%<>%bind_rows(.id='time')
 #now define the regulated groups to look at
-transregged<-ribodiffcontrastobs%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>1)   
+
+ribodiffcontrastobs%>%group_by(feature_id)%>%mutate(n=sum(adj_p_value<0.05))%>%.$n%>%table
+
+ribodiffcontrastobs%>%filter(time=='P0')%>%filter(adj_p_value<0.05)
+
+ribodiffcontrastobs%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>=1)%>%.$time%>%table
+
+transregged<-ribodiffcontrastobs%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>=1)   
 translgeneids <- transregged$feature_id%>%unique
 downtranslgeneids <- transregged%>%filter(all(log2fc[adj_p_value<0.05]<0))%>%.$feature_id%>%unique
 uptranslgeneids <- transregged%>%filter(all(log2fc[adj_p_value<0.05]>0))%>%.$feature_id%>%unique
 
-#this function chooses a background set given
-#a) a logical vector denoting the set and background set
-#b) a data frame frame containing relevant variables to use when deciding on the background set
-ids<-fread('ids.txt')%>%distinct
-normcount <- fread(normcountstable)%>%
-	left_join(ids)
-normcount%<>%filter(!is.na(gene_id))
-normcount%>%colnames
+xtailtransregged<-xtailcontrastobs%>%group_by(feature_id)%>%filter(sum(adj_p_value<0.05)>=1)   
+xtailtranslgeneids <- xtailtransregged$feature_id%>%unique
+xtaildowntranslgeneids <- xtailtransregged%>%filter(all(log2fc[adj_p_value<0.05]<0))%>%.$feature_id%>%unique
+xtailuptranslgeneids <- xtailtransregged%>%filter(all(log2fc[adj_p_value<0.05]>0))%>%.$feature_id%>%unique
+
+nontransregged <- normcount$gene_id%>%setdiff(translgeneids)%>%setdiff(xtailtranslgeneids)
+
+pdf('../plots/expr_comparison_transl_notransl_hist.pdf'%T>%normalizePath%>%message)
+print(
+	bind_rows(normcount%>%filter(gene_id %in% translgeneids) %>%select(matches('total'))%>%apply(1,median)%>%data_frame(score=.,set='transl'),
+	normcount%>%filter(gene_id %in% nontransregged)%>%select(matches('total'))%>%apply(1,median)%>%
+	data_frame(score=.,set='nontransl')) %>%
+	ggplot(aes(x=score))+geom_histogram()+facet_grid(scale='free',set~.))
+dev.off()
+# message(normalizePath('tmp.pdf'))
+
+
 
 genesetname <- 'transl_reg'
 testset <- translgeneids
 
 
 testsets = list(
-	translregged = translgeneids,
-	downtranslregged = downtranslgeneids,
-	uptranslregged = uptranslgeneids,
+	# translregged = translgeneids,
+	# downtranslregged = downtranslgeneids,
+	# uptranslregged = uptranslgeneids,
+	xtailtranslregged = translgeneids,
+	xtaildowntranslregged = downtranslgeneids,
+	xtailuptranslregged = uptranslgeneids,
 	randomset = ribodiffcontrastobs$feature_id%>%sample(1e3)
 )
+
+#also define a set of genes which are non translationally regulated at all
+
+
+reduce<-GenomicRanges::reduce
+
+
+#this function chooses a background set given
+#a) a logical vector denoting the set and background set
+#b) a data frame frame containing relevant variables to use when deciding on the background set
 
 getmatchingset<-function(testset,data){
 	data$testvar <- data[[1]] %in% testset
@@ -73,43 +122,68 @@ getmatchingset<-function(testset,data){
 	data[[1]][matchobject[[1]]%>%as.numeric]
 }
 
-reduce<-GenomicRanges::reduce
-for(genesetname in names(testsets)){
-	backgroundset <- getmatchingset(
-		testset,
-		data = normcount%>%select(gene_id,matches('total'))
+subtract_gr<- function(anno,subanno){
+	disjoin <- c(anno[,NULL],subanno[,NULL])%>%disjoin(with=TRUE)
+	disjoin_sub <- disjoin[max(disjoin$revmap) < length(anno)]
+	srevmap <- disjoin_sub$revmap%>%setNames(.,seq_along(.))%>%stack
+	outranges <- disjoin_sub[as.numeric(srevmap$name),]
+	mcols(outranges) <- mcols(anno)[srevmap$value,]
+	outranges
+}
+
+#for gene ids set, get teh non redundant sequence of type regionname from anno and pull
+#the sequence from gen. make sure non overlaps sequence of type subtracttype
+writeseq <- function(regionname,set,outseqfile,anno=annotation,gen=genome,subtracttype=NA){
+	subseq <- anno%>%subset(type==subtracttype)
+	out = anno %>% 
+		subset(type==regionname) %>% 
+		subset(gene_id %in% set) %>%
+		subtract_gr(subseq)%>%
+		split(.,.$gene_id)%>% 
+		{GenomicRanges::reduce(.)}%>% 
+		unlist%>%
+		{gr=.;getSeq(x=gen,gr)%>%setNames(.,names(gr))}
+
+	out%>%split(.,names(.))%>%
+		lapply(FUN=Reduce,f=c)%>%
+		{Biostrings::DNAStringSet(.)}%>%
+		Biostrings::writeXStringSet(outseqfile)
+}
+
+for(regionname in c('CDS','five_prime_UTR','three_prime_UTR')){
+	outseqfile <- file.path(outputfolder,regionname,paste0('nontransregged','.fa'))
+	outseqfile%>%dirname%>%dir.create(rec=TRUE,showWarnings = FALSE)
+	message('.')
+	writeseq(regionname,
+		set=nontransregged,
+		outseqfile,
+		subtracttype = ifelse(regionname=='CDS',NA,'CDS')
 	)
+}
+
+backgroundsets <- mclapply(names(testsets),function(genesetname){
+ getmatchingset(
+		testset,
+		data = normcount%>%
+			filter(gene_id %in% c(testset,nontransregged))%>%
+			select(gene_id,matches('total'))
+		)
+	})%>%setNames(names(testsets))
+
+names(testsets)[[1]]->genesetname
+mclapply(names(testsets),function(genesetname){
+	testset <- testsets[[genesetname]]
+	
+	backgroundset <- backgroundsets[genesetname]]
 
 	#cds set for the genes
 	regionname <- 'CDS'
 	outseqfile <- file.path(outputfolder,regionname,genesetname,paste0(genesetname,'.fa'))
 	outseqfile%>%dirname%>%dir.create(rec=TRUE,showWarnings = FALSE)
 
-	#for gene ids set, get teh non redundant sequence of type regionname from anno and pull
-	#the sequence from gen. make sure non overlaps sequence of type subtracttype
-	writeseq <- function(regionname,set,outseqfile,anno=annotation,gen=genome,subtracttype=NA){
-		subseq <- anno%>%subset(type==subtracttype)
-		out = anno %>% 
-			subset(type==regionname) %>% 
-			subset(gene_id %in% set[99:100]) %>% 
-			split(.,.$gene_id)%>% 
-			{GenomicRanges::reduce(.)} 
-
-		out%>%setdiff(subseq)
-
-		out
-			%>%
-			lapply(GenomicRanges::setdiff,subseq)%>%
-			GRangesList%>%
-			unlist%>%
-			{gr=.;getSeq(x=gen,gr)%>%setNames(.,names(gr))} %>%
-			split(.,names(.))%>%
-			lapply(FUN=Reduce,f=c)%>%
-			{Biostrings::DNAStringSet(.)}%>%
-			Biostrings::writeXStringSet(outseqfile)
-	}
+	
 	for(regionname in c('CDS','five_prime_UTR','three_prime_UTR')){
-		message(paste0('writing seqs for 'regionname' of 'genesetname))
+		message(str_interp('writing seqs for ${regionname} of ${genesetname}'))
 		subtractseq <- ifelse(regionname=='CDS',NA,'CDS')
 
 		outseqfile <- file.path(outputfolder,regionname,genesetname,paste0(genesetname,'.fa'))
@@ -120,7 +194,7 @@ for(genesetname in names(testsets)){
 		writeseq(regionname,backgroundset,outseqfile,subtracttype=subtractseq) 
 	}
 		
-}
+})
 #methods motif searches
 
 # When searching for motifs, we wished to isolate motifs responsible for translational reuglation

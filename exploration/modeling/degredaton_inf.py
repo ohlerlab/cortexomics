@@ -26,13 +26,11 @@ n_time = 5
 
 
 deg = tf.placeholder(tf.float32,shape=n_genes)
-
 protein0 = tf.placeholder(tf.float32,shape=n_genes)
-
 ribo = tf.placeholder(tf.float32,shape=(n_time,n_genes))
 
 #define our protein
-protein= [ (ribo[0,:] + (protein0 * deg))]
+protein= [ (ribo[0,:] + (protein0))]
 for  i in range(1,n_time):
 	protein= protein + [ribo[len(protein)-1,:] + (protein[-1] * deg)]
 protein = tf.stack(protein)
@@ -98,45 +96,45 @@ n_msreps = 3
 
 
 
-# #from the linear mixed effects bit in the edward tutorials
-# with tf.variable_scope('b'):
-# 	deg = tf.get_variable('deg',[n_genes])
-# 	protein0 = tf.sigmoid(tf.get_variable('protein0',[n_genes]))
-# 	ribo = tf.get_variable('ribo',[n_time,n_genes])
+#from the linear mixed effects bit in the edward tutorials
+with tf.variable_scope('b'):
+	deg = tf.get_variable('deg',[n_genes])
+	protein0 = tf.sigmoid(tf.get_variable('protein0',[n_genes]))
+	ribo = tf.get_variable('ribo',[n_time,n_genes])
 
-# #define our protein
-# protein= [ (ribo[0,:] + (protein0 * deg))]
-# for  i in range(1,n_time):
-# 	protein= protein + [ribo[len(protein)-1,:] + (protein[-1] * deg)]
-# protein = tf.stack(protein)
+#define our protein
+protein= [ (ribo[0,:] + (protein0 * deg))]
+for  i in range(1,n_time):
+	protein= protein + [ribo[len(protein)-1,:] + (protein[-1] * deg)]
+protein = tf.stack(protein)
 
-# #define our 
-# riboreads = Normal(
-# 	tf.stack([ribo,ribo],axis=2),
-# 	tf.sqrt(tf.stack([ribo,ribo],axis=2))
-# )
+#define our 
+riboreads = Normal(
+	tf.stack([ribo,ribo],axis=2),
+	tf.sqrt(tf.stack([ribo,ribo],axis=2))
+)
 
-# #ms is similiar to riboreads for now - but with higher variance
-# ms = Normal(
-# 	tf.stack([protein]*3,axis=2),
-# 	tf.sqrt(tf.stack([protein]*3,axis=2))
-# )
+#ms is similiar to riboreads for now - but with higher variance
+ms = Normal(
+	tf.stack([protein]*3,axis=2),
+	tf.sqrt(tf.stack([protein]*3,axis=2))
+)
 
-# vals = ( protein, riboreads, ms )
-# 	# return( protein, riboreads, ms )
+vals = ( protein, riboreads, ms )
+	# return( protein, riboreads, ms )
 
-# vars = tf.trainable_variables()
+vars = tf.trainable_variables()
 	
-# with tf.Session() as sess:
+with tf.Session() as sess:
 
-# 	ms_sample=sess.run(
-# 		fetches = vals,
-# 		feed_dict = {
-# 			protein0:[10000]*n_genes,
-# 			deg:[0.5]*n_genes,
-# 			ribo: np.stack([[1]*n_time]*n_genes,axis=-1)
-# 		}
-# 	)
+	ms_sample=sess.run(
+		fetches = vals,
+		feed_dict = {
+			protein0:[10000]*n_genes,
+			deg:[0.5]*n_genes,
+			ribo: np.stack([[1]*n_time]*n_genes,axis=-1)
+		}
+	)
 
 
 

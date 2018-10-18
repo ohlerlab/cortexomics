@@ -1,22 +1,20 @@
 #!/usr/bin/env Rscript
 message('loading libraries')
-suppressMessages(library(tidyverse))
 suppressMessages(library(magrittr))
 suppressMessages(library(stringr))
 suppressMessages(library(data.table))
-suppressMessages(library(assertthat))
-suppressMessages(library(limma))
+suppressMessages(library(GenomicRanges))
 suppressMessages(library(DESeq2))
+suppressMessages(library(assertthat))
+suppressMessages(library(tidyverse))
+suppressMessages(library(dplyr))
+
 message('...done')
 filter<-dplyr::filter
 select<-dplyr::select
 slice<-dplyr::slice
 
 LOWCOUNTLIM <- 10
-
-lsf.str(dplyr)
-as.character(lsf.str('package:dplyr')[i])
-
 
 args <- c(
 	countfile='feature_counts/all_feature_counts',
@@ -27,12 +25,13 @@ args <- c(
   normcountstable='exprdata/allcounts_snorm.tsv'
 )
 args <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
+message(capture.output(dput(args)))
 for(i in names(args)) assign(i,args[i])
 
 # message(str_interp('filtered out ${length(nonmeasured_pids)} protein groups\
 #  that were unique to the total MS data, e.g.\n ${sample(specungenes,10)}'))
 
-countstable <- data.table::fread(countfile)
+countstable <- data.table::fread(countfile)%>%select(-matches('test'))
 
 #carry out individual processing of the data sources
 ids <- fread('ids.txt')%>%set_colnames(c('feature_id','gene_name'))%>%distinct

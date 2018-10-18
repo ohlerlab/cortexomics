@@ -134,7 +134,8 @@ ms_spec_file='../gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
 
 nontestribosamples = list(filter(lambda x: not 'test' in x,ribosamples))
 
-motseqsets = ['translregged','uptranslregged','downtranslregged','xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
+# motseqsets = ['translregged','uptranslregged','downtranslregged','xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
+motseqsets = ['xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
 motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
 
 rule all:
@@ -1286,7 +1287,7 @@ rule readlenfilt:
     shell(r"""
           set -ex
           samtools view -h $(dirname {input})/{wildcards.sample}.bam \
-           | awk '((length($10) >= {minreadlen})&&(length($10) <= {maxreadlen})) || $1 ~ /^@/' \
+          | awk '((length($10) >= {minreadlen})&&(length($10) <= {maxreadlen})) || $1 ~ /^@/' \
           | samtools view -S -b - > {readrangebam}
             
       """)
@@ -1417,54 +1418,6 @@ rule aggregate_feature_counts:
     
       """)
 
-# #this is going to count reads in each library over 5'UTRS, CDS, and 3' UTRs
-# rule aggregate_feature_counts:
-#      input:
-#           'star/data/{sample}/.done',GTF,CDSGTF
-#      output:
-#           expand('feature_counts/data/{sample}/{generegions}.done',sample=SAMPLES)
-#      threads: 2
-#      log: r"""feature_counts/reports/{wildcards.sample}/{wildcards.sample}.{generegions}feature_counts.log"""
-#      run:
-#           if (wildcards['generegions']=='gene'):
-#             GTF = GTF_DICT[wildcards['sample']]
-#           else:
-#             GTF = wildcards['generegions']+'.gtf'
-#           protocol = PROTOCOL_DICT[wildcards['sample']]
-#           if (protocol == 'no'):
-#                protocol = 0
-#           elif (protocol == 'yes'):
-#                protocol = 1
-#           elif (protocol == 'reverse'):
-#                protocol = 2
-#           else:
-#                sys.exit('Protocol not known!')
-
-#           library = LIBRARY_DICT[wildcards['sample']]
-
-#           if (library == 'PAIRED'):
-#                library = '-p'
-#           else:
-#                library = ''
-
-#           shell(r"""
-#           set -e
-#           module purge
-#           module load subread/1.4.6-p5
-
-#           mkdir -p feature_counts/reports/{wildcards.sample}
-#           mkdir -p feature_counts/data/{wildcards.sample}
-
-#           featureCounts \
-#           -T {threads} \
-#           -t exon -g gene_id \
-#           -a {GTF} \
-#           -s {protocol} {library} \
-#           -o feature_counts/data/{wildcards.sample}/{wildcards.sample}.{wildcards.generegions}feature_counts \
-#           star/data/{wildcards.sample}/{wildcards.sample}.bam
-#           """)
-
-
 rule make_riboqc_anno:
   input : GFF
   output: touch('riboqc/annot.done')
@@ -1540,8 +1493,8 @@ rule create_ms_exprtables:
   output: touch('ms_tables/.done')
   shell: r"""Rscript ../exploration/load_data/create_ms_exprtables.R {input[0]} {input[1]} $(dirname {output})"""
 
-
 DISPDIFF = 0
+
 rule run_ribodiff:
   input: 'feature_counts/all_feature_counts'
   conda: '/fast/users/harnettd_c/miniconda3/envs/ribodiff/'
@@ -1554,8 +1507,6 @@ rule run_xtail:
   conda: '/fast/users/harnettd_c/miniconda3/envs/ribodiff/'
   output: touch('xtail/.done')
   shell: r"""Rscript ../exploration/pipeline/run_xtail.R {input} $(dirname {output})"""
-
-
 
 MS_MEASURE_TO_USE = 'LFQ'
 mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
