@@ -42,7 +42,7 @@ Thirdly, our analysis builds on existing literature (_ demonstrating the importa
 
 ### Refs to include
 
-[Fujii et al 2007](https://www.ncbi.nlm.nih.gov/pubmed/28195124)
+[Fujii et al 2017](https://www.ncbi.nlm.nih.gov/pubmed/28195124)
 FACS+Riboseq
 translational regulation of lots of cell signalling molecules - Shh wnt hippo pi3k mapk
 uORFs prevalent. confirm importance of uORF for Ptch1 signaling. lots of mRNAs have translational but no transcriptional reg.
@@ -149,12 +149,70 @@ Cho et al 2015
 memory and translational reg
 Methods should be useful, note they measure enrichment of reads in coding sequences.
 
+Translation in nuerons review
+https://www.cell.com/action/showPdf?pii=S0896-6273%2817%2930926-1
+Process of initiation - PIC forms when cap binding protein binds the 43S with meTRNA, small subunit, various elongation factors, prob also PolyA bindign protein or PABB
+IRES exist  bear in mind,
+Acceptor, P-site (peptidly) and exit site - psite on mTRNA is where it starts, a site awaits tRNA
+tRNA arrives, GTP hydrolysis, efactor rele, peptidyl bond transfered to A site AA, conf change, hybrid state with tRNA stems shifted so they are in E-P, anticodon loops still in  P-A, e2Fbinding at GTPhydro then resets releasing esite tRNA, shifting Psite tRNA's anticodon
+uORFs involved in stress response _cite_
+mTOR phosphyorylates e factors eIF4G and eIF4B, and of the initia-tion factor inhibitors eIF4E-binding protein (4E-BP/EIF4EBP), this 
+some neurodegen conditions associated with defective elF2 reg ...
+decreased elf2 reg also seen in prion infected mice, reactivating it can rescue symptoms
+repeat expansion diseases often show abberant translation produce, higher translation, these repeats form quadruplexes or hairplins
+
+
+Joining the dots – protein-RNA interactions mediatinglocal mRNA translation in neurons
+https://febs.onlinelibrary.wiley.com/doi/epdf/10.1002/1873-3468.13121
+Galagher and Ramos et al 
+Lots of dynamically localized proteins over course of develompent.
+Zip codes can be structural or sequence mediated.
+Zahr et al 2018 is used as example of RBP that effects translational egulation
+As is FMRP's binding of a factor that sequesters the elongations factor
+and regulation of polyA tails - short ones suppress translation.
+FMRP binds some, not all Gquads, ref 64 might have way to find this mot
+FMRP may bind ribosomal lproteins and RNAs, regulate translation
+Also several short repeat motifs
+ZBP1 (zipcode bindign protein 1 or IGF2 mRNA bindig protein 1 IMP1 or IGF2BP1), pre or neonatal death, synaptic morphilogy, transport, translationa, degradation of diverse mRNAs, inc beta actin, in actin the KH3,4 domain binds short motifs on eithe rof it's sides, in gengeral veyr hard to predit it's binding.
+cpeb1 -transport to synapse, short polyaA maint and transport memory, binds uuuuau motif in 3' UTR - the cytoplasmic polyadenylation element.
+staufen - fly embryos and neurons, and in mammals.staufen2 neurons psecific. binds dsRNA
+
+Genome editing of upstream open reading frames enables translational control in plants
+https://www.nature.com/articles/nbt.4202?WT.ec_id=NBT-201809&spMailingID=57392017&spUserID=MTc3NDMwNTgwMAS2&spJobID=1482485271&spReportId=MTQ4MjQ4NTI3MQS2
+Zhang et al 2018
+Targeting uORFs in plants with CRISPR targeting start codons allows modulation of some developmental genes
+
+
+
+https://www.biorxiv.org/content/biorxiv/early/2018/08/28/401885.full.pdf
+- Polioudakis1 et al
+Single cell 
+
+
+RNA localization is a key determinant of neurite-enriched proteome
+Zappulo et al 2017
+https://www.nature.com/articles/s41467-017-00690-6#ref-CR9
+- note that mRNA, translation or protein can be local. 
+- localization can be explained by active transport, diffusion+entrapment, or localized degredation. 
+- lots of refs on mRNA localization and translation - in particular note Taliaferro et al 2016, distal final exons often mediate localization, including by presence of Mbnl1/2 motifs (musceblind) 
+- We should get a lhold ofa  list of known zip codes. 
+- first study to actually look at proteome rather than just mRNA (?what about riboseq?)
+- Find half of neurite enriched proteome is from positioned mRNAs
+- 29 neurite targetted RBPs #promising candidates for translational reg in our system.
+- 1292 transcripts at least 2 fold enriched in neurite
+- Find some motifs enriched, including known ZIP codes (see their other refs for other ZIP codes)
+
 Zahr et al 2018
 https://www.ncbi.nlm.nih.gov/pubmed/29395907
 
+Cortical RPs transcriptionally primed to generate diverse types of neurons. Priming is in part implemented by the Pum2/4E-T translational repression complex, which has been shown experimetnally to regulate genes with the Pumilio motif, and disruption of which causes abberant coexperession.
 
 
 ## Methods
 We processed data with a pipeline constructed using [Snakemake](_link), and a set of scripts written in R and Python. Code is available on github at [github link](_link). Riboseq reads were first trimmed of illumina adaptors and (2xNNNN) UMI barcodes, before being filtered for tRNA and rRNA. tRNA and rRNA was removed by aligning to tRNA and (spliced) rRNA sequences from gencode, version M12 using bowtie2. Any Riboseq read aligning to these sequences, allowing for up to 1 mismatch, was eliminated from subsequent analysis. we then used [STAR](_link) with the following parameters (insert later) randomly assigning multimapping reads to one of their best mapping positions and eliminating reads which mapped to 20 positions or more. [samtools](_link), [bamtools](_link), [Picard ](_link) and [multiqc](_link) were then used to produce an aggregated QC report for all RNAseq and RIboseq reads. [we'll want some stuff about the final results of our QC here] We then applied [____either ORFik or Riboqc___, assuming we go this route] to obtain Psite counts from our Riboseq data, and used these, along with Rsubread feature counts, to obtain gene-level RNAseq and P-site counts for our data. [Ribodiff](_link) was then used to assess differential translational efficiency. Joint modeling of riboseq and rnaseq data was carried out by transforming all data with a variance stabilizing transformation (which resulted in approximately heteroskedastic data, see figure _ ) and then fitting a linear model with [Limma](_link).
 
 (Notes on the above - right now I'm assumign we'll sort out he periodicity issue and then get p-sites, if not we might just end up counting reads and not using ORFik or riboqc. I'm leaving out SaTAnn and the location of ORF.)
+
+
+	
+

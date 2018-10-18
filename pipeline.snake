@@ -43,7 +43,6 @@ kallistobin = "~/bin/kallisto"
 #
 filter_index = '../contaminants/contaminants.done'
 
-
 sample_param = csv.DictReader(open(SAMPLE_FILE))
 
 #sample - info dictionaries
@@ -133,6 +132,10 @@ totalfastqs=list(filter(lambda fq: FASTQSAMPLEDICT[fq] == totalsamples,FASTQS))
 ms_total_file='../gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
 ms_spec_file='../gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
 
+nontestribosamples = list(filter(lambda x: not 'test' in x,ribosamples))
+
+motseqsets = ['translregged','uptranslregged','downtranslregged','xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
+motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
 
 rule all:
   input:
@@ -150,13 +153,15 @@ rule all:
     expand("fastqc/data/{sample}/.done", sample = SAMPLES),
     #    "fastqc/summary/fastqc_summary.tsv",
     expand("star/data/{sample}/.done", sample = SAMPLES),
+    # expand("tophat2/data/{sample}/.done", sample = ribosamples),
     #expand("infer_experiment/data/{sample}/.done", sample = SAMPLES),
     expand("qc/data/{sample}/.done", sample = SAMPLES),
     expand("multiqc/multiqc_report.html"),
+    
     # # # expand("dupradar/data/{sample}/.done", sample = SAMPLES),
     expand('feature_counts_readrange/data/{sample}/{generegions}/{readrange}/feature_counts', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
-    expand("feature_counts/data/{sample}/feature_counts", sample = SAMPLES),
-    # # # expand("feature_counts/all_feature_counts"),
+    expand("feature_counts/data/{sample}/feature_counts", sample = nontestribosamples),
+    expand("feature_counts/all_feature_counts"),
     # # expand("feature_counts/data/{sample}/{generegions}/{readrange}/.done", sample = SAMPLES, generegions = GENEREGIONS+TRNAs, readrange = READRANGES),
     # # # # expand("kallisto/data/{sample}/.done", sample = SAMPLES),
     # expand("bigwigs/{group}/{strand}/{istrans}.done",group = SAMPLES,strand=strands,istrans=istransvals),
@@ -169,7 +174,10 @@ rule all:
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand("SaTAnn/{sample}/.done", sample = SAMPLES),
-    expand("riboqc/reports/{sample}/riboqcreport.html", sample = ribosamples),
+    expand("riboqc/reports/{sample}/riboqcreport.html", sample = nontestribosamples),
+    # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets)
 
 MINREADLENGTH=20
 MAXREADLENGTH=300
@@ -285,6 +293,33 @@ rule trim_reads:
      """)
 
 
+# rule make_trna_rrna_indices:
+#   input: GTF
+#   output: touch('filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done')
+#   run:
+#     outprefix = output[0].replace('.done','')
+#     fafile =outprefix+'.fa'
+#     shell(r"""
+#       #get rRNAs and tRNAs, rename the tRNAs to exons for GenePRed,
+#       #get the gene type out and stick it front of the transcript id
+#       #for better names in the fasta
+#        cat {GTF} \
+#        | grep -Pe 'gene_type\W+rRNA' \
+#        | cat - tRNAs.gtf \
+#        | sed 's/tRNA/exon/' \
+#        | perl -lanpe 's/(transcript_id\W+)(.+gene_type\W+)(\w+)\W/$1$3_$2$3/' \
+#        | gtfToGenePred /dev/stdin /dev/stdout \
+#        | genePredToBed /dev/stdin /dev/stdout \
+#        | bedtools getfasta -s -name -bed - -fi  {REF} \
+#        > {fafile}
+
+#        cat  ../ext_data/rRNAseqs/*.fasta >> {fafile} 
+#        bowtie2-build {fafile} {outprefix} --threads {threads}
+       
+#       """)
+
+
+
 rule make_trna_rrna_indices:
   input: GTF
   output: touch('filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done')
@@ -295,30 +330,44 @@ rule make_trna_rrna_indices:
       #get rRNAs and tRNAs, rename the tRNAs to exons for GenePRed,
       #get the gene type out and stick it front of the transcript id
       #for better names in the fasta
-       cat {GTF} \
-       | grep -Pe 'gene_type\W+rRNA' \
-       | cat - tRNAs.gtf \
-       | sed 's/tRNA/exon/' \
-       | perl -lanpe 's/(transcript_id\W+)(.+gene_type\W+)(\w+)\W/$1$3_$2$3/' \
-       | gtfToGenePred /dev/stdin /dev/stdout \
-       | genePredToBed /dev/stdin /dev/stdout \
-       | bedtools getfasta -s -name -bed - -fi  {REF} \
-       > {fafile}
+      cp ../contaminants/contaminants.fa {fafile}
 
+       cat  ../ext_data/rRNAseqs/*.fasta >> {fafile} 
        bowtie2-build {fafile} {outprefix} --threads {threads}
        
       """)
+
+rule make_bowtie_indices:
+  input: REF
+  output: touch('bowtie_index/.done')
+  threads: 8
+  run:
+    outprefix = output[0].replace('.done','')
+    fafile =outprefix+'.fa'
+    shell(r"""
+      #get rRNAs and tRNAs, rename the tRNAs to exons for GenePRed,
+      #get the gene type out and stick it front of the transcript id
+      #for better names in the fasta
+       bowtie2-build {REF} bowtie_index/ref 
+       cp {REF} bowtie_index/ref.fa
+       bowtie2-build {RNAFASTA} bowtie_index/transcriptome
+       cp {RNAFASTA} bowtie_index/transcriptome.fa 
+       
+      """)
+
 
 rule testplugin:
       input: 'input/{sample}/{fastq}'
       output: 'trim_reads/{sample,.*test.*}/{fastq}'
       shell:r""" mkdir -p $(dirname {output}) ; ln -sf $(readlink -f {input}) {output}"""
 
+collate_idxscript = "../exploration/collate_idx.R"
+
 rule filter_tRNA_rRNA:
     input: 
       'trim_reads/{sample}/{fastq}',
-      # 'filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done'  
-      filter_index    
+      'filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done'  
+      # filter_index    
     output: 'filter_reads/{sample}/{fastq}',
     threads: 8
     run:
@@ -336,6 +385,7 @@ rule filter_tRNA_rRNA:
         -x {indexname} \
         -L 20  \
         -p {threads}  \
+        -N 0 \
         -U  {input[0]} \
         --un-gz {output[0]} \
         --no-unal \
@@ -356,7 +406,8 @@ rule filter_tRNA_rRNA:
       #group the idx columns stuff is from 
       samtools idxstats {output[0]}.filtered_reads.bam \
       | perl -lanpe 's/^(\S+)_[^_\s]+\t/$1\t/' > {output[0]}.idxtmp
-      R --vanilla -e 'library("tidyverse");library("magrittr");read_tsv("{output[0]}.idxtmp",col_names=F)%>%set_colnames(paste0("X",1:4))%>%group_by(X1)%>%summarise_all(funs(sum))%>%write_tsv(col_names=F,"{output[0]}.filter.idxstats.log")'
+
+      #Rscript --vanilla {collate_idxscript} {output[0]}.idxtmp {indexname}.fa
 
       samtools stats {output[0]}.filtered_reads.bam > samtools stats {output[0]}.filtered_reads.bam.stats
 
@@ -400,6 +451,29 @@ KMERSIZE=6
 #       set -evx
 #         ln -rsf $(readlink -f {input}/*) processed_reads/{sample}/{sample}.fastq.gz
 #     """)
+
+
+
+      #   samtools view -bh  {output[0]}.filtered_reads.sam \
+      #   | samtools sort -@ {threads}  > {output[0]}.filtered_reads.bam
+
+      # samtools index {output[0]}.filtered_reads.bam
+      
+      # #those which mismatch twice should not be included
+      # samtools view -hb {outdir}/filtered_reads.bam \
+      # | bamtools filter -tag XM:2-10 -in - -out /dev/stdout \
+      # | samtools view -H > {output[0]}.mm.sam
+      # #>> {outdir}/unmapped.sam
+     
+      # #group the idx columns stuff is from 
+      # samtools idxstats {output[0]}.filtered_reads.bam \
+      # | perl -lanpe 's/^(\S+)_[^_\s]+\t/$1\t/' > {output[0]}.idxtmp
+
+      # Rscript --vanilla {collate_idxscript} {output[0]}.idxtmp {indexname}.fa
+
+      # samtools stats {output[0]}.filtered_reads.bam > samtools stats {output[0]}.filtered_reads.bam.stats
+
+
 
 rule gffread:
   input: REF,GTF_orig
@@ -487,36 +561,133 @@ rule fastqc:
           wait $(for i in {reads}; do $( fastqc -o $OUTDIR $i ) & done) 
         ''')
 
-rule collect_fastqc:
-     input:
-          all_results = expand("fastqc/data/{sample}/.done", sample=SAMPLES)
-     output:
-          result='fastqc/summary/fastqc_summary.tsv',
-          log='fastqc/summary/fastqc_summary.log'
-     shell:
-          r"""
-          set -e
-          mkdir -p $(dirname {output.result}) 
-          {SCRIPTDIR}/collect_fastqc_results.sh -i fastqc/ \
-          > {output.result} \
-          2> {output.log} 
-          """
+def get_fastqops(inputdir,read_pattern,lstring='<( zcat ',rstring=')'):
+  import glob as glob
+  #get our input files, in either paired end or single end form
+  assert '-f' in read_pattern
+  fastqops = read_pattern.split('-')[1].replace('f ','',1).strip()
+  fastqops = glob.glob(inputdir+'/'+fastqops)
+  assert fastqops
+  fastqops = ' '.join(fastqops)
+  
+  fastqops = lstring+fastqops+')'
+
+  if '-q' in read_pattern:
+    fastqops2 = read_pattern.split('-')[2].replace('q ','',1).strip()
+    fastqops2 = glob.glob(inputdir+'/'+fastqops2)
+    assert fastqops2
+    fastqops2 = ' '.join(fastqops2)
+    fastqops2 = lstring+fastqops2+')'
+    fastqops += ' ' + fastqops2
+  return(fastqops)
 
 rule star:
      input:
           fastqs='processed_reads/{sample}/.done',
           STARINDEX=STARINDEX,
+          bowtie_index='bowtie_index/.done',
      output:
           done = touch('star/data/{sample,[^/]+}/.done')
      threads: 8
      run:
-          read_pattern = READ_PATTERN_DICT[wildcards['sample']]
+          input.STARINDEX=input.STARINDEX.replace('.done','')
           markdup = '' if ASSAY_DICT[wildcards['sample']] == 'ribo' else '-m'
+          platform = 'NotSpecified'
+          inputdir = os.path.dirname(input['fastqs'])
+          outputdir = os.path.dirname(output[0])
+          read_pattern = READ_PATTERN_DICT[wildcards['sample']]
+          fastqops = get_fastqops(inputdir,read_pattern,lstring='<( zcat ',rstring=')')
+          repdir = outputdir.replace('data','reports')
+          tophatindex =input['bowtie_index'].replace('.done','')
+          
+          halfthreads = threads/2
+          sortmem = str(int(5000/halfthreads))+'M'
+
+          remap = '1' if ASSAY_DICT[wildcards['sample']] == 'ribo' else ''
+
+          sample = wildcards['sample']
           shell(r"""
-          echo {wildcards.sample}
-          mkdir -p star/reports/{wildcards.sample}
-          {SCRIPTDIR}/run_my_star.sh {markdup} -@ {threads} -i $(dirname {input.fastqs}) {read_pattern} -o $(dirname {output}) \
-          -r star/reports/{wildcards.sample} -t {TMPDIR} -l NoSharedMemory -x {STARINDEX} 
+            set -x
+         MY_TMP_DIR=$(mktemp -d)
+         #MY_TMP_DIR=/fast/users/dharnet_m/tmp/test
+        trap "set -x; rm -rf ${{MY_TMP_DIR}}" EXIT KILL TERM INT HUP
+
+         mkdir -p $MY_TMP_DIR
+        mkdir -p $MY_TMP_DIR/star
+        mkdir -p $MY_TMP_DIR/tophat2
+
+        #--outSAMmultNmax 20 --winAnchorMultimapNmax 50 --outFilterMultimapNmax 20 \
+
+
+        STAR \
+              --genomeDir {input.STARINDEX} \
+              --runThreadN {threads} \
+              --outSAMunmapped Within \
+              --outFilterType BySJout \
+              --outMultimapperOrder Random \
+              --alignSJoverhangMin 8 \
+              --alignSJDBoverhangMin 1 \
+              --outFilterMismatchNmax 999 \
+              --outFilterMismatchNoverLmax 0.04 \
+              --alignIntronMin 20 \
+              --alignIntronMax 1000000 \
+              --alignMatesGapMax 1000000 \
+              --genomeLoad NoSharedMemory \
+              --quantMode GeneCounts \
+              --outSAMattributes NH HI AS NM MD \
+              --outSAMtype BAM  Unsorted\
+              --outSAMattrRGline \"ID:{sample}\" \"SM:{sample}\" \"PL:{platform}\" \
+              --outFileNamePrefix ${{MY_TMP_DIR}}/star/ \
+              --outReadsUnmapped Fastx \
+              --readFilesIn {fastqops}
+              
+            source activate tophat
+
+          iftophat=
+          if [ {remap} && ${{MY_TMP_DIR}}/star/Unmapped.out.mate* ]; then
+            iftophat=true
+
+            tophat2 \
+                -p {threads} \
+                -z0 \
+                -g 100 \
+                --output-dir ${{MY_TMP_DIR}}/tophat2 \
+                --library-type fr-unstranded \
+                --no-coverage-search \
+                --transcriptome-index {tophatindex}/transcriptome \
+                {tophatindex}/ref \
+                ${{MY_TMP_DIR}}/star/Unmapped.out.mate*
+
+            umapped=${{MY_TMP_DIR}}/tophat2/unmapped.bam
+            tmapped=
+            
+            samtools merge \
+              -@ {threads}  -f \
+             ${{MY_TMP_DIR}}/all.bam \
+             ${{MY_TMP_DIR}}/star/Aligned.out.bam \
+             ${{MY_TMP_DIR}}/tophat2/*.bam
+          else
+            cp ${{MY_TMP_DIR}}/star/Aligned.out.bam ${{MY_TMP_DIR}}/all.bam
+          fi
+          
+         samtools sort \
+          -@ {halfthreads}\
+          -m {sortmem} \
+          -T ${{MY_TMP_DIR}} \
+          -o {outputdir}/{sample}.bam \
+          ${{MY_TMP_DIR}}/all.bam
+      
+        samtools index {outputdir}/{sample}.bam 
+
+        mkdir -p {repdir}
+        samtools stats {outputdir}/{sample}.bam > {repdir}/{sample}.bamstats.txt
+        samtools flagstat {outputdir}/{sample}.bam > {repdir}/{sample}.flagstat.log
+        samtools idxstats {outputdir}/{sample}.bam > {repdir}/{sample}.idxstats.log
+        
+        cp  ${{MY_TMP_DIR}}/star/ReadsPerGene.out.tab {outputdir}/ReadsPerGene.out.tab
+        cp  ${{MY_TMP_DIR}}/star/{{Log,SJ}}* {repdir}/
+        if [ $iftophat ] ;then cp ${{MY_TMP_DIR}}/tophat2/align_summary.txt {repdir} ;fi
+
           """)
           
 rule cutsite_kmers:
@@ -888,6 +1059,7 @@ rule qc:
         -o ${{OUTDIR}}/duplication/ \
         &> qc/reports/{wildcards.sample}/{wildcards.sample}_qc.log 
 
+
           """)
 
 multiqcscript = '~/Applications/MultiQC/scripts/multiqc'
@@ -897,6 +1069,7 @@ rule multiqc:
       expand("fastqc/data/{sample}/.done", sample = SAMPLES),
       expand("star/data/{sample}/.done", sample = SAMPLES),
       expand("qc/data/{sample}/.done", sample = SAMPLES),
+      expand("tophat2/data/{sample}/.done", sample = SAMPLES),
       [f.replace('input','filter_reads') for f in  ribofastqs]
  
   output:
@@ -904,6 +1077,7 @@ rule multiqc:
   run:
     reportsdirs = list(input)
     reportsdirs=[s.replace('star/data','star/reports') for s in reportsdirs]
+    reportsdirs=[s.replace('tophat2/data','tophat2/reports') for s in reportsdirs]
     reportsdirs=[os.path.dirname(s) for s in list(reportsdirs)]
     shell(r"""
       set -x
@@ -1198,8 +1372,8 @@ def get_readrange(wc):
 
 rule feature_counts:
      input:
+          get_readrange,
           'star/data/{sample}/.done',GTF,CDSGTF,'tputrs.gtf','fputrs.gtf',
-          get_readrange
      output:
           done = 'feature_counts/data/{sample,[^/]+}/feature_counts'
      threads: 2
@@ -1211,20 +1385,20 @@ rule feature_counts:
           mkdir -p feature_counts/reports/{wildcards.sample}
           mkdir -p feature_counts/data/{wildcards.sample}
 
-          head -n2 {input[1]} \
+          head -n2 {input[0]} \
           | tail -n1 \
           | awk -v FS="\t" -v OFS="\t"  '{{$7= "{bamfile}";print $0}}' \
           >    feature_counts/data/{wildcards.sample}/feature_counts
 
-          tail -n+3 {input[1]} \
+          tail -n+3 {input[0]} \
           >>   feature_counts/data/{wildcards.sample}/feature_counts
           """)
 
 rule aggregate_feature_counts:
-  input : expand("feature_counts/data/{sample}/.done", sample = SAMPLES),
+  input : expand("feature_counts/data/{sample}/feature_counts", sample = SAMPLES),
   output: 'feature_counts/all_feature_counts'
   run:
-    fcountfiles = expand("feature_counts/data/{sample}/{sample}.feature_counts", sample = SAMPLES)
+    fcountfiles = list(input)
     shell(r""" 
 
        #( (sed '2q;d' {fcountfiles[0]} | cut -f1 && tail -n+3 {fcountfiles[0]}| sort -k1 | cut -f1) > {output})
@@ -1374,6 +1548,14 @@ rule run_ribodiff:
   output: touch('ribodiff/.done')
   shell: r"""Rscript ../exploration/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
 
+DISPDIFF = 0
+rule run_xtail:
+  input: 'feature_counts/all_feature_counts'
+  conda: '/fast/users/harnettd_c/miniconda3/envs/ribodiff/'
+  output: touch('xtail/.done')
+  shell: r"""Rscript ../exploration/pipeline/run_xtail.R {input} $(dirname {output})"""
+
+
 
 MS_MEASURE_TO_USE = 'LFQ'
 mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
@@ -1418,16 +1600,82 @@ rule reg_seqs:
     R -e   'library(magrittr);library(GenomicRanges);library(data.table);myfasta <- Rsamtools::FaFile("{input.genome}") ; myutrs <- rtracklayer::import("{input.tputrs}") ; diffIDs <-  "{input.seqs}"%>% fread %>% dplyr::filter(padj<0.05) %>% .$geneID; myutrs %>% subset(gene_id %in% diffIDs) %>%split(.,.$gene_id) %>% reduce %>% {{GenomicFeatures::extractTranscriptSeqs(x=myfasta,.)}} %>% {{Biostrings::writeXStringSet(., "{output[0]}")}}'
   """
 
-rule find_motifs:
-  input: 'clusters/{clusterdata}/{clustermethod}/.done'
-  output: 'sequence_analysis/{clusterdata}/{clustermethod}/.done'
-  run:  
-    shell(r"""findMotifs.pl {input} fasta {outputdir} -fasta {background}""")
+#Things we want to search for motifs - anything that's translationally reuglated
+#later, clusters
 
+rule motseqs:
+  input:'ribodiff/.done','exprdata/allcounts_snorm.tsv',GFF,REF,  
+  output: 
+    touch('motseqs/.done'),
+    expand('motseqs/{reg}/{set}/{set}.fa',reg=motseqregions,set=motseqsets)
+  run:
+    input[0]=input[0].replace('.done','')
+    shell(r"""
+      Rscript ../exploration/createseqmot_background.R {input} $(dirname {output})
+    """)
 
+rule motifs:
+  input: 'motseqs/{reg}/{set}/{set}.fa'
+  output: touch('motifs/{reg}/{set}/.done')
+  run: 
+    outputdir = os.path.dirname(output[0])
+    background = input[0].replace('.fa','_background.fa')
+    nontransbackground = os.path.dirname(os.path.dirname(input[0]))+'/nontransregged.fa'
+    shell(r"""set -x
+      source activate meme
+      mkdir -p {outputdir}_dreme {outputdir}_dreme_rback {outputdir}_dreme_ntback
+
+      dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_ntback  -n {nontransbackground} 2>&1 > {outputdir}_dreme_rback/enlist.txt
+
+      dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme -n {background} 2>&1 > {outputdir}_dreme/enlist.txt
+
+      # dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_rback  2>&1 > {outputdir}_dreme_rback/enlist.txt
+    """)
+    # shell(r"""findMotifs.pl -p {threads} {input} fasta {outputdir} -fastaBg {background} """)
+    # shell(r"""findMotifs.pl -p {threads} {input} fasta {outputdir}_randbackground  """)
+
+# shell(r"""findMotifs.pl {input} fasta {outputdir} -fasta {background} –rna -minw5 -mod zoops -maxsize  20000000 -nmotifs 5 -evt 0.01""")
+
+#for i in  ../ext_data/mus_musculus_rnamotifs/pwms_all_motifs/M*.txt ; do cat $i | tail -n+2 | cut -d$'\t' -f2,3,4,5 | matrix2meme -n 100 -pseudo 1 > $i.meme ; done
+# fimo ../ext_data/mus_musculus_rnamotifs/pwms_all_motifs/M100_0.6.txt.meme  motseqs/CDS/translregged/translregged.fa
+# fread('ext_data/tops_yamashita_etal_2008/supp_data_table_2.csv')%>%filter(`known TOP`=='known')%>%.$seq%>%str_split(',')%>%unlist%>%keep(~ .!='')%>%DNAStringSet%>%consensusMatrix%>%.[1:4,]%>%apply(2,function(x)x/sum(x))%>%t%>%as.data.frame%>%mutate(Pos=seq_len(n()))%>%select(Pos,everything(),U=T)%>%write_tsv('ext_data/tops_yamashita_etal_2008/top_pwm.txt')
+#  
+pwmfolder = '../ext_data/mouse_cisrbp/pwms_all_motifs/'
+pwms = list(filter(lambda f: '.meme' in f, list(os.walk(pwmfolder))[0][2]))
+
+rule motscans:
+  input: fasta='motseqs/{reg}/{set}/{set}.fa',pwmfolder='../ext_data/mouse_cisrbp/pwms_all_motifs'
+  output: touch('motscans/{reg}/{set}/.done')
+  run:
+    backgroundfasta = input.fasta.replace('.fa','_background.fa')
+    pwmfolder = input['pwmfolder']+'/'
+    pwmfiles = [pwmfolder + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f]
+    pwmfiles = [ f for f in pwmfiles if 'M287' in f]
+    outputdir = os.path.dirname(output[0])
+    shell(r"""
+        source activate meme
+        for pwmfile in {pwmfiles}; do
+          echo $pwmfile
+          pwmbase=$(basename ${{pwmfile%.txt.meme}})
+          rm -rf {outputdir}/$pwmbase
+          mast -ev 1 --o {outputdir}/$pwmbase $pwmfile {input.fasta} 
+          mast -ev 1 --o {outputdir}/${{pwmbase}}_background $pwmfile {backgroundfasta} 
+        done
+      """)
+
+rule gquad_enrich:
+  input:
+    seqfile = 'motseqs/{reg}/{set}/{set}.fa',
+    seqfileback = 'motseqs/{reg}/nontransregged.fa',
+  output: touch('gquad_enrich/{reg}/{set}/.done')
+  threads: 8
+  shell: r'''
+    Rscript ../exploration/quads.R \
+    {input.seqfile} \
+    {input.seqfileback} \
+    $(dirname {output})
+  '''
 #rule run_template:
 #  input: templatefinput
 #  output: touch('run_template/.done')
 #  shell: r"""template {input} $(dirname {output})"""
-
-
