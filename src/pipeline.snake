@@ -144,7 +144,7 @@ rule all:
     ms_total_file,
     ms_spec_file,
     # [fastq.replace('input/','cutadapt_reads/') for fastq in ribofastqs],
-    # [fastq.replace('input/','collapse_reads/') for fastq in ribofastqs],
+    [fastq.replace('input/','collapse_reads/') for fastq in ribofastqs],
     # [fastq.replace('input/','trim_reads/') for fastq in ribofastqs],
     expand("processed_reads/{sample}/.done", sample = SAMPLES),
     # expand("cutsequences/{sample}/cutseqs.txt.gz", sample = SAMPLES),
@@ -180,7 +180,7 @@ rule all:
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets)
 
-MINREADLENGTH=20
+MINREADLENGTH=12
 MAXREADLENGTH=300
 QUALLIM=20
 CUTADAPTBIN="~/bin/cutadapt"
@@ -336,10 +336,11 @@ rule make_trna_rrna_indices:
        cat  ../ext_data/rRNAseqs/*.fasta >> {fafile} 
        bowtie2-build {fafile} {outprefix} --threads {threads}
        
-      """)
+      """
+)
 
 rule make_bowtie_indices:
-  input: REF
+  input: REF,RNAFASTA
   output: touch('bowtie_index/.done')
   threads: 8
   run:
@@ -509,6 +510,11 @@ rule gffread:
 
       #now make bed
       cat {GTF_orig} | awk '{{print $1,$4,$5,"name",$6,$7}}' > {BED}
+
+      samtools faidx {REF} 
+      refname={REF}
+      cut -f1,2 {REF}.fai > ${{refname%fa}}chromsizes 
+
       """)
 
 
@@ -708,7 +714,7 @@ rule cutsite_kmers:
           | bedtools intersect -a /dev/stdin -b {CDSGTF} -u \
           | awk -v OFS="\t" '{{print $1,$2-{halfKMERSIZE},$2+{halfKMERSIZE}}}' \
           | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s \
-          | grep -v ">"  | sort | uniq -c  | gzip > {output}
+          | grep -v ">"  | sort | uniq -c  | gzip > {output
        
 
         samtools view -bF 0x10 {input[0]} \
@@ -1070,7 +1076,7 @@ rule multiqc:
       expand("fastqc/data/{sample}/.done", sample = SAMPLES),
       expand("star/data/{sample}/.done", sample = SAMPLES),
       expand("qc/data/{sample}/.done", sample = SAMPLES),
-      expand("tophat2/data/{sample}/.done", sample = SAMPLES),
+      # expand("tophat2/data/{sample}/.done", sample = SAMPLES),
       [f.replace('input','filter_reads') for f in  ribofastqs]
  
   output:
@@ -1431,27 +1437,37 @@ rule make_riboqc_anno:
 
 rule run_riboqc:
   input : 'riboqc/annot.done','star/data/{sample}/.done',REF
-  output: 'riboqc/data/{sample}/_to_SaTAnn','riboqc/data/{sample}/_results_all_toknit'
+  output: touch('riboqc/data/{sample}/.done')
   run:
     bamfile = 'star/data/'+wildcards['sample']+'/'+wildcards['sample']+'.bam' 
     shell(r""" 
             mkdir -p riboqc/data/{wildcards.sample}/
             source activate riboqc
             Rscript {riboqc_script} {REF} riboqc/{ANNOBASE}.annoout {bamfile} riboqc/data/{wildcards.sample}/
+
   """)
 
 SaTAnn_script = '/fast/groups/ag_ohler/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
 
+rule make_chrnamefile:
+ input: GTF
+ output: 'chrnames.txt'
+ shell:r""" cut -d$'\t' -f1 {input} | uniq | sort | uniq | grep -v '#' > {input}"""
+
 rule run_satann:
-  input : 'riboqc/data/{sample}/_to_SaTAnn'
+  input : 'riboqc/data/{sample}/.done'
   output: touch('SaTAnn/{sample}/.done')
-  threads: 8
+  threads: 10
   run:
     shell(r"""
+    mkdir -p $( dirname {output} )
 
+    if [ ! -f riboqc/data/{wildcards.sample}/_to_SaTAnn ]; then
+      touch $(dirname {output} )/cannot_run_no_psites
+      exit
+    fi
     source activate riboqc
     
-    mkdir -p $( dirname {output})
 
       Rscript {SaTAnn_script} \
         {REF} \
@@ -1461,16 +1477,17 @@ rule run_satann:
         $(dirname {output})/SaTAnn
 
       """)
-
+    
 ribqc_report='/fast/groups/ag_ohler/dharnet_m/satann_working/riboseqc.Rmd'
 rule knit_riboqc:
   input: 
-    riboqcoutput='riboqc/data/{sample}/_results_all_toknit',
+    riboqcoutput='riboqc/data/{sample}/.done',
     ribqc_report=ribqc_report
   output: 'riboqc/reports/{sample}/riboqcreport.html'
   run:
     #knitr's file path fuckery means we need to cd and hand it absolute paths, god knows where it's working directory ends up.
-    indata = os.path.abspath(input.riboqcoutput)
+    riboqcoutput = input[0].replace('.done','_results_all_toknit')
+    indata = os.path.abspath(riboqcoutput)
     figpath = os.path.abspath(output[0]).replace('.html','')+'_fig'
     outpath = os.path.abspath(output[0])
     shell(r"""
@@ -1478,6 +1495,7 @@ rule knit_riboqc:
     cd $(dirname {output})
     R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{wildcards.sample}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
 """)
+
 
 ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
 ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
@@ -1626,6 +1644,35 @@ rule gquad_enrich:
     {input.seqfileback} \
     $(dirname {output})
   '''
+
+#cat my_gencode.vM12.annotation.gtf | grep transcript  |  awk '{if($7=="+"){$5=$4}else{$4=$5};print $1,$4,$5,".",".",$7}' | awk -vOFS="\t" '{$2 = $2 - 100; $3 = $3 + 100;print $0}' | bedtools getfasta -bed - -fi my_GRCm38.p5.genome.chr_scaff.fa -fo /dev/stdout -s > promotorseqs.fa
+# samtools view -H star/data/E13_ribo_1/E13_ribo_1.bam | grep "SQ" | sed -r 's/^@SQ\s+SN://' | sed -r "s/\s+LN:/\t/" > my_GRCm38.p5.genome.chr_scaff.chromsizes
+#cat my_gencode.vM12.annotation.gtf | awk '$3=="transcript"'  | awk -vOFS="\t" '{if($7=="+"){$5=$4}else{$4=$5};print $1,$4,$5,$12,".",$7}'|sed 's/[";]//g' | bedtools slop -b 100 -i - -g my_GRCm38.p5.genome.chr_scaff.chromsizes | bedtools getfasta -bed - -fi my_GRCm38.p5.genome.chr_scaff.fa -fo /dev/stdout -s  -name > promotorseqs.fa 
+
+#now scan with our top motif
+#cat fimo_out/fimo.gff | cut -f 1  | sort | uniq | wc -l ; grep -c -e '>' ../ext_data/tops_yamashita_etal_2008/supp2seqs.fa
+chrsizes = REF.replace(".fa",".chromsizes")
+
+
+rule fpTOP_scan:
+  input: toppwm='../ext_data/tops_yamashita_etal_2008/top_pwm.txt.meme',
+  output: 'fpTOP_scan/fimo.gff'
+  shell: r"""
+  
+    mkdir -p motseqs
+
+    cat {GTF} \
+      | awk '$3=="transcript"'  \
+      | awk -vOFS="\t" '{{if($7=="+"){{$5=$4}}else{{$4=$5}};print $1,$4,$5,$12,".",$7}}'\
+      | sed 's/[";]//g' \
+      | bedtools slop -b 100 -i - -g {chrsizes}\
+      | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s  -name \
+      > motseqs/promotorseqs.fa
+
+    fimo --oc $(dirname {output} ) {input.toppwm} motseqs/promotorseqs.fa 
+
+  """
+
 #rule run_template:
 #  input: templatefinput
 #  output: touch('run_template/.done')
