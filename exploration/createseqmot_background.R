@@ -34,7 +34,6 @@ normcount <- fread(normcountstable)%>%
 normcount%<>%filter(!is.na(gene_id))
 normcount%>%colnames
 
-stop()
 
 #read in ribodiff
 ribodiffresfiles <- Sys.glob(file.path(ribodifffolder,'/riboseqres_*.txt'))%>%
@@ -174,7 +173,7 @@ names(testsets)[[1]]->genesetname
 mclapply(names(testsets),function(genesetname){
 	testset <- testsets[[genesetname]]
 	
-	backgroundset <- backgroundsets[genesetname]]
+	backgroundset <- backgroundsets[[genesetname]]
 
 	#cds set for the genes
 	regionname <- 'CDS'

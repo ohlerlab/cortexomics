@@ -1,0 +1,59 @@
+```{r}
+kegg_result %>%
+  as.data.frame %>%
+  dplyr::select(-geneID) %>%
+  dplyr::mutate(pvalue = signif(pvalue, 3), 
+                p.adjust = signif(p.adjust, 3),
+                qvalue = signif(qvalue, 3)) %>%
+  dplyr::mutate(ID = paste0('<a href="http://www.genome.jp/dbget-bin/www_bget?pathway+', ID, '">', ID, '</a>')) %>%
+  DT::datatable(rownames = F, escape = F)
+```
+
+The dotplot shows the top 20 KEGG terms, sorting them by GeneRatio and coloring
+by the adjusted p-value. Size correponds to the number of differential expressed genes in the 
+corresponding KEGG term (`Count`).
+
+```{r fig.height=6, fig.width=8}
+clusterProfiler::dotplot(kegg_result, showCategory = 20)
+```
+
+The enrichmen map below additionally shows the relationship between the top 20 terms,
+size of the dots reflecting the number of differential expressed genes in the 
+corresponding KEGG term (`Count`) and color reflecting the p-value.
+
+```{r fig.height=10, fig.width=10}
+DOSE::enrichMap(kegg_result, n = 20)
+```
+
+The plot below shows the relationship between genes and KEGG terms.
+
+```{r fig.height=10, fig.width=10}
+DOSE::cnetplot(kegg_result, showCategory = 5, categorySize = "pvalue")
+```
+
+
+```{r eval=T}
+plot_folder <- file.path("plots/", paste0(my_contrast_name, "_kegg"))
+dir.create(plot_folder, showWarnings = F, recursive = T)
+
+top_20_kegg_terms <-
+kegg_result %>%
+  as.data.frame() %>%
+  dplyr::arrange(pvalue) %>%
+  head(n = 20) %>%
+  dplyr::select(ID) %>%
+  unlist()
+
+org_dir <- setwd(plot_folder)
+for (kegg_term in top_20_kegg_terms) {
+  # genes with missing values are transparent
+  pv_file <- paste0(kegg_term, ".pathview.png")
+  if (!file.exists(pv_file)) {
+    pathview::pathview(gene.data = entrez_log2fc_vec, pathway.id = kegg_term, species = kegg_org,
+                       limit = list(gene = max(abs(entrez_log2fc_vec)), cpd = 1),
+                       low = list(gene = "green", cpd = "green"))
+  }
+}
+ setwd(org_dir)
+```
+

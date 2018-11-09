@@ -1,0 +1,455 @@
+
+## alignmnet statistics
+
+Now we will have a look at the alignment statistics as reported by the used read mapper `STAR`.
+
+```{r}
+basic_aln_stat <-
+  aln_stats %>%
+  dplyr::filter(
+    key %in% c(
+      "Number of input reads",
+      "Uniquely mapped reads number",
+      "Number of reads mapped to multiple loci",
+      "Number of unmapped reads",
+      "Number of reads mapped to too many loci"
+    )
+  )  %>%
+  tidyr::spread(key, value) %>%
+  dplyr::mutate(unmapped = `Number of unmapped reads` + `Number of reads mapped to too many loci`) %>%
+  dplyr::select(
+    -`Number of unmapped reads`,
+    -`Number of reads mapped to too many loci`,
+    -`Number of input reads`
+  ) %>%
+  dplyr::rename(uniquely_mapped = `Uniquely mapped reads number`,
+         multi_mapped = `Number of reads mapped to multiple loci`) %>%
+  tidyr::gather(key, count, -sample) %>%
+  dplyr::group_by(sample) %>%
+  dplyr::mutate(percentage = 100 * count / sum(count)) %>%
+  ungroup
+
+
+unmapped_aln_stat <- 
+  aln_stats %>%
+  dplyr::filter(
+    key %in% c(
+      "% of reads mapped to too many loci",
+      "% of reads unmapped: too many mismatches",
+      "% of reads unmapped: too short",
+      "% of reads unmapped: other"
+    )
+  ) %>%
+  tidyr::spread(key, value) %>%
+  dplyr::rename(
+    too_many_loci = `% of reads mapped to too many loci`,
+    too_many_mismatches = `% of reads unmapped: too many mismatches`,
+    too_short = `% of reads unmapped: too short`,
+    other = `% of reads unmapped: other`
+  ) %>%
+  tidyr::gather(key, percentage_from_total, -sample) %>%
+  dplyr::group_by(sample) %>%
+  dplyr::mutate(percentage = 100 * percentage_from_total / sum(percentage_from_total)) %>%
+  ungroup
+```
+
+### basic alignment statistics
+
+A read can be classified as uniquely mapping if the mapping software can find only one unique position in the genome. In contrast reads are classified as multi mappers if they map to more than one genomic location. Finally reads are classified as unmapped if the mapping program cannot find a genomic locus they map to.
+
+A high number of unmapped reads is indicative for a contamination of the samples.
+
+```{r fig.height= num_sample*14/50, fig.width=10}
+p1 <-
+  basic_aln_stat %>%
+  dplyr::mutate(key =  factor(key, levels = c(
+    "unmapped", "multi_mapped", "uniquely_mapped"
+  ))) %>%
+  ggplot(aes(x = sample, y = count, fill = key)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+p2 <-
+  basic_aln_stat %>%
+  dplyr::mutate(key =  factor(key, levels = c(
+    "unmapped", "multi_mapped", "uniquely_mapped"
+  ))) %>%
+  ggplot(aes(x = sample, y = percentage, fill = key)) +
+  geom_bar(stat = "identity") +
+  geom_hline(yintercept = c(80, 90)) +
+  scale_y_continuous(breaks = seq(0, 100, 10)) +
+  scale_fill_discrete(guide = FALSE) +
+  coord_flip()
+
+multi_plot(p1, p2, cols = 2)
+```
+
+#### unmapped reads
+
+Unmapped reads can be further classified by the reason they do not map. Too short means that only short sub-fragments could be mapped, as these reads are probably coming from a different source than the genome to which we mapped the reads. Too many loci implies that there were more than 20 loci to which the read mapped. Finally, too many mismatches means that the read could have been only mapped by introducing a substantial number of mismatches.
+
+```{r fig.height= num_sample*14/50, fig.width=10}
+p1 <- 
+  unmapped_aln_stat %>%
+  ggplot(aes(x = sample, y = percentage_from_total, fill = key)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip()
+
+p2 <-
+  unmapped_aln_stat %>%
+  ggplot(aes(x = sample, y = percentage, fill = key)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() +
+  scale_fill_discrete(guide = FALSE)
+
+multi_plot(p1,p2,cols = 2)
+```
+
+### mismatches, insertions, deletions
+
+```{r}
+var_rates_aln_stats <-
+  aln_stats %>%
+  dplyr::filter(key %in% c(
+    "Mismatch rate per base, %",
+    "Deletion rate per base",
+    "Insertion rate per base"
+  )) %>%
+  tidyr::spread(key, value) %>%
+  dplyr::rename(mismatch = `Mismatch rate per base, %`,
+         deletion = `Deletion rate per base`,
+         insertion = `Insertion rate per base`) %>%
+  tidyr::gather(key, rate_per_base_in_percentage, -sample)
+          
+var_size_aln_stats <-
+  aln_stats %>%
+  dplyr::filter(key %in% c("Insertion average length", "Deletion average length")) %>%
+  tidyr::spread(key, value) %>%
+  dplyr::rename(deletion = `Deletion average length`,
+         insertion = `Insertion average length`) %>%
+  tidyr::gather(key, average_length, -sample)
+```
+
+Here we show the rates per base in percentages for deletions, insertions, and mismatches,
+
+```{r fig.height= 2*num_sample*14/50, fig.width=10}
+p1 <-
+var_rates_aln_stats %>%
+  dplyr::filter(key == 'mismatch') %>%
+  ggplot(aes(x = sample,  y = rate_per_base_in_percentage)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() + 
+  labs(x = 'sample', y = 'mismatch rate per base, %')
+
+p2 <-
+var_rates_aln_stats %>%
+  dplyr::filter(key == 'deletion') %>%
+  ggplot(aes(x = sample,  y = rate_per_base_in_percentage)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() + 
+  labs(x = 'sample', y = 'deletion rate per base, %')
+
+p3 <-
+var_rates_aln_stats %>%
+  dplyr::filter(key == 'insertion') %>%
+  ggplot(aes(x = sample,  y = rate_per_base_in_percentage)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() + 
+  labs(x = 'sample', y = 'insertion rate per base, %')
+
+multi_plot(p1,p2,p3, cols = 2)
+```
+
+and the average length per deletion and insertion.
+
+```{r fig.height= num_sample*14/50, fig.width=10}
+p1 <-
+var_size_aln_stats %>%
+  dplyr::filter(key == 'deletion') %>%
+ggplot(aes(x = sample,  y = average_length)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  labs(x = 'sample', y = 'average deletion length')
+
+p2 <-
+var_size_aln_stats %>%
+  dplyr::filter(key == 'insertion') %>%
+ggplot(aes(x = sample,  y = average_length)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  labs(x = 'sample', y = 'average insertion length')
+
+multi_plot(p1,p2, cols = 2)
+```
+
+### splice junctions
+
+```{r}
+basic_sj_aln_stats <-
+  aln_stats %>%
+  dplyr::filter(
+    key %in% c(
+      "Number of splices: Total",
+      "Number of splices: Annotated (sjdb)",
+      "Uniquely mapped reads number"
+    )
+  ) %>%
+  tidyr::spread(key, value) %>%
+  dplyr::rename(total = `Number of splices: Total`,
+         annotated = `Number of splices: Annotated (sjdb)`,
+         uniq_mapped_reads = `Uniquely mapped reads number`) %>%
+  dplyr::mutate(
+    novel = total - annotated,
+    novel_normed = novel / uniq_mapped_reads,
+    annotated_normed = annotated / uniq_mapped_reads
+  ) %>%
+  dplyr::select(-total, -uniq_mapped_reads) %>%
+  tidyr::gather(splice_junction, value, -sample)
+
+
+
+types_sj_aln_stats <-
+  aln_stats %>%
+  dplyr::filter(
+    key %in% c(
+      'Number of splices: GT/AG',
+      'Number of splices: GC/AG',
+      'Number of splices: AT/AC',
+      'Number of splices: Non-canonical'
+    )
+  ) %>%
+  tidyr::spread(key, value) %>%
+  dplyr::rename(
+    `GT/AG` = `Number of splices: GT/AG`,
+    `GC/AG` = `Number of splices: GC/AG`,
+    `AT/AC` = `Number of splices: AT/AC`,
+    non_canonical = `Number of splices: Non-canonical`
+  ) %>%
+  tidyr::gather(splice_junction, count, -sample) %>%
+  dplyr::group_by(sample) %>%
+  dplyr::mutate(percentage = count / sum(count)) %>%
+  ungroup
+```
+
+Here we show the number of annotated and newly formed splice junctions as found by the mapping algorithm. The left plot shows the absolute number, the right plot shows the counts normalized by the number of uniquely mapping reads.
+
+```{r fig.height= num_sample*14/50, fig.width=10}
+p1 <-
+  basic_sj_aln_stats %>%
+  dplyr::filter(!grepl('normed', splice_junction)) %>%
+  ggplot(aes(x = sample, y = value, fill = splice_junction)) +
+  geom_bar(stat = 'identity') +
+  coord_flip() +
+  labs(x  = 'sample', y = 'count')
+
+p2 <-
+  basic_sj_aln_stats %>%
+  dplyr::filter(grepl('normed', splice_junction)) %>%
+  ggplot(aes(x = sample, y = value, fill = splice_junction)) +
+  geom_bar(stat = 'identity') +
+  coord_trans(y = scales::sqrt_trans()) +
+  coord_flip() +
+  labs(x  = 'sample', y = 'normalized count')
+
+multi_plot(p1, p2, cols = 2)
+```
+
+The relative frequency of the type of splice junction on a square root scale.
+
+```{r fig.height= num_sample*14/50}
+types_sj_aln_stats %>%
+  ggplot(aes(x = sample, y = percentage, fill = splice_junction)) +
+  geom_bar(stat = 'identity') +
+  coord_trans(y = scales::sqrt_trans()) +
+  coord_flip() +
+  labs(x = 'sample')
+```
+
+
+## duplication rates
+
+The statistics for read duplication rates were obtained using `RSeQC`. Two strategies were used to determine reads duplication rate: 
+
+* Sequence based (seq): reads with identical sequence are regarded as duplicated reads
+* Mapping based (pos): reads mapped to the exactly same genomic location are regarded as duplicated reads
+
+For splice reads, reads mapped to the same starting position and splice the same way are regarded as duplicated reads. The log-log plot shows the number of uniquely mapped reads against how often they occur, i.e. their 'occurence' or duplication times.
+
+```{r}
+ ggplot(dup_stats, aes(x = log10(Occurrence), y = log10(UniqReadNumber), color = sample ) ) + 
+   geom_point() + 
+   facet_wrap(~type) + 
+   theme_bw() 
+```
+
+## RNA-SeQC stats
+
+### total reads
+
+Total Purity Filtered Reads Sequenced are filtered for vendor fail flags and exclude alternative alignment reads. Alternative Aligments are duplicate read entries providing alternative coordinates. Failed Vendor QC Check are reads which have been designated as failed by the sequencer. Read Length is the maximum length found for all reads. Estimated Library Size is the number of expected fragments based upon the total number of reads and duplication rate assuming a Poisson distribution.
+
+```{r fig.height= 3*num_sample*14/50, fig.width=10}
+seqc_stats %>%
+  dplyr::filter(variable %in% c('Total Purity Filtered Reads Sequenced', 
+                         'Alternative Aligments', 
+                         'Failed Vendor QC Check',
+                         'Read Length','Estimated Library Size'))  %>% 
+  ggplot(aes(x = sample, y = value)) + 
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  coord_flip() +
+  facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+
+### mapped reads
+
+Mapped reads are those that were aligned. Mapping Rate is per total reads. Mapped Unique are both aligned as well as non-duplicate reads. Mapped Unique Rate of Total is per total reads. Unique Rate of Mapped are unique reads divided by all mapped reads. Duplication Rate of Mapped is the duplicate read divided by total mapped reads. Base Mismatch Rate is the number of bases not matching the reference divided by the total number of aligned bases. rRNA reads are non-duplicate and duplicate reads aligning to rRNA regions as defined in the transcript model definition. rRNA Rate is per total reads. 
+
+```{r fig.height= 5*num_sample*14/50, fig.width=10}
+seqc_stats %>%
+  dplyr::filter(variable %in% c('Mapped', 
+                         'Mapping Rate',
+                         'Mapped Unique',
+                         'Mapped Unique Rate of Total',
+                         'Unique Rate of Mapped',
+                         'Duplication Rate of Mapped',
+                         'Base Mismatch Rate',
+                         'rRNA',
+                         'rRNA rate')) %>% 
+  ggplot(aes(x = sample, y = value)) + 
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  coord_flip() +
+  facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+### transcript-associated reads
+
+All of the above rates are per mapped read. Intragenic Rate refers to the fraction of reads that map within genes (within introns or exons). Exonic Rate is the fraction mapping within exons. Intronic Rate is the fraction mapping within introns. Intergenic Rate is the fraction mapping in the genomic space between genes. Split Reads is the number of reads spanning an exon exon junction. Expression Profile Efficiency is the ratio of exon reads to total reads. Transcripts/Genes Detected is the number of transcripts/Genes with at least 5 reads. 
+
+```{r fig.height= 4*num_sample*14/50, fig.width=10}
+seqc_stats %>%
+   dplyr::filter(variable %in% c('Intragenic Rate', 
+                          'Exonic Rate', 
+                          'Intronic Rate', 
+                          'Intergenic Rate', 
+                          'Split Reads', 
+                          'Expression Profiling Efficiency', 
+                          'Transcripts Detected',
+                          'Genes Detected')) %>% 
+ ggplot(aes(x = sample, y = value)) + 
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  coord_flip() +
+  facet_wrap(~variable, scales = "free", ncol = 2)
+```
+
+
+### coverage
+
+The plots below show the gene body coverage: Each gene was scaled to 100 percent and then the mean coverage was calculated stratified by expression levels. Also shown is the coverage at the 3' end.
+
+```{r}
+ggplot(norm_cvg, aes(x = percent, y = mean_cvg, color = sample)) + 
+  geom_line() + 
+  theme_bw() +
+  facet_wrap(~type, scales = "free_y",ncol = 1) +
+  labs(title = 'gene body coverage', x = "percent of transcript length (5' to 3')", y = 'mean coverage')
+
+ggplot(three_prime_cvg, aes(x = pos, y = mean_cvg, color = sample)) + 
+  geom_line() + 
+  theme_bw() +
+  facet_wrap(~type, scales = "free_y", ncol = 1) +
+  labs(title = "3' end coverage", x = "distance from 3' end", y = "mean coverage")
+```
+
+
+
+## counts
+
+```{r}
+feature_counts_summary <-
+  feature_counts_summary %>%
+  tidyr::gather(sample, counts, -status) %>%
+  dplyr::group_by(status) %>%
+  dplyr::filter(!all(counts == 0)) %>%
+  dplyr::ungroup()
+
+feature_counts_summary_w_star <-
+  aln_stats %>%
+  dplyr::filter(key == 'Number of reads mapped to multiple loci') %>%
+  dplyr::mutate(key = 'STAR_MultiMapping') %>%
+  dplyr::select(status = key, sample, counts = value) %>%
+  dplyr::bind_rows(feature_counts_summary, .) %>%
+  dplyr::filter(status != 'Unassigned_MultiMapping')
+```
+
+```{r fig.height= 1*num_sample*14/50, fig.width=10}
+p1 <-
+  feature_counts_summary_w_star %>%
+  ggplot(aes(
+    x = sample,
+    y = counts,
+    fill =  factor(status,
+                   levels = rev(
+                     c(
+                       'Assigned',
+                       'Unassigned_Ambiguity',
+                       'STAR_MultiMapping',
+                       'Unassigned_NoFeatures',
+                       'Unassigned_Unmapped'
+                     )
+                   ))
+  )) +
+  geom_bar(stat = 'identity', position = 'stack') +
+  labs(fill = 'status') +
+  coord_flip()
+
+p2 <-
+  feature_counts_summary_w_star %>%
+  group_by(sample) %>%
+  mutate(fraction = counts / sum(counts)) %>%
+  ggplot(aes(
+    x = sample,
+    y = fraction,
+    fill =  factor(status,
+                   levels = rev(
+                     c(
+                       'Assigned',
+                       'Unassigned_Ambiguity',
+                       'STAR_MultiMapping',
+                       'Unassigned_NoFeatures',
+                       'Unassigned_Unmapped'
+                     )
+                   ))
+  )) +
+  geom_bar(stat = 'identity') +
+  geom_hline(yintercept = 0.75) +
+  scale_fill_discrete(guide = FALSE) +
+  labs(fill = 'status') +
+  coord_flip()
+
+multi_plot(p1, p2, cols = 2)
+```
+
+
+```{r}
+feature_counts_data$counts %>%
+  tidyr::gather(sample, count, -feature_id) %>%
+  ggplot(aes(x = count + 1e-3, group = sample)) + 
+  geom_density() +
+  scale_x_log10()
+```
+
+
+```{r fig.height=num_sample/2, fig.align='center'}
+feature_counts_data$counts %>%
+  tidyr::gather(sample, count, -feature_id) %>%
+  ggplot(aes(x = log2(count))) + 
+  #scale_y_sqrt() + 
+  #coord_trans(y = scales::sqrt_trans()) + 
+  geom_histogram() +
+  facet_wrap(~sample, ncol = 5)
+```
+

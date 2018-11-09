@@ -1,0 +1,153 @@
+---
+title: "Differential Expression Analysis"
+author: "Kajetan Bentele"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
+```
+
+```{r preparation, child="preparation.Rmd"}
+```
+
+# overview
+
+The study comprises the following samples
+
+```{r overview}
+sample_annot %>%
+  dplyr::arrange(group) %>%
+  knitr::kable()
+```
+
+# qc
+
+```{r qc, child="qc.Rmd"}
+```
+
+# diagnostics
+
+For the further analysis we only keep protein-coding genes.
+
+```{r counts_diagnostics, child="counts_diagnostics.Rmd"}
+```
+
+
+# differential expression
+
+A gene is defined as being differential expressed if its absolute log2 fold-change
+is larger than `r my_log2fc_th` and the adjusted p-value smaller than `r my_alpha`.
+Up-regulated genes have a log2 fold-change larger than `r my_log2fc_th`, down-regulated
+genes have a log2 fold-change smaller than `r -my_log2fc_th`.
+Genes for which the  independent filtering lead to a missing adjusted p-value 
+are excluded from the  analysis. 
+
+```{r de_analysis, results="asis", eval = T}
+for (my_contrast_name in names(my_contrasts)){
+  my_contrast <- my_contrasts[[my_contrast_name]]
+  cat(knitr::knit_child(text = knitr::knit_expand("one_contrast_de.Rmd", my_contrast = my_contrast), quiet = T))
+  cat("\n\n")
+}
+```
+
+# GO enrichment
+
+We use the determined differential expressed genes for a GO enrichment analysis: 
+We perform enrichment analysis using the set of differential expressed gene, and those
+only up- and down-regulated, respectively.
+
+The plots shows the result of the enrichment 
+analysis using  algorithms which are differing in the way they take into account 
+the hierarchical structure of the gene ontology (GO). The `elim` algorithm leads 
+to the most specific GO terms, the classic to the most general.
+
+```{r go_enrichment, results="asis", eval = T}
+for (my_contrast_name in names(my_contrasts)){
+  my_contrast_go_name <- paste0(my_contrast_name, "go")
+  cat(knitr::knit_child(text = knitr::knit_expand("one_contrast_go.Rmd"), quiet = T))
+  cat("\n\n")
+}
+```
+
+# KEGG enrichment
+
+In order to test for enrichment of KEGG terms with differential expressed gene, we
+have to map the ensembl ids to KEGG ids which correspond to entrez id in the case
+of human and mouse. In case there is a 1:many mapping the KEGG id will get the same
+value as the ensembl id mapping to it. In case of a many:1 mapping, the majority 
+vote is taken. The case many:many is also resolved in the same way using propagation
+and majority voting.
+
+We test for KEGG enrichment with function `enrichKEGG` from 
+the pacakge `clusterProfiler` which is using a hypergeometric. For filtering the results we use a cutoff of 
+`r kegg_p_value_cutoff` for the  p-value and a cutoff of `r kegg_q_value_cutoff` for
+the q-value.  The minimal size
+of gene sets was set to `r kegg_min_gs_size`, the maximal size to  `r kegg_max_gs_size`.
+P-values were adjusted using `r kegg_p_adj_meth` method. The gene universe is set
+equal to the genes used for differential expression analysis.
+
+The tables provide for each
+retained KEGG term the ID and a description. The `GeneRatio` indicates the number of
+differential expressed genes in this term over the total number of differential expressed genes.
+The `BgRatio` indicates the number of genes in this term divided by the total number of used genes in the tested KEGG terms.
+
+
+```{r kegg_enrichment, results="asis", eval = T}
+for (my_contrast_name in names(my_contrasts)){
+  cat(knitr::knit_child(text = knitr::knit_expand("one_contrast_kegg.Rmd"), quiet = T))
+  cat("\n\n")
+}
+```
+
+
+# genes of interest
+
+Below you can find the tables for each contrast with log2 fold-changes for your gene of interests.
+
+```{r genes_of_interest, results="asis", eval = T}
+stopifnot(assertthat::has_name(genes_of_interest, "feature_id"))
+for (my_contrast_name in names(my_contrasts)){
+   cat(knitr::knit_child(text = knitr::knit_expand("one_contrast_gof.Rmd"), quiet = T))
+  cat("\n\n")
+}
+```
+
+
+# marker genes
+
+We use log2 regularized counts additionaly normalized by gene length to compare counts
+between genes and sample. 
+
+```{r marker_genes}
+reg_log2_cpk <- get_reg_log2_cpk(dds, counts_list_all$features)
+
+marker_gene_expr <- 
+  dplyr::left_join(marker_genes, reg_log2_cpk) %>%
+  dplyr::left_join(dplyr::select(sample_annot, sample_id, group))
+
+marker_gene_expr %>%
+  ggplot(aes(x = marker_type, y = reg_log2_cpk, color = marker_type)) + 
+  geom_jitter(height = 0, width = 0.1 ) + 
+  facet_wrap(~group) 
+```
+
+# internals
+
+## version control
+
+```{r  message=T}
+print_git_summary()
+```
+
+## reproducibility
+
+```{r message=T}
+sessionInfo()
+```
+
+

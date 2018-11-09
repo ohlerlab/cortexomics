@@ -1,5 +1,4 @@
 import tensorflow as tf
-import edward as edw
 import edward as ed
 import numpy as np
 import pandas as pd
@@ -9,22 +8,81 @@ from edward.models import OneHotCategorical,Categorical, Dirichlet, InverseGamma
 import rpy2.robjects as robjects
 import rpy2.robjects.lib.ggplot2 as ggplot2
 
-n_genes = 3
-n_time = 5
-
-# def define_model(n_genes,n_time):
-
-# ribomsbase = tf.constant(todimn(100.,n_genes))
 
 
+###Basic testing of how edward works - estimating a normal variable
+
+with tf.variable_scope(tf.get_variable_scope(),reuse=tf.AUTO_REUSE):
+	N = 100
+	mu = np.random.normal()
+	x = np.random.normal(loc=mu, scale=1, size=(N, 1)).astype(np.float32)
+	px = ed.models.Normal(loc=tf.Variable(tf.zeros([1])) * tf.ones([N, 1]), scale=tf.ones([1]))
+	inf = ed.KLqp(data={px: x})
+	inf.run(n_iter=250)
+	print(mu, x.mean(), ed.get_session().run(px.mean()[0, 0]))
+	print(ed.evaluate('mean_squared_error', data={px: x, : y_test}))
+
+tf.reset_default_graph()
+tf.get_variable_scope().reuse_variables()
+sess=tf.InteractiveSession()
 
 
+with tf.variable_scope(tf.get_variable_scope(),reuse=tf.AUTO_REUSE):
+	N = 100
+	np.random.seed(0)
+
+	mu = tf.placeholder(tf.float32,[1])
+	x = ed.models.Normal(loc=mu, scale=tf.ones([1]))
+
+	mu = np.random.normal()
+	x = np.random.normal(loc=mu, scale=1, size=(N, 1)).astype(np.float32)
+	px = ed.models.Normal(loc=tf.Variable(tf.zeros([1])) * tf.ones([N, 1]), scale=tf.ones([1]))
+	inf = ed.KLqp(data={px: x})
+	inf.run(n_iter=250)
+	print(mu, x.mean(), ed.get_session().run(px.mean()[0, 0]))
+	ed.evaluate()
+
+
+
+with tf.variable_scope(tf.get_variable_scope(),reuse=tf.AUTO_REUSE):
+	
+	N = 100#number of reps
+	np.random.seed(0)#seed
+
+	mumu = tf.Variable(tf.zeros([1]))
+	musig = tf.Variable(tf.ones([1.]))
+	mu = ed.models.Normal(mumu,tf.nn.softplus(musig))
+	mu = ed.models.Normal(mumu* tf.ones([N, 1]),musig)
+	# mu = tf.Variable(tf.ones([1.]))
+
+	#now draw samples
+	mureal = np.random.normal()#get some mean 
+	x_train = np.random.normal(loc=mureal, scale=1, size=(N, 1)).astype(np.float32)
+
+	#define an approximate distribution over mu
+	qmu = ed.models.Normal(
+		loc=tf.get_variable('qmu/loc',[1])* tf.ones([N, 1]), 
+		scale=tf.get_variable('qmu/scale',[1]))
+
+	dx = ed.models.Normal(loc=mu , scale=tf.ones([1]))
+
+	#run inference
+	inf = ed.KLqp({mu:qmu},data={dx: x_train})
+	inf.run()
+
+	#fetch our parameters
+	vars2get = (qmu.mean()[0],qmu.stddev()[0])
+	print(mureal, x.mean(),ed.get_session().run(vars2get) )
+
+
+#define a simple riboseq/protein system with degredation, initial protein levels and riboseq
+#as pointestimates
 n_genes = 3 
 n_time = 5
+n_riboreps = 2
+n_msreps = 4
 
 # vals = define_model(n_genes,n_time)
-
-
 deg = tf.placeholder(tf.float32,shape=n_genes)
 protein0 = tf.placeholder(tf.float32,shape=n_genes)
 ribo = tf.placeholder(tf.float32,shape=(n_time,n_genes))
@@ -37,32 +95,40 @@ protein = tf.stack(protein)
 
 #define our 
 riboreads = Normal(
-	tf.stack([ribo,ribo],axis=2),
-	tf.sqrt(tf.stack([ribo,ribo],axis=2))
+	tf.stack([ribo]*n_riboreps,axis=2),
+	tf.sqrt(tf.stack([ribo]*n_riboreps,axis=2))
 )
 
 #ms is similiar to riboreads for now - but with higher variance
 ms = Normal(
-	tf.stack([protein]*3,axis=2),
-	tf.sqrt(tf.stack([protein]*3,axis=2))
+	tf.stack([protein]*n_msreps,axis=2),
+	tf.sqrt(tf.stack([protein]*n_msreps,axis=2))
 )
 
 vals = ( protein, riboreads, ms )
 	# return( protein, riboreads, ms )
 
 vars = tf.trainable_variables()
-	
+
+
+#take samples from this system - feeding in rriboseq, protein levels and degredation levels
+#with riboseq set to almost zero
 with tf.Session() as sess:
 
 	ms_sample=sess.run(
 		fetches = vals,
 		feed_dict = {
-			protein0:[10000]*n_genes,
+			# protein0:[10000]*n_genes,
+			protein0:[1000,3000,5000],
 			deg:[0.5]*n_genes,
-			ribo: np.stack([[1]*n_time]*n_genes,axis=-1)
+			ribo: np.stack([[0]*n_time]*n_genes,axis=-1)
 		}
 	)
 
+ms_sample[0][1,0]
+ms_sample[1][2,:,:]
+ms_sample[1][0,2,:]
+ms_sample[2].shape
 
 #This function will stack up the variables our model outputs for eas plotting
 def stackarray(d2stack,varname,indexnamelist):
@@ -76,22 +142,17 @@ def stackarray(d2stack,varname,indexnamelist):
 	df['var'] = varname
 	return df
 
-varnames = ['riboreads','protein','ms']
+#format this data
+varnames = ['time','gene','replicate']
 dfs = [stackarray(d,nm,varnames) for d,nm in zip(ms_sample,varnames)]
-
+#name vairable
 for i in range(0,len(dfs)):
 	dfs[i]['var'] = varnames[i]
-
+#stack
 alldata = pd.concat(dfs,sort=False)
-
+#and save
 alldata.to_csv('tmp.tsv',sep='\t')
-
-n_riboreps = 2
-n_msreps = 3
-
-
-
-
+alldata.head()
 
 
 
@@ -110,21 +171,23 @@ protein = tf.stack(protein)
 
 #define our 
 riboreads = Normal(
-	tf.stack([ribo,ribo],axis=2),
-	tf.sqrt(tf.stack([ribo,ribo],axis=2))
+	tf.stack([protein]*n_riboreps,axis=2),
+	tf.sqrt(tf.stack([protein]*n_riboreps,axis=2))
 )
 
 #ms is similiar to riboreads for now - but with higher variance
 ms = Normal(
-	tf.stack([protein]*3,axis=2),
-	tf.sqrt(tf.stack([protein]*3,axis=2))
+	tf.stack([protein]*n_msreps,axis=2),
+	tf.sqrt(tf.stack([protein]*n_msreps,axis=2))
 )
+
 
 vals = ( protein, riboreads, ms )
 	# return( protein, riboreads, ms )
 
 vars = tf.trainable_variables()
 	
+	#so 
 with tf.Session() as sess:
 
 	ms_sample=sess.run(
@@ -177,7 +240,7 @@ inference.initialize(n_print=20, n_iter=100)
 
 
 
-
+#Now use R to plot
 # # plt.plot()
 # # plt.savefig('tmp.png')
 

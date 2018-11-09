@@ -66,6 +66,17 @@ add_to_gmt('Neurites_Protl2fc_gt_RNA_Zappulo',
 )
 file.info(outputfile)
 
+##5' TOPs
+ftoptrs <- fread('cat fpTOP_scan/fimo.gff  | cut -f1   | grep -v "#"',header=F) %>%set_colnames('transcript_id')
+ftoptrs$transcript_id %<>% str_replace('\\(.*$','')
+gtrmap <-'rsemref/gene_transcript_map.tsv' %>% fread(header=F) %>% set_colnames(c('gene_id','transcript_id'))
+fptopgids <- ftoptrs %>% left_join(gtrmap)%>%.$gene_id%>%unique
+
+add_to_gmt('Gids with 5\' TOP',
+	'Genes with at least one transcript whose TSS(+/- 100bp) matches the TOP PWM at p<0.05',
+	fptopgids
+)
+file.info(outputfile)
 
 
 #p-bodies

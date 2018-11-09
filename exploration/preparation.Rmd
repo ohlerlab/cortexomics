@@ -1,0 +1,135 @@
+
+```{r packages}
+library(rseqdata)
+library(rseq)
+library(tidyverse)
+library(tibble)
+library(pathview)
+```
+
+```{r settings}
+# feature annotation, please choose right one
+feature_annot <- gencode.v19.chr_scaff.genes
+## reduced feature annotation, which needs a variable 'feature_id' to join it
+## with DESeq2::results(dds) output
+red_feature_annot <- feature_annot %>% dplyr::select(feature_id = gene_id,  gene_name, description)
+
+
+# path to pipeline results
+pipeline_results_path <-  "data/2016_11_04_results/"
+
+# sample table
+## path to sample annotation, has to contain colums sample_id and group; if not
+## present sample name is derived from group
+sample_annot_path <- "data/2016_11_04_results/sample_parameter.csv"
+## which of the columns of the sample table should be kept
+sample_annot_vars <- c("sample_id", "group", "organism_ch1", "sample_source", "characteristics")
+
+# design formula and desired contrasts
+## my_contrast has to be a list of contrasts, contrasts can be defined as
+## documented in ?DESeq2::results argument 'contrast'
+## see DESeq2::resultsNames(dds) for constructing contrasts
+my_design <- as.formula("~ group")
+my_contrasts <- list( contrast_1 = list("groupHBRR", "groupUHRR"),
+                      contrast_2 = list("groupUHRR", "groupHBRR"))
+
+# thresholding significant changes
+## used in ma-plot and creating table, and for determining de genes for GO/KEGG
+## enrichment
+my_alpha <- 0.001
+## used for creating table and for determining de genes for GO/KEGG enrichment
+## upregulated: log2fc > my_log2fc_th
+## downregulated: log2fc < - my_log2fc_th
+my_log2fc_th <- 1.5
+
+# dual scale settings for heatmaps
+## setting values outside of the range [z_min, z_max] to the limiting values
+z_max <-  3.5
+z_min <- -3.5
+
+# use the appropriate bioconductor OrgEgDb
+my_org_eg_db <- "org.Hs.eg"
+
+# KEGG enrichment
+## ensembl id to entrez id mapping
+ensembl_to_entrez_map <- gencode.v19.ensembl_to_entrez
+## organism id
+kegg_org <- "hsa"
+kegg_p_value_cutoff <- 0.05
+kegg_q_value_cutoff <- 0.2
+kegg_min_gs_size <- 5
+kegg_max_gs_size <- 500
+kegg_p_adj_meth <- "BH"
+
+genes_of_interest <- read_csv('genes_of_interest.csv')
+marker_genes <- read_csv('marker_genes.csv')
+```
+
+
+```{r data_import}
+# read data
+sample_annot <- read_sample_table(sample_annot_path)
+if (!is.null(sample_annot_vars)) {
+  sample_annot_vars <- union(c("sample_id", "sample_name", "group"), sample_annot_vars)
+  sample_annot <- sample_annot[, sample_annot_vars]
+}
+sample_list <- sample_annot$sample_id
+num_sample <- length(sample_list)
+
+aln_stats <-
+  read_aln_stats(file.path(pipeline_results_path, 'qc', 'data'), sample_list)
+dup_stats <-
+  read_dup_stats(file.path(pipeline_results_path, 'qc', 'data'), sample_list)
+seqc_stats <-
+  read_seqc_metrics(file.path(pipeline_results_path, 'qc', 'data'), sample_list)
+norm_cvg <-
+  read_seqc_norm_cvg(file.path(pipeline_results_path, 'qc', 'data'), sample_list)
+three_prime_cvg <-
+  read_seqc_3prime_cvg(file.path(pipeline_results_path, 'qc', 'data'), sample_list)
+feature_counts_data <-
+  read_featurecounts(file.path(pipeline_results_path, 'feature_counts', 'data'), sample_list)
+feature_counts_summary <-
+  read_featurecounts_summary(file.path(pipeline_results_path, 'feature_counts', 'data'), sample_list)
+```
+
+
+```{r preparation}
+# create necessary directorie
+dir.create("intermediate_results", showWarnings = F)
+dir.create("tables", showWarnings = F)
+dir.create("plots", showWarnings = F)
+
+# prepare counts and feature annot
+feature_annot <-
+  dplyr::left_join(feature_annot,
+                   feature_counts_data$annotation[, c("feature_id", "feature_length")],
+                   by = c("gene_id" = "feature_id"))
+stopifnot(all(!is.na(feature_annot$feature_length)))
+## create counts list
+counts_list_all <-
+  create_counts_list(
+    feature_counts_data$counts,
+    features = feature_annot,
+    samples =  sample_annot,
+    feature_id = "gene_id",
+    sample_id = "sample_id"
+  )
+
+## filter for protein_coding genes
+counts_list_prot_coding <-
+  counts_list_all %>%
+  counts_list_to_tidy() %>%
+  dplyr::filter(gene_type == 'protein_coding') %>%
+  tidy_counts_to_list()
+
+# create DESeqDataSet
+if (!file.exists("intermediate_results/deseq2_results.rda")) {
+  dds <-
+    create_dds(counts_list_prot_coding,
+               num_cores = 8,
+               design = my_design)
+  save(dds, file = "intermediate_results/deseq2_results.rda")
+} else{
+  load(file = "intermediate_results/deseq2_results.rda")
+}
+```

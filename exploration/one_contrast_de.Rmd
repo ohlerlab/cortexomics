@@ -1,0 +1,82 @@
+## contrast `r my_contrast_name`
+ 
+A summary for the differential expression analysis.
+
+```{r }
+res <- DESeq2::results(dds, contrast = my_contrast)
+
+get_de_summary(res) %>%
+  dplyr::select(category = category_nice, number) %>%
+  knitr::kable()
+
+res_file <-
+  file.path("intermediate_results",
+            paste0(my_contrast_name, "_results.rds"))
+saveRDS(res, file = res_file)
+```
+
+### MA plot
+
+We plot log2 fold changes attributable to a given gene over the mean of normalized counts. Points will be colored red if the adjusted p value is less than `r my_alpha`. Points which fall out of the window are plotted as open triangles pointing either up or down.
+
+```{r }
+DESeq2::plotMA(res, alpha = my_alpha, ylim = c(-6,6))
+```
+
+### up-regulated genes
+
+```{r }
+up_regul_features_nl <-
+  get_sig_log2fc(res, red_feature_annot, alpha =  my_alpha, 
+                 up_log2fc_th = my_log2fc_th, down_log2fc_th = -Inf, links = F) 
+
+up_file <- file.path("tables/", paste0(my_contrast_name, "_up_regul_features.csv"))
+write_csv(up_regul_features_nl, path = up_file)
+
+rds_up_file <- 
+  file.path("intermediate_results",
+            paste0(my_contrast_name, "_up_regul_features.rds"))
+saveRDS(up_regul_features_nl, rds_up_file)
+
+up_regul_features <-
+  get_sig_log2fc(res, red_feature_annot, alpha =  my_alpha, 
+                 up_log2fc_th = my_log2fc_th, down_log2fc_th = -Inf, links = T)
+```
+
+The statistics used is `r attributes(up_regul_features)$stat_used`. 
+Below is a searchable table for all the genes with adjusted p-value smaller than `r my_alpha` and $\text{log2-fc} >$ `r my_log2fc_th`.
+
+```{r }
+up_regul_features %>%
+  DT::datatable(rownames = F, escape = F)
+```
+
+### down-regulated genes
+
+```{r }
+down_regul_features_nl <-
+  get_sig_log2fc(res, red_feature_annot, alpha =  my_alpha, 
+                 up_log2fc_th = +Inf, down_log2fc_th = -my_log2fc_th, links = F) 
+
+down_file <- file.path("tables/", paste0(my_contrast_name, "_down_regul_features.csv"))
+write_csv(down_regul_features_nl, path = down_file)
+
+rds_down_file <-
+  file.path("intermediate_results",
+            paste0(my_contrast_name, "_down_regul_features.rds"))
+saveRDS(down_regul_features_nl, rds_down_file)
+
+down_regul_features <-
+  get_sig_log2fc(res, red_feature_annot, alpha =  my_alpha, 
+                 up_log2fc_th = +Inf, down_log2fc_th = -my_log2fc_th, links = T)
+```
+
+The statistics used is `r attributes(down_regul_features)$stat_used`. 
+Below is a searchable table for all the genes with adjusted p-value smaller than `r my_alpha` and $\text{log2-fc} <$ `r -my_log2fc_th`.
+
+```{r }
+down_regul_features %>%
+  DT::datatable(rownames = F, escape = F)
+```
+
+

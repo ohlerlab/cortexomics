@@ -213,7 +213,13 @@ log_normal = ds.TransformedDistribution(
   bijector=ds.bijectors.Exp(),
   name="LogNormalTransformedDistribution")
 
+
+#do some very simple inference with edward - I have a flat prior over C, 
+
+#remember that what we define, is a posterior rather than a likelihood...
+
 #https://stackoverflow.com/questions/44418442/building-tensorflow-graphs-inside-of-functions
+
 #we maybe want to think about resticting the range to estimate the protein level in...
 def define_inf_model(n_genes,n_time):
 

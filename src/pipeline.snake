@@ -1665,7 +1665,7 @@ rule fpTOP_scan:
       | awk '$3=="transcript"'  \
       | awk -vOFS="\t" '{{if($7=="+"){{$5=$4}}else{{$4=$5}};print $1,$4,$5,$12,".",$7}}'\
       | sed 's/[";]//g' \
-      | bedtools slop -b 100 -i - -g {chrsizes}\
+      | bedtools slop -b 11 -i - -g {chrsizes}\
       | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s  -name \
       > motseqs/promotorseqs.fa
 
