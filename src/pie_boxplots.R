@@ -67,8 +67,7 @@ pieboxfile%>%dirname%>%dir.create
 #make charts
 pdf(pieboxfile,h=3.5,w=10)
 par(oma=c(0,0,0,5))
-piecols <- rainbow(sampdt$class%>%n_distinct)
-pieorder<-c(3, 4, 2L, 1L, 5L)
+piecols <- rainbow(sampdt$class%>%n_distinct) pieorder<-c(3, 4, 2L, 1L, 5L)
 piedata<-sampdt$class%>%table%>%.[pieorder]
 pie(
 	piedata,

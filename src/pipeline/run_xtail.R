@@ -9,6 +9,7 @@ suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,xtail))
 
 args <- c(
   countfile='feature_counts/all_feature_counts',
+  uORFcountfile='feature_counts/all_feature_counts',
   outdir= 'xtail'
 )
 

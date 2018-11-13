@@ -1,0 +1,230 @@
+---
+title:
+  Lab Meeting
+subtitle: Lausanne Cell Line Riboseq  <br> Translation in Developing Neocortex
+author: Dermot Harnet
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+suppressMessages(library(gage))
+suppressMessages(library(knitr))
+#install.packages("kableExtra")
+library("kableExtra")
+
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
+
+my_include_graphics <- function(plotfile,redo=FALSE,resize=1,...){
+	require(knitr)
+	stopifnot(file.exists(plotfile))
+	ispdf <- tools::file_ext(plotfile) %>% is_in('pdf')
+	if(ispdf){
+		resize = resize*100
+		filejpeg <- paste0(tools::file_path_sans_ext(plotfile),'.jpeg')
+		if((!file.exists(filejpeg)) | redo){
+			system(str_interp('convert -resize ${resize}% -quality 100 ${plotfile} ${filejpeg}'))
+		}
+		message(filejpeg)
+		include_graphics(filejpeg,...)
+	}else{
+		include_graphics(plotfile,...)
+	}
+}
+
+```
+
+
+# Lausanne Cell Lines
+
+## Background
+
+- Cancer, its bad folks
+- Background, paper which found novel antigens through misplicing
+- The premise of this project - finding novel immunogenic antigens
+- Lack of a normal sample for riboseq makes a lot of things tricky.
+
+
+## Original Samples
+
+
+```{r}
+
+read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%select(sample_id,cell_line,dosage,assay)%>%
+	filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
+	kable(align='c')%>%
+	kable_styling(font_size = 18,position='left')
+
+
+```
+## Read Size distribution
+
+## Read Size distribution
+
+## Read Size distribution
+
+## Large Amounts of non-cds reads in some samples like OMM_DAC_05_1
+<!-- 3slides -->
+### foooourns
+```{r}
+my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_1.pdf')
+```
+
+## Large Amounts of non-cds reads in some samples like OMM_DAC_05_3
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_3.pdf')
+```
+
+## These samples also have a second peak in their read length distribution
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
+```
+
+## Confirming peptides found to be differntially expressed in response to DAC:
+```{r}
+	filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
+	kable(align='c')%>%
+	kable_styling(font_size = 18,position='left')
+```
+
+
+## Hits found
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
+```
+
+
+
+## Show current promising hits
+
+<!-- 9 slides -->
+## 5' Bias
+
+## Effects of 5' Bias?
+
+## Quantifying it
+
+<!-- 12 slides -->
+## Illya's tests for 5' bias
+
+## New Samples, their bias
+
+## Directions to go with the pipeline
+	- Some filtering issues - v. low signal in e.g. some lncRNAs
+	- Some filtering issues - N truncations due to low coverage
+	- replicate intergration? (presently - merging certain ORF classes)
+
+<!-- 15 slides -->
+
+
+## Dealing with isoforms - current issues with testing segments
+
+	- Show problem - we can't test added segments independently
+	- Show problem - we can't test added segments independently
+		
+
+
+
+## Show problem with testing small segments - weird looking spectra, padding
+
+	- Show problem - we can't test added segments independently
+		
+
+
+## Show proposed solution - linear modeling of frame effect
+
+	- Problem - requires use of codon effects, other confounds maybe - missing info from mapping etc.
+	- Weissman groups attempts to do this better
+
+
+<!-- 18 slides -->
+
+# Cortexomics
+
+## Recapping the science
+
+## Recapping the science 2
+
+## Recapping the data
+
+<!-- 21 slides -->
+
+## Recapping the data 2
+
+## Recapping the data 2
+
+## New data - Poly vs 80S riboseq
+
+<!-- 24 slides -->
+
+## Updates to the contamination filtering etc.
+
+## Updates to calls of translational regulation
+
+![plot of GO term analysis, numbers found TE]()
+
+## Mass Spec data
+
+## Variance breakdowns
+
+<!-- 27 slides -->
+
+
+## Brief attempts at clustering
+
+## Looking at the PCAs
+ - Looks like we need to consider this as a non equilibrium system....
+
+## Modeling degredation and synthesis
+ - Show this working for certain genes
+
+<!-- 27 slides -->
+
+## Modeling degredation and synthesis
+ - Show this not working for others - colinearity
+
+## Modeling degredation and synthesis
+ - Discuss potential solution - empiricial bayes and/or better modeling of ribo/synth
+
+## And so we come full circle - linear modeling of translational efficiency
+
+<!-- 30 slides -->
+
+## Meanwhile - Periodicity problems
+
+## Meanwhile - uORFs
+
+## Meanwhile - Motif Analysis - first looks
+
+<!-- 33 slides -->
+
+## Meanwhile - Gquads
+
+## Meanwhile - Various Other Sets
+
+## Future directions - Stalling
+
+<!-- 36 slides -->
+
+## Future directions - Dealing with Isoforms
+
+## Future directions - Structure
+
+## Future directions - NED proteins
+
+<!-- 39 slides -->
+
+
+
+
+
+
+
+```{r, fig.align="center", fig.cap=c("your caption"), echo=FALSE}
+knitr::include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/tmp.svg")
+```
+
+
+![thisimage](/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/tmp.svg)

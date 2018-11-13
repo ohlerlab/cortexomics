@@ -683,8 +683,13 @@ rule star:
           -T ${{MY_TMP_DIR}} \
           -o {outputdir}/{sample}.bam \
           ${{MY_TMP_DIR}}/all.bam
+
+        #add the read length as a tag to our bam
+        MY_TMP_BAM=$(mktemp)
+        samtools view -h {outputdir}/{sample}.bam | awk -vFS='\t' -vOFS='\t' '{print($0,"Xl:Z:"length($10))}'  | samtools view -bh > $MY_TMP_BAM
+        mv $MY_TMP_BAM {outputdir}/{sample}.bam
       
-        samtools index {outputdir}/{sample}.bam 
+        samtools index {outputdir}/{sample}.bam
 
         mkdir -p {repdir}
         samtools stats {outputdir}/{sample}.bam > {repdir}/{sample}.bamstats.txt
@@ -1520,8 +1525,9 @@ rule run_ribodiff:
   shell: r"""Rscript ../exploration/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
 
 DISPDIFF = 0
+
 rule run_xtail:
-  input: 'feature_counts/all_feature_counts'
+  input: 'feature_counts/all_feature_counts','SaTAnn/uORFs.feature_counts'
   conda: '/fast/users/harnettd_c/miniconda3/envs/ribodiff/'
   output: touch('xtail/.done')
   shell: r"""Rscript ../exploration/pipeline/run_xtail.R {input} $(dirname {output})"""

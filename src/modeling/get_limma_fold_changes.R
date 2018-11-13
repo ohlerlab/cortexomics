@@ -10,19 +10,15 @@ suppressMessages(library(limma))
 message('...done')
 
 
-defaultargs <- c(
+argv <- c(
   transformdexprfile=file.path('exprdata/transformed_data.txt'),
   designmatrixfile=file.path('exprdata/designmatrix.txt'),
   foldchangesfile='exprdata/limma_fold_changes.txt'
 )
 
-if(!exists('cargs')) cargs<- commandArgs(trailingOnly=TRUE)
+argv<- commandArgs(trailingOnly=TRUE)
 
-cargs <- coalesce(
-  cargs[1:length(defaultargs)]%>%setNames(names(defaultargs)),
-  defaultargs
-)
-for(i in names(cargs)) assign(i, cargs[i])
+for(i in names(argv)) assign(i, argv[i])
 
 
 # save.image();stop('imagesaved')
@@ -36,14 +32,13 @@ assert_that(all(map_chr(exprtbl,class)[-1] == 'numeric'))
 
 exprmatrix <- exprtbl  %>% { set_rownames(as.matrix(.[,-1]),.[[1]]) }
 
+
 designmatrix <- read_tsv(designmatrixfile)
-
-
 
 levels(designmatrix$assay) <- c('total','ribo','MS')
 
-
 design = model.matrix( ~ time + assay + time:assay , designmatrix, xlev = list(assay = c('total','ribo','MS')) )
+
 design%>%colnames
 
 limmafit = limma::lmFit(exprmatrix,design=design)

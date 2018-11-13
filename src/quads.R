@@ -32,7 +32,6 @@ backseq <- rtracklayer::import(seqfileback,format='fasta')
 gqadseqob <- mclapply(mc.cores=12,F=pqsfinder,seq,strand='+')
 backgqadseqob <- mclapply(mc.cores=12,F=pqsfinder,backseq,strand='+')
 
-gqadseqob[[1]]
 
 gquadscores <- bind_rows(
 	gqadseqob%>%

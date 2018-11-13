@@ -11,8 +11,8 @@ library(parallel)
 
 filter<-dplyr::filter
 slice<-dplyr::slice
-filter<-dplyr::filter
-filter<-dplyr::filter
+select<-dplyr::select
+summarise<-dplyr::summarise
 
 source('../src/R/Rprofile.R')
 
@@ -68,11 +68,30 @@ uorfdt_cdsfilt <- uorfdt%>%
 #export cdsfilt
 uorfdt_cdsfilt %>% export('SaTAnn/uORFs.gtf')
 
+#also get counts
+bamfiles<-Sys.glob("star/data/*/*.bam")%>%grep(v=T,inv=T,patt='transcript')%>%str_subset('(ribo_|total_)..bam')
+uroffcounts<- bamfiles %>% mclapply(mc.cores=20,function(bamfile)
+	featureCounts(annot.ext=uorfgtf,isGTFAnnotationFile=TRUE,files=bamfile,GTF.featureType='sequence_feature',nthreads=1,strandSpecific=1,juncCounts=1)
+)
+
+#get countmat
+uorfcountmat <- uroffcounts%>%
+	map('counts')%>%
+	#extract colnames, filenames with slashes as dots
+	map( ~ set_colnames(.,colnames(.)%>%str_split('\\.')%>%.[[1]]%>%tail(2)%>%head(1)))%>%
+	do.call(cbind,.)
+
+#now export this count matrix as a file for xtail to use
+uorfcountmat%>%
+	as_tibble(rownames='feature_id')%>%
+	mutate(feature_id = paste('uORF_',feature_id))%>%
+	write_tsv('SaTAnn/uORFs.feature_counts')
+######################Number of hits etc.
 
 
 # orfs_dt%<>%group_by(sample)%>%mutate(fdr =  p.adjust(pval, method='fdr'))
 # orfs_dt %<>% dplyr::filter(fdr<0.05)%>%ungroup
-orfs_dt%>%nrow
+
 
 #TODO - eveyrthing in linc
 
@@ -89,7 +108,6 @@ genetypehits <- satannorfs%>%lapply(
 	dplyr::filter(gene_biotype %in% c('antisense','lincRNA','protein_coding','pseudogene')))%>%
 	bind_rows(.id='sample')%>%
 	spread(gene_biotype,n)
-
 #but does our uorf 
 
 
@@ -100,3 +118,48 @@ satann_summary_table%>%write_tsv('satann_summary.tsv'%T>%{message(normalizePath(
 orfs_dt%>%distinct(gene_id,ORF_category_Tx,.keep_all=T)%>%.$ORF_category_Tx%>%table%>%stack
 
 satannorfs[[1]]$ORFs_tx[,c('gene_biotype','gene_id')]%>%mcols%>%as.data.frame
+
+uorfgtf<-"SaTAnn/uORFs.gtf"
+cdsgtf<-"my_gencode.vM12.annotation.cds.gtf"
+bamfiles<-"star/data/RPI2_80SE13_2/RPI2_80SE13_2.bam"
+
+bamfiles<-Sys.glob("star/data/*/*.bam")%>%grep(v=T,inv=T,patt='transcript')%>%str_subset('ribo_..bam')
+
+
+
+getreadlengthcounts <- function(gtf,bamfile){
+	fread(str_interp("tail -n +4 ${gtf} | awk '{print $1,$4,$5,$6,$8,\"-\"}'  | samtools view -L - ${bamfile} | awk '{a[length($10)] += 1} END { for (key in a) { print key \"\\t\" a[key] } }' "))
+}
+
+uorfreadlengths <- mclapply(bamfiles,function(.) getreadlengthcounts(uorfgtf,.))
+uorfreadlengths%<>%setNames(bamfiles)%>%bind_rows(.id='bamfile')%>%mutate(region='uORF',sample=basename(dirname(bamfile)))%>%select(readlength=V1,count=V2,region,sample)
+cdsreadlengths <- mclapply(bamfiles,function(.) getreadlengthcounts(cdsgtf,.))
+cdsreadlengths%<>%setNames(bamfiles)%>%bind_rows(.id='bamfile')%>%mutate(region='CDS',sample=basename(dirname(bamfile)))%>%select(readlength=V1,count=V2,region,sample)
+
+uorfcdsrls<-rbind(
+	uorfreadlengths,
+	cdsreadlengths
+)
+
+
+
+#
+for (i in 1:2){
+	if(i==1) pdf('../plots/uorf_vs_cds_readlengths.pdf'%>%normalizePath%T>%message,w=12,h=12)
+	if(i==2) svglite('../plots/uorf_vs_cds_readlengths.svg'%>%normalizePath%T>%message,w=12,h=12)
+	print(
+	uorfcdsrls%>%
+		# filter(sample%>%str_detect('ribo'))%>%
+		# filter(sample%>%str_detect('80S|Poly'))%>%
+		group_by(sample,region)%>%
+		mutate(count_frac=count/sum(count))%>%
+		ggplot(aes(x=readlength,y=count_frac,color=sample))+
+			facet_grid(region~.,scale='free')+
+			geom_line()+
+			scale_x_continuous(breaks=seq_len(max(uorfcdsrls$readlength)))+
+			theme_minimal()+
+			theme(panel.grid.minor.x=element_blank(),panel.grid.minor.y=element_blank())
+			)
+	dev.off()
+}
+
