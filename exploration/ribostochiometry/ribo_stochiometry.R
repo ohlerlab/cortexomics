@@ -33,6 +33,21 @@
 #get stoch matrix for each dataset
 library(gplots)
 library(RColorBrewer)
+suppressMessages(library(limma))
+suppressMessages(library(tidyverse))
+suppressMessages(library(magrittr))
+suppressMessages(library(stringr))
+suppressMessages(library(data.table))
+suppressMessages(library(assertthat))
+library(gplots)
+library(RColorBrewer)
+
+for (funnm in as.character(lsf.str('package:dplyr'))){assign(funnm,get(funnm,'package:dplyr'))}
+
+
+Sys.glob('ms_tables/ms_iBAQ_*')%>%map(fread)
+
+ms_tall <- Sys.glob('ms_tables/ms_iBAQ_*')%>%map(fread)%>%bind_rows
 
 vlookup <- function(query,dicttable,key,vals){
 	dict = dicttable%>%ungroup%>%distinct_(key,vals)
@@ -62,6 +77,7 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
 }
 
 #' 
+
 
 
 library(biomaRt)
@@ -105,13 +121,16 @@ all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
 n_groups = n_distinct(ms_tall$Protein_IDs)
 n_protid = ms_tall$Protein_IDs%>%str_split_fast(';')%>%unlist%>%n_distinct
 
+ebp1pid %in% pids$Protein_IDs
+
 pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
 pids%<>%mutate(pcat = case_when(
-  identical(Protein_IDs,EXTRAPROTEINS) ~ ebp1pid,
+  identical(Protein_IDs,ebp1pid) ~ ebp1pid,
   sep_element_in(Protein_IDs,ridssplit) ~ "Ribosomal",
   sep_element_in(Protein_IDs,translationprotids) ~ "Translation Associated",
   TRUE ~ "other"
 ))
+
 
 
 ms_tall_trans <- ms_tall%>%
@@ -156,6 +175,7 @@ ms_tall_trans$gene_name_simp%<>%str_replace(';.*$','')
 
 #unique correspondance between simplified gene names and protein IDS
 ms_tall_trans%<>%mutate(ambig = Protein_IDs %in% all_ambig_pgroups)
+
 stopifnot(ms_tall_trans%>%filter(!ambig)%>%distinct(Protein_IDs,gene_name_simp)%>%map_lgl(.%>%anyDuplicated%>%`==`(1))%>%not%>%all)
 
 
@@ -358,7 +378,7 @@ traj.plots<-
 	facet_wrap(~gene_name_simp,ncol=4,scale='free')+
 	theme_bw()
 
-traj.plots%>%ggsave(file='~/projects/cortexomics/figures/all_ribo_80s_trajplots.pdf')
+traj.plots%>%ggsave(file='/fast/groups/ag_ohler/dharnet_m/cortexomics/figures/all_ribo_80s_trajplots.pdf')
 
 
 

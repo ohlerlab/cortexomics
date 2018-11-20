@@ -9,18 +9,14 @@ suppressMessages(library(assertthat))
 message('...done')
 
 
-defaultargs <- c(
+argv <- c(
   foldchangesfile='exprdata/limma_fold_changes.txt',
   transformdexprfile=file.path('exprdata/transformed_data.txt')
 )
 
-if(!exists('cargs')) cargs<- commandArgs(trailingOnly=TRUE)
+argv[]<- commandArgs(trailingOnly=TRUE)
 
-cargs <- coalesce(
-  cargs[1:length(defaultargs)]%>%setNames(names(defaultargs)),
-  defaultargs
-)
-for(i in names(cargs)) assign(i, cargs[i])
+for(i in names(argv)) assign(i, argv[i])
 
 #read in expr data
 exprtbl <- read_tsv(transformdexprfile) 
@@ -32,24 +28,35 @@ allcoefftbl<-read_tsv(foldchangesfile)
 pcafit <- princomp(allcoefftbl[,-1])
 
 #make plots of the pcas
-pdf('tmp.pdf')
-plot(pcafit)
-plot(pcafit$scores[,1:2])
-plot(pcafit$scores[,c(1:3)])
-plot(pcafit$scores[,c(2,3)])
+svglite::svglite('../plots/pcafit_limmafcs.svg')
+plot(pcafit,main='Fold Change Over Time - PCA')
+# plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
+# plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
 dev.off()
 getwd()%>%message
 
-
+svg(h=5,w=8,'../plots/limmafc_pca_loadings.svg'%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(ncol=2,
+pcafit$loading[,1]%>%enframe('dimension','loading')%>%
+  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
+  mutate(dimension=factor(dimension,unique(dimension)))%>%
+  ggplot(aes(x=dimension,y=loading))+stat_identity(geom='bar')+
+  theme_minimal()+
+  theme(axis.text.x=element_text(angle=45,vjust=0.5))+
+  ggtitle('Developmental Fold Changes \n PCA1')
+,
+pcafit$loading[,2]%>%enframe('dimension','loading')%>%
+  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
+  mutate(dimension=factor(dimension,unique(dimension)))%>%
+  ggplot(aes(x=dimension,y=loading))+stat_identity(geom='bar')+
+  theme_minimal()+
+  theme(axis.text.x=element_text(angle=45,size=8,vjust=0.5))+
+  ggtitle('Developmental Fold Changes \n PCA2')
+)
+dev.off()
 
 # svdfit <- svd(t(allcoefftbl[,-1]))
 # svdfit%>%str
-
-
-pdf('tmp.pdf')
-plot(pcafit)
-dev.off()
-getwd()%>%message
 
 
 hmapfile <- file.path(paste0('heatmaps/',basename(transformdexprfile),'_limma_cs.pdf'))

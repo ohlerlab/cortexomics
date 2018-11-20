@@ -144,7 +144,6 @@ allcoefs%>%sample_n(10)
 
 #this will need to change if/when we bring in additional model coefficients
 predictdf <- allcoefs%>%
-	# filter(gene=='Rps3')%>%
 	group_by(gene)%>%
 	mutate(intcept     = coefficient=='(Intercept)')%>%
 	mutate(coefficient = ifelse(intcept,'timeE13',coefficient))%>%

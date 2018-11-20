@@ -1,6 +1,5 @@
 ---
-title:
-  Lab Meeting
+title:  Lab Meeting
 subtitle: Lausanne Cell Line Riboseq  <br> Translation in Developing Neocortex
 author: Dermot Harnet
 date: "`r format(Sys.time(), '%d %B, %Y')`"
@@ -15,11 +14,11 @@ library("kableExtra")
 
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
 
-my_include_graphics <- function(plotfile,redo=FALSE,resize=1,...){
+my_include_graphics <- function(plotfile,redo=FALSE,resize=1,force=FALSE,...){
 	require(knitr)
 	stopifnot(file.exists(plotfile))
 	ispdf <- tools::file_ext(plotfile) %>% is_in('pdf')
-	if(ispdf){
+	if(ispdf|force){
 		resize = resize*100
 		filejpeg <- paste0(tools::file_path_sans_ext(plotfile),'.jpeg')
 		if((!file.exists(filejpeg)) | redo){
@@ -35,39 +34,80 @@ my_include_graphics <- function(plotfile,redo=FALSE,resize=1,...){
 ```
 
 
-# Lausanne Cell Lines
+# Lausanne Cell Lines - (ERC Synergy Grant)
 
-## Background
+## Background - finding peptides for immunotherapy {.flexbox .vcenter}
 
-- Cancer, its bad folks
-- Background, paper which found novel antigens through misplicing
-- The premise of this project - finding novel immunogenic antigens
-- Lack of a normal sample for riboseq makes a lot of things tricky.
+- Immunotherapy is a rapidly developing field in cancer biology 
 
+- One premise of this project - finding novel immunogenic antigens
+
+- E.g. novel splice junctions, translated ncRNAs, readthroughs.
+
+- Providing an accurate peptide library is crucial - enter Riboseq
+
+
+## Translation in cancer {.flexbox .vcenter}
+
+- Cancer involves dysregulation at the translational as well as transcriptional level
+- Lack of a normal sample makes things tricky, but we can still look at those peptides which are responsive to DAC (dexamethasone, cytabarine, carboplatin).
+
+## Data Sources and Flow - overview {.flexbox .vcenter}
+
+- Collaborators provide list of Differentially expressed peptides - lincRNAs
+- Also provded are splice graphs (not isoform annotation)
 
 ## Original Samples
 
-
 ```{r}
 
-read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%select(sample_id,cell_line,dosage,assay)%>%
-	filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
+read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
+	dplyr::select(sample_id,cell_line,dosage,assay)%>%
+	dplyr::filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
+	# gridExtra::grid.table(row=NULL)
 	kable(align='c')%>%
-	kable_styling(font_size = 18,position='left')
-
+	kable_styling('striped',font_size = 17,position='left')
 
 ```
-## Read Size distribution
+## Mapping 
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot.png',dpi=100)
+```
+
+## Mapping 
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot_abs.png',dpi=100)
+```
 
 ## Read Size distribution
+###Mostly okay
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig2_readlendist_OD5P_05_uM_DAC_1.pdf')
+```
 
-## Read Size distribution
+## Reads generally Map to the CDS
+<!-- 3slides -->
+```{r}
+my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig1.1_readlocdist_OD5P_05_uM_DAC_1.pdf',resize=1,redo=T)
+```
+
+## Periodicity is there, but also a depletion at the 5' end of genes
+<!-- 3slides -->
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/periodicity_OD5P.png",dpi=200)
+```
+
+## Can also see this along the gene body
+<!-- 3slides -->
+```{r}
+my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fpdep_OD5P.png')
+```
 
 ## Large Amounts of non-cds reads in some samples like OMM_DAC_05_1
 <!-- 3slides -->
-### foooourns
 ```{r}
-my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_1.pdf')
+my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_1.pdf',resize=1,redo=T)
 ```
 
 ## Large Amounts of non-cds reads in some samples like OMM_DAC_05_3
@@ -81,150 +121,355 @@ my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/ribo
 my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
 ```
 
-## Confirming peptides found to be differntially expressed in response to DAC:
+## This 5' Bias seems to be pretty similiar - runs out after about 300bp
+
 ```{r}
-	filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
+include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fp_bias_genelength.png')
+```
+
+## Does this lead to extra N-truncations?
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/n_trunc_genes_vs_fp_bias.svg')
+```
+
+## Does this reduce number of small ORFs detected?
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/shortORF_frac.svg')
+```
+
+## New Samples:
+
+```{r}
+read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
+	dplyr::select(sample_id,cell_line,dosage,assay)%>%
+	dplyr::filter(sample_id%>%str_detect('\\dL$|\\dB$'))%>%
+	# gridExtra::grid.table(row=NULL)
 	kable(align='c')%>%
-	kable_styling(font_size = 18,position='left')
+	kable_styling('striped',font_size = 17,position='left')
 ```
 
-
-## Hits found
+## New samples show less 5' Depletion
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fp_bias_batches.svg')
 ```
 
+## ORFs detected - overview
+<!-- 3slides -->
+```{r}
+'/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/satann_summary.tsv'%>%fread%>%filter(!str_detect(sample,'ctrl\\d(B|L)'))%>%dplyr::select(1:6)%>%
+	kable(align='c')%>%
+	kable_styling('striped',font_size = 12,position='left')
+```
 
+## ORFs detected - overview
+<!-- 3slides -->
+```{r}
+my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie.png',resize=1,redo=T)
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie_nccds.png',resize=1,redo=T)
 
-## Show current promising hits
+```
 
-<!-- 9 slides -->
-## 5' Bias
+## Confirming peptides found to be differntially expressed in response to DAC:
 
-## Effects of 5' Bias?
+- The Raetsch lab has identified a number of peptides within lincRNAs that appear to be differentially expressed in response to the DAC treatment
+- Can we confirm these with Riboseq?
+- Do the ORFs Satann finds include the peptide detected?
 
-## Quantifying it
+## Confirming lncRNA peptides found to be differntially expressed in response to DAC:
+```{r,warning=F}
 
-<!-- 12 slides -->
-## Illya's tests for 5' bias
+data.frame(n=c(55,36,14))%>%
+	set_rownames(c('Total Linc Hits','With ORF p<0.05','Includes peptide'))%>%
+	kable(align='c')%>%
+	kable_styling(font_size = 18,position='center')
 
-## New Samples, their bias
+```
 
-## Directions to go with the pipeline
-	- Some filtering issues - v. low signal in e.g. some lncRNAs
-	- Some filtering issues - N truncations due to low coverage
+## lincRNA example
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/lincRNAexample.png')
+```
+
+## Confirming Junction peptides found to be differntially expressed in response to DAC:
+```{r,warning=F}
+
+data.frame(n=c(22,17,7))%>%
+	set_rownames(c('Total Differential Junctions','With Ribodiff Reads in any library','In OD5P'))%>%
+	kable(align='c')%>%
+	kable_styling(font_size = 18,position='center')
+
+```
+
+## Junction Example
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/junctionexample.png')
+```
+
+## First look at differential translation - OD5P - biological process
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techangebp.png')
+```
+## First look at differential translation - OD5P - compartment
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techange.png')
+```
+## First look at differential translation - ONVC - biological process
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techangebp.png')
+```
+## First look at differential translation - ONVC - compartment
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techange.png')
+```
+## First look at differential translation - OMM - biological process
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techangebp.png')
+```
+
+## First look at differential translation - OMM - compartment
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techange.png')
+```
+
+## Directions to go with the pipeline {.flexbox .vcenter}
+	- Filtering issues - v. low signal in e.g. some lncRNAs
+	- Filtering issues - N truncations due to low coverage
 	- replicate intergration? (presently - merging certain ORF classes)
 
-<!-- 15 slides -->
 
-
-## Dealing with isoforms - current issues with testing segments
+## Dealing with isoforms - current issues with testing segments {.flexbox .vcenter}
 
 	- Show problem - we can't test added segments independently
-	- Show problem - we can't test added segments independently
-		
+	- Consider a CDS with exons A, B and C, which is long and tests as periodic
+	- If we an an exon D, then testing A,B,C,D will probably be positive too, regardless of whether D is periodic
+	- D will often be to short to test alone.
+	- Testing short segments is inherently difficult with the ribodiff framework
+	
+## Proposed solution - linear modeling of frame effect {.flexbox .vcenter}
+	- Number P-sites by codon position - model linear effects of position 1,2,3 (note different from chi-sq test Ribotaper was compared to)
+	- Reads at site P[g,i] are negative binomial distribution, with mean determined by strength of translation at gene g, mean strenght at position 1/2/3 for codon
+	- Allows use of codon effects, 5' depletion, missing info from mapping,  
+	- 
 
 
-
-## Show problem with testing small segments - weird looking spectra, padding
-
-	- Show problem - we can't test added segments independently
-		
+# "Translation in Neocortical Development"
 
 
-## Show proposed solution - linear modeling of frame effect
-
-	- Problem - requires use of codon effects, other confounds maybe - missing info from mapping etc.
-	- Weissman groups attempts to do this better
-
-
-<!-- 18 slides -->
-
-# Cortexomics
-
-## Recapping the science
-
-## Recapping the science 2
+## The molecular logic of neocortical development
+```{r fig.width=6, fig.height=6,echo=FALSE}
+library(png)
+library(grid)
+img <- readPNG("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/stages_differentiation.png")
+ grid.raster(img)
+```
 
 ## Recapping the data
 
-<!-- 21 slides -->
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/datatypes.png")
+```
 
-## Recapping the data 2
++ We measure steady state mRNA, translating mRNA, and steady state protein levels at 5 timepoints.
 
-## Recapping the data 2
 
-## New data - Poly vs 80S riboseq
+## Types of regulation observed
 
-<!-- 24 slides -->
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/Nes_trajectory.png")
+```
 
-## Updates to the contamination filtering etc.
+## Types of regulation observed
+
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/satb2_trajectory.png")
+```
+
+## Types of regulation observed
+
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/tle4_trajectory.png")
+```
 
 ## Updates to calls of translational regulation
 
-![plot of GO term analysis, numbers found TE]()
++ Neurodevelopment and Neuron Projection terms
 
-## Mass Spec data
-
-## Variance breakdowns
-
-<!-- 27 slides -->
-
-
-## Brief attempts at clustering
-
-## Looking at the PCAs
- - Looks like we need to consider this as a non equilibrium system....
-
-## Modeling degredation and synthesis
- - Show this working for certain genes
-
-<!-- 27 slides -->
-
-## Modeling degredation and synthesis
- - Show this not working for others - colinearity
-
-## Modeling degredation and synthesis
- - Discuss potential solution - empiricial bayes and/or better modeling of ribo/synth
-
-## And so we come full circle - linear modeling of translational efficiency
-
-<!-- 30 slides -->
-
-## Meanwhile - Periodicity problems
-
-## Meanwhile - uORFs
-
-## Meanwhile - Motif Analysis - first looks
-
-<!-- 33 slides -->
-
-## Meanwhile - Gquads
-
-## Meanwhile - Various Other Sets
-
-## Future directions - Stalling
-
-<!-- 36 slides -->
-
-## Future directions - Dealing with Isoforms
-
-## Future directions - Structure
-
-## Future directions - NED proteins
-
-<!-- 39 slides -->
-
-
-
-
-
-
-
-```{r, fig.align="center", fig.cap=c("your caption"), echo=FALSE}
-knitr::include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/tmp.svg")
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/xtail_P0_goplot.png')
 ```
 
 
-![thisimage](/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/tmp.svg)
+## Integrating Mass spec and modeling it all together
+
+- A lot of things we'd like to do require us to consider all 3 data classes together -e.g. variance decomposition, clustering
+- Count data is a problem for traditional linear modeling because it's not homoskedastic - variance and mean are dependant
+- While tools like xtail are good at explicitly modeling count data, no tool exists (to my knowledge) which can combine count data and continously distributed MS data.
+- Solution (care of Mike Love) - carry out a variance stabilizing transformation on the count data and then pretend it's continuous
+
+
+## VST gives us Homoskedasticity (riboseq)
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/Variance_stabilized_signal_ribo.svg")
+```
+
+
+## Clustering {.flexbox .vcenter}
+
+- Ultimately we'd like to model using some variance of a conditional bayesian network
+- Problem - matlab - we instead just took a first pass with tSNE
+
+
+## TSNE Clustering
+
+<div style="float: left; width: 70%;">
+
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/clusters/limma_fold_changes/tsne/clusters_2perp5.pdf')
+```
+</div>
+
+<div style="float: right; width: 30%;">
++ First pass - pca, run tSNE, run kmeans - see if any structure emerges
++ Results with centered,scaled expression data were the same, with/without tSNE, changing perplexity, filtering for ribodiff...
+</div>
+
+
+## First pass at clustering the fold changes
+```{r}
+my_include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/heatmaps/transformed_data.txt_limma_cs.pdf',resize=0.7,redo=T)
+```
+
+## PCAs - First one dominates
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/pcafit_limmafcs.svg')
+```
+
+## Looking at the PCAs
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/limmafc_pca_loadings.svg')
+```
+
+## Our system is a long way from equilibrium
+
++ The Mass spec is correlated with the RNAseq and Riboseq, but the magnitudes of the fold changes are muted
++ This suggests that linear modeling of the Mass spec relative to the count data isn't going to work that well. Even if we're just descriptively clustering, our clusters will be based on a mixture of translational regulation and degredation constants - and thus not likely to line up with mechanism.
+
+## Differential Equations are scary
+
++ MS[i] = Beta * MS[i-1] + rTE(Ribo[i])
++ Ribo[i] is the mean of the riboseq between timepoints
++ Beta is the fraction of the protein which gets degraded between time points (they are roughly equally spaced)
++ rTE is the amount of protein produced, for each unit of normalized riboseq signal (if you can think of a good name for this parameter please help me)
++ First let's simulate some data - can we recover simulated parameters (maximizing a likelihood function that includes some measurement error with optim())?
+
+## Modeling degredation and synthesis
+
++ Sometimes this kind of works - albeit with plenty of uncertainty about parameters (CIs via curvature of likelihood function)
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degredationest.svg')
+```
+
+## Modeling degredation and synthesis
+
++ Other times it doesn't - the change over time can be explained too well by either degredation driven or synthesis driven patterns.
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degredationest_flatribo.svg')
+```
+ 
+## What can we do about this?
+
++ One solution would be to share information about the value of rTE across different genes. If we can build an empirical bayesian prior from the data as a whole using those genes for which the riboseq pattern allows us to estimate rTE, then we might be able to get it for the other genes.
+
++ The selbach group has similtaneous measurements of protein synthesis via MS, and riboseq, in a previous paper (Zappulo et al 2017 - Translation in Neurites). This could provide some kind of validation for attempts to estimate rTE.
+
++ If we're constructing a model to predict periodicity, this might allow us to find features which predict rTE (e.g. stalling should negatively effect it)
+
+
+
+
+
+## Meanwhile... Change in polysome/monosome ratio
+
+```{r}
+include_graphics( "/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_ribosomes.png")
+```
+
+## Change in polysome/monosome ratio
+
+```{r}
+include_graphics( "/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_absorbance.png")
+```
+
+## Can we say if this shift in translational regulation is specific? {.flexbox .vcenter}
+
++ More Riboseq!  - Ribosomes from the polysomal and the monosmal fraction sequenced
++ 3 timepoints (E13, E16, P0)
++ Slight changes to protocol - less mnase
+
+
+## Change in polysome/monosome ratio
+
++ The polysomal fraction worked well, the 80S....
+
+```{r}
+include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/80S_Poly_riboseq.png")
+```
+
+## New polysomal riboseq has periodicity
+
+```{r}
+my_include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/polyper.png")
+```
+
+## Translational Efficiency changes in uORFs vs. Main CDS
+
+```{r}
+include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/uORF_host_TE.png')
+```
+
+## Meanwhile - Motif Analysis - first looks
+
++ First strategy was genes matched for transcriptional regulation, but without translational regulation - nada
++ Second strategy (used in other papers on gquads in translation) - simply compare to genes that have no significant TE change
+
+```{r fig.width=4, fig.height=4}
+img <- readPNG('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/transregged_fputrs_motifs.png')
+ grid.raster(img)
+```
+
+## Moving forward:
++ Better algorithms exist to look for gquads - first look says they're enriched in genes that change TE
++ Such genes are also enriched for neurite specificity, p-body sequestration
++ The next step will be to look at the riboseq signal at specific gquads in TE changing genes and see if ribosomal stalling is occuring
++ Signal may be from differential expression of isoforms with gquads - this can be check with DEXseq.
+
+## Future directions
++ Stalling interesting for other reasons - effect on rTE.
++ NED proteins - Certain proteins decay non exponentially - in some cases because they are complex subunits. We should see this when comparing protein and mRNA expression patterns over time.
+
+
+
+## Acknowledgements
+
+- Ohler Lab - esp. Ilija Bilic
+
+- Raetsch Lab - Chloe Chong
+
++ Matthew Kraushar, Spahn Group
+	+ Selbach Group, Koshi Imami
+	+ Landthaler Group, Ulrike Zinall, Orsalia Hazipis

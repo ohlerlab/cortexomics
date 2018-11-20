@@ -5,16 +5,16 @@ suppressMessages(library(magrittr))
 suppressMessages(library(stringr))
 suppressMessages(library(data.table))
 suppressMessages(library(assertthat))
-defaultargs <- c(
-	totalmsfile='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt',
-	specmsfile='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt',
-	outfolder=file.path('/fast/groups/cubi/projects/2017-10-10_cortexomics','pipeline','ms_tables')
+
+for (funnm in as.character(lsf.str('package:dplyr'))){assign(funnm,get(funnm,'package:dplyr'))}
+
+args <- c(
+	totalmsfile='/fast/groups/ag_ohler/dharnet_m/cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt',
+	specmsfile='/fast/groups/ag_ohler/dharnet_m/cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt',
+	outfolder=file.path('/fast/groups/ag_ohler/dharnet_m/cortexomics','pipeline','ms_tables')
 )
 
-args <- coalesce(
-	commandArgs(trailingOnly=TRUE)[1:length(defaultargs)]%>%setNames(names(defaultargs)),
-	defaultargs
-)
+args[] <- commandArgs(trailingOnly=TRUE)[1:length(defaultargs)]%>%setNames(names(defaultargs))
 for(i in names(args)) assign(i,args[i])
 #function to delete japanese fromt he tables
 delete_japanese<-function(dblstring) str_extract(dblstring,'(NA)|(NaN)|(\\d+\\.?\\d*)')%>%as.numeric
@@ -54,7 +54,7 @@ ms_data_all%<>%select(Protein_IDs=Majority_protein_IDs,everything())
 # ms_data_all%<>%select(Protein_IDs=Protein_IDs,everything())
 
 
-commoncols<-intersect(colnames(ms_data),colnames(ms_data_spec))
+commoncols<-intersect(colnames(ms_data),colnames(ms_dat_aspec))
 totalcols<-setdiff(colnames(ms_data),colnames(ms_data_spec))
 speccols<-setdiff(colnames(ms_data_spec),colnames(ms_data))
 

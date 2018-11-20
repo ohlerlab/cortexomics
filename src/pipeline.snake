@@ -138,6 +138,12 @@ nontestribosamples = list(filter(lambda x: not 'test' in x,ribosamples))
 motseqsets = ['xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
 motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
 
+groupnames = ['OD5P','ONVC','OMM']
+samplegroups = {
+  'New': list(filter(lambda s: 'RPI' in s,ribosamples)),
+  'old': list(filter(lambda s: not 'RPI' in s,ribosamples)),
+}
+
 rule all:
   input:
     FASTQS,
@@ -174,8 +180,8 @@ rule all:
     # ('ribodiff/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
-    # expand("SaTAnn/{sample}/.done", sample = SAMPLES),
-    expand("riboqc/reports/{sample}/riboqcreport.html", sample = nontestribosamples),
+    expand("SaTAnn/{sample}/.done", sample = ribosamples+groupnames),
+    expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets)
@@ -1299,8 +1305,10 @@ rule readlenfilt:
           set -ex
           samtools view -h $(dirname {input})/{wildcards.sample}.bam \
           | awk '((length($10) >= {minreadlen})&&(length($10) <= {maxreadlen})) || $1 ~ /^@/' \
-          | samtools view -S -b - > {readrangebam}
-            
+          | samtools view -S -b - > {readrangebam}.tmp
+
+          samtools sort -@ 1 -o {readrangebam} {readrangebam}.tmp
+          samtools index {readrangebam}
       """)
 
 rule feature_counts_readrange:
@@ -1459,48 +1467,50 @@ rule make_chrnamefile:
  output: 'chrnames.txt'
  shell:r""" cut -d$'\t' -f1 {input} | uniq | sort | uniq | grep -v '#' > {input}"""
 
-rule run_satann:
-  input : 'riboqc/data/{sample}/.done'
-  output: touch('SaTAnn/{sample}/.done')
+rule run_satann_group:
+  input :
+    lambda wc: 
+      ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ]
+  output: touch('SaTAnn/{groupname}/.done')
   threads: 10
   run:
+    sinputs = [i.replace('.done','_to_SaTAnn') for i in list(input[:])]
+    sinputs = ','.join(sinputs)
     shell(r"""
     mkdir -p $( dirname {output} )
 
-    if [ ! -f riboqc/data/{wildcards.sample}/_to_SaTAnn ]; then
-      touch $(dirname {output} )/cannot_run_no_psites
-      exit
-    fi
     source activate riboqc
-    
-
+  
       Rscript {SaTAnn_script} \
         {REF} \
         riboqc/{ANNOBASE}.annoout \
         {threads} \
-        riboqc/data/{wildcards.sample}/_to_SaTAnn \
+        {sinputs} \
         $(dirname {output})/SaTAnn
 
       """)
-    
+
+
 ribqc_report='/fast/groups/ag_ohler/dharnet_m/satann_working/riboseqc.Rmd'
 rule knit_riboqc:
   input: 
-    riboqcoutput='riboqc/data/{sample}/.done',
+    riboqcoutput=lambda wc:
+      ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ],
     ribqc_report=ribqc_report
-  output: 'riboqc/reports/{sample}/riboqcreport.html'
+  output: 'riboqc/reports/{groupname}/riboqcreport.html'
   run:
     #knitr's file path fuckery means we need to cd and hand it absolute paths, god knows where it's working directory ends up.
-    riboqcoutput = input[0].replace('.done','_results_all_toknit')
-    indata = os.path.abspath(riboqcoutput)
+    indata = [i.replace('.done','_results_all_toknit') for i in list(input['riboqcoutput'])]
+    indata = [os.path.abspath(r) for r in indata]
+    indata = ','.join(indata)
+    sinputs = ','.join(samplegroups[wildcards['groupname']])
     figpath = os.path.abspath(output[0]).replace('.html','')+'_fig'
     outpath = os.path.abspath(output[0])
     shell(r"""
     source activate riboqc
     cd $(dirname {output})
-    R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{wildcards.sample}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
+    R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{sinputs}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
 """)
-
 
 ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
 ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'

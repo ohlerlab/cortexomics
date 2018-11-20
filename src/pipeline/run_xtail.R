@@ -9,7 +9,7 @@ suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,xtail))
 
 args <- c(
   countfile='feature_counts/all_feature_counts',
-  uORFcountfile='feature_counts/all_feature_counts',
+  uORFcountfile='SaTAnn/uORFs.feature_counts',
   outdir= 'xtail'
 )
 
@@ -17,6 +17,7 @@ args[] = commandArgs(trailingOnly=TRUE)
 for(i in names(args)) assign(i,args[i])
 
 featurecountsagg <- data.table::fread(countfile)
+uorfcounts <- fread(uORFcountfile)
 
 timepoints = fread('sample_parameter.csv')$time%>%unique
 samples = fread('sample_parameter.csv')%>%
@@ -24,6 +25,9 @@ samples = fread('sample_parameter.csv')%>%
   filter(!str_detect(sample_id,'test'))%>%
   .$sample_id
 featurecountsagg = featurecountsagg%>%select(feature_id,one_of(samples))
+uorfcounts = uorfcounts%>%select(feature_id,one_of(samples))
+
+featurecountsagg <- featurecountsagg%>%rbind(uorfcounts)
 
 xtailfiles = file.path(paste0(outdir,'/xtail_',timepoints[-1],'.txt'))%>%setNames(timepoints[-1])
 
@@ -43,7 +47,7 @@ for(tp2 in timepoints[-1]){
     ribotab <- xtailcounts%>%select(matches('ribo'))%>%as.data.frame%>%set_rownames(xtailcounts$feature_id)
     conditionvect <-       ifelse(str_detect(colnames(xtailcounts%>%select(matches('total'))),tp2),tp1,tp2)   
 
-    xtailres <- xtail::xtail(mrnatab,ribotab,conditionvect)
+    xtailres <- xtail::xtail(mrnatab,ribotab,conditionvect,threads=20)
 
     xtailtable <- xtailres$resultsTable%>%rownames_to_column%>%set_colnames(
       c("feature_id","mRNA_log2FC", "RPF_log2FC", "log2FC_TE_v1", "pvalue_v1", "E145_log2TE", 

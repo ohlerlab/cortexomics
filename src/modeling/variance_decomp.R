@@ -33,6 +33,12 @@ assert_that(all(map_chr(exprtbl,class)[-1] == 'numeric'))
 designmatrix <- read_tsv(designmatrixfile)
 designmatrix %<>% filter(dataset %>%str_detect('total|ribo|MS'))
 designmatrix %<>% arrange(desc(assay),time,rep)
+
+#now add stepwise assay coefficients
+designmatrix$ribo <- designmatrix$assay %in% c('ribo','MS')
+designmatrix$MS <- designmatrix$assay %in% c('MS')
+designmatrix$ltime <- designmatrix$time%>%factor(unique(.))%>%as.numeric
+
 exprmatrix <- exprtbl  %>% { set_rownames(as.matrix(.[,-1]),.[[1]]) } 
 
 exprmatrix %<>% .[,designmatrix$dataset]
@@ -40,43 +46,70 @@ exprmatrix%>%head
 levels(designmatrix$assay) <- c('total','ribo','MS')
 
 
-
-exprmatrix[,totalscols]%>%rowMeans%>%cut_number(10)%>%table%>%names%>%str_split(pattern='[^0-9\\-\\.]')%>%map_chr(3)%>%as.numeric
-exprmatrix[,riboscols]%>%rowMeans%>%cut_number(10)%>%table%>%names%>%str_split(pattern='[^0-9\\-\\.]')%>%map_chr(3)%>%as.numeric
+# exprmatrix[,totalscols]%>%rowMeans%>%cut_number(10)%>%table%>%names%>%str_split(pattern='[^0-9\\-\\.]')%>%map_chr(3)%>%as.numeric
+# exprmatrix[,riboscols]%>%rowMeans%>%cut_number(10)%>%table%>%names%>%str_split(pattern='[^0-9\\-\\.]')%>%map_chr(3)%>%as.numeric
 
 
 
 #in terms of variance decomp what does this amoutn to....
 #seperate terms for assay difference, time, and changes between them....
-design = model.matrix( ~ time + assay + time:assay , designmatrix, xlev = list(assay = c('total','ribo','MS')) )
+
+design = model.matrix( ~ ltime + ribo + MS + ltime:ribo + ltime:MS , designmatrix)
+design%>%nrow
+exprmatrix%>%ncol
+
+#design = model.matrix( ~ time + assay + time:assay , designmatrix, xlev = list(assay = c('total','ribo','MS')) )
 
 totalscols<-colnames(exprmatrix)%>%str_subset('total')
 riboscols<-colnames(exprmatrix)%>%str_subset('ribo')
 mscols<-colnames(exprmatrix)%>%str_subset('MS')
 
-exprmatrix[1,totalscols] rep(c(15,15,18,18,18)i,each=2)
+#exprmatrix[1,totalscols] rep(c(15,15,18,18,18)i,each=2)
 
 limmafit = limma::lmFit(exprmatrix,design=design)
 bayesfit = limma::eBayes(limmafit,trend=TRUE, robust=TRUE)
+#get shrunken coefs
+coefs<-bayesfit$p.value%>%colnames
+allcoefs<-coefs%>%setNames(.,.)%>%
+  map(~topTable(bayesfit,number=nrow(exprmatrix),coef=.,confint=0.95)%>%
+  {cbind(gene=rownames(.),.)})%>%
+  bind_rows(.id='coefficient')%>%
+  as_data_frame
 
+bayescoefs <- allcoefs
 
 #how much of total protein variation over time is accounted for by mRNA
 # mRNA var / protein var 
 # = time var / time var + ribo time var + MS time var 
 
 
+#get the timepoint specific effects
+lcoefficientnames <- limmafit$coefficients%>%colnames
+basecoefnames <- lcoefficientnames %>% str_subset('time[^:]+$')
+ribocoefnames <- lcoefficientnames %>% str_subset('time.*ribo')
+mscoefnames <- lcoefficientnames %>% str_subset('time.*MS')
+
+basecoefs <- limmafit$coefficients[TRUE,basecoefnames]
+ribocoefs <- limmafit$coefficients[TRUE,ribocoefnames]
+mscoefs <- limmafit$coefficients[TRUE,mscoefnames]
 
 
 
+limmafit$coefficients%>%log2%>%.[,'riboTRUE']%>%hist(n=20)
 
 
 
-lcoefficients <- limmafit$coefficients%>%colnames
-basetimecoefs <- lcoefficients %>% str_subset('time[^:]+$')
-ribotimecoeffs <- lcoefficients %>% str_subset('time.*assayribo')
-mstimecoeffs <- lcoefficients %>% str_subset('time.*assayMS')
+apply(basecoefs,1,var)%>%sum
+apply(basecoefs+ribocoefs,1,var)%>%sum
+apply(basecoefs+ribocoefs+mscoefs,1,var)%>%sum
 
-apply%>%args
+allprot_tvar <- apply(basecoefs+ribocoefs+mscoefs,1,var)%>%mean
+allmrna_tvar <- apply(basecoefs,1,var)%>%sum
+
+allprot_tvar <- apply(ribocoefs+mscoefs,1,var)%>%sum
+
+
+
 
 timevarbase <- apply(limmafit$coefficients[TRUE,basetimecoefs],1,var)
 
@@ -84,6 +117,25 @@ timevarall<-apply(
     limmafit$coefficients[TRUE,basetimecoefs]+
     limmafit$coefficients[TRUE,ribotimecoeffs]+ 
     limmafit$coefficients[TRUE,mstimecoeffs] ,1,var)
+
+ribovarall<-apply(
+    limmafit$coefficients[TRUE,basetimecoefs]+
+    limmafit$coefficients[TRUE,ribotimecoeffs] ,1,var)
+
+mrnavarall<-apply(
+    limmafit$coefficients[TRUE,basetimecoefs] ,1,var)
+
+
+
+timevarall<-apply(
+    limmafit$coefficients[TRUE,basetimecoefs]+
+    limmafit$coefficients[TRUE,ribotimecoeffs]+ 
+    limmafit$coefficients[TRUE,mstimecoeffs] ,1,var)
+
+
+mrnavarall%>%sum
+ribovarall%>%sum
+timevarbase%>%sum
 
 pdf('../plots/variance_explained_histogram.pdf'%>%normalizePath%T>%message)
 hist(timevarbase/timevarall,n=50)
@@ -95,6 +147,7 @@ timevarbase <-
 
 protfcdf <- (limmafit$coefficients[TRUE,basetimecoefs]+
 # limmafit$coefficients[TRUE,ribotimecoeffs]+ 
+
 limmafit$coefficients[TRUE,mstimecoeffs]) %>%
   as.data.frame%>%
   rownames_to_column('gene')%>%
@@ -113,7 +166,6 @@ pdf('../plots/mrna_prot_cor_dist.pdf'%>%normalizePath%T>%message)
 left_join(mrnafcdf,protfcdf)%>%group_by(gene)%>%summarise(mRNA_prot_cor = cor(prot,mRNA) )%>% {hist(.$mRNA_prot_cor,50)}
 dev.off()
 
-
 rnameans<-exprmatrix[,totalscols]%>%rowMeans%>%enframe%>%set_colnames(c('gene','meanRNA'))
 ribomeans<-exprmatrix[,riboscols]%>%rowMeans%>%enframe%>%set_colnames(c('gene','meanRNA'))
 
@@ -124,18 +176,49 @@ pdf('../plots/mrna_prot_cor_mean_scatter.pdf'%>%normalizePath%T>%message)
 left_join(mrnafcdf,protfcdf)%>%group_by(gene)%>%summarise(mRNA_prot_cor = cor(prot,mRNA))%>% left_join(rnameans)%>%{qplot(data=.,y=mRNA_prot_cor,x=meanRNA,geom='point')}
 dev.off()
 
-datafilename="http://personality-project.org/r/datasets/R.appendix1.data"
-data.ex1=read.table(datafilename,header=T)   #read the data into a table
-
-aov.ex1 = aov(Alertness~Dosage,data=data.ex1)  #do the analysis of variance
-summary(aov.ex1)                                    #show the summary table
-print(model.tables(aov.ex1,"means"),digits=3)
-  #report the means and the number of subjects/cell
-boxplot(Alertness~Dosage,data=data.ex1)
-  #graphical summary appears in graphics window
 
 
+# datafilename="http://personality-project.org/r/datasets/R.appendix1.data"
+# data.ex1=read.table(datafilename,header=T)   #read the data into a table
 
+# aov.ex1 = aov(Alertness~Dosage,data=data.ex1)  #do the analysis of variance
+# summary(aov.ex1)                                    #show the summary table
+# print(model.tables(aov.ex1,"means"),digits=3)
+#   #report the means and the number of subjects/cell
+# boxplot(Alertness~Dosage,data=data.ex1)
+#   #graphical summary appears in graphics window
+
+
+genesample <- sample(rownames(exprmatrix),2e3)
+
+
+aovdata <- exprmatrix %>% .[genesample,]%>% as.data.frame %>% 
+  rownames_to_column('gene')%>%    
+  gather(dataset,signal,-gene)%>%
+  separate(dataset,c('time','assay','rep'))%>%
+  # filter(assay=='MS' | assay =='total')
+  identity
+
+aovdata$ribo <- aovdata$assay %in% c('ribo','MS')
+aovdata$MS <- aovdata$assay %in% c('MS')
+
+
+allaov<-aov(data=aovdata,signal ~ gene  + gene:ribo + gene:MS  + time:gene + time:gene:ribo +time:gene:MS )
+
+mrnaonlyaov<-aov(data=aovdata%>%filter(assay!='ribo'),signal ~ gene + gene:MS  + time:gene +time:gene:MS )
+
+riboonlyaov<-aov(data=aovdata%>%filter(assay!='total'),signal ~ gene + gene:MS  + time:gene +time:gene:MS )
+
+summary(mrnaonlyaov)
+summary(allaov)
+summary(riboonlyaov)
+
+
+####Old aov
+exprmatrix[,riboscols]
+
+exprmatrix[,riboscols]%>%apply(1,.%>%sort%>%head(2)%>%mean)%>%hist(20)
+dev.off()
 genesample <- sample(rownames(exprmatrix),300)
 
 aov <- exprmatrix %>% .[genesample,]%>% as.data.frame %>% rownames_to_column('gene')%>%    

@@ -105,6 +105,7 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 	simdata <- datasimfunc(logrealdeg,realrTE,ribo,realprot0)
 	
+	#filter out things with no cor?
 	ribomean <- simdata$ribo_1 +simdata$ribo_2
 	msmean <- simdata$ms_1 +simdata$ms_2+simdata$ms_3 
 	corcheck <- anova(lm(data=simdata,ribomean~msmean ))
@@ -147,7 +148,7 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 	interval<-data.frame(value=fit$par[1], upper=upper, lower=lower)
 
-	# browser()
+	browser()
 	data_frame(
 		deginconf=between(logrealdeg,interval$lower[1],interval$upper[1]),
 		degdist = sqrt(((logrealdeg - fit$par[1])/logrealdeg)^2),#distance actual estimate
@@ -161,17 +162,91 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 degrange = log(seq(0.01,0.99,by=0.05))
 #test our model fitting
-reps<-replicate(simp=F,100,
-	{
+reps<-replicate(simp=F,100,{
 		test1dconfints(
 			logrealdeg=sample(degrange,1),
 			# realrTE=sample(seq(0.5,3,len=20),1),
 			realrTE=100,
-			realprot0=sample(seq(3e3,3e6,l=10),1),
-			ribo=sample(ribopatterns[1],1)[[1]]
-}))
+			# realprot0=sample(seq(3e3,3e6,l=10),1),
+			realprot0=100*100,
+			ribo=sample(ribopatterns[1],1)[[1]])
+}
+)
 
 #show as a table
 reptable<-reps%>%setNames(.,seq_along(.))%>%bind_rows%>%mutate(estprot0/realprot0)%>%arrange(logrealdeg)
 
 reptable$deginconf%>%mean
+
+
+Simulating data with 
+
+plotlist <- list()
+
+
+logrealdeg <- log(0.5)
+realprot0 <- 100*ribo[1]*100
+realrTE <- 100
+ribo<- ribopatterns[[3]]
+ribo<- c(1600,800,400,200,100)
+
+
+simdata <- simulate_data(logrealdeg,realrTE,ribo,realprot0)
+#method='L-BFGS-B'
+TEinitial <- 100
+
+fit = optim(par=c(log(0.5),TEinitial,simdata$ms_1[1]),
+	method='L-BFGS-B',
+	control=list('fnscale'= -1),
+	fn=log.lklh.prot,
+	data=simdata,
+	lower=c(log(0.00001),0,0),
+	upper=c(log(1),1e12,1e12),
+	hessian=T)
+
+fitsimmeddata <- replicate(simp=F,100,simulate_data(fit$par[1],fit$par[2],ribo,fit$par[3]))
+fitsimmeddata%<>%bind_rows
+fitsimmeddata 
+
+fitsimmeddata 
+
+simdata2plot<-simdata%>%select(-trans,-ms)%>%gather(assay,value,-time)%>%separate(assay,into=c('assay','rep'))%>%
+		mutate(assay=factor(assay,unique(assay)))
+fitsimmeddata2plot<-fitsimmeddata%>%select(-trans,-ms)%>%gather(assay,value,-time)%>%separate(assay,into=c('assay','rep'))%>%
+		mutate(assay=factor(assay,unique(assay)))
+
+fit$par[2]
+par<-fit$par%>%map_dbl(round,2)
+par[1]%<>%exp%>%round(2)
+
+
+fisher_info<-solve(-fit$hessian)
+
+prop_sigma<-try({ sqrt(fisher_info[1,1])})
+
+degupper <- exp(fit$par[1]+1.96*prop_sigma)%>%round(2)
+deglower <- exp(fit$par[1]-1.96*prop_sigma)%>%round(2)
+
+prop_sigma<-try({ sqrt(fisher_info[2,2])})
+rTEupper <- (fit$par[2]+1.96*prop_sigma)%>%floor
+rTElower <- (fit$par[2]-1.96*prop_sigma)%>%floor
+
+prop_sigma<-try({ sqrt(fisher_info[3,3])})
+ms0upper <- (fit$par[3]+1.96*prop_sigma)%>%floor
+ms0lower <- (fit$par[3]-1.96*prop_sigma)%>%floor
+
+simdataplottitle<-str_interp('Simulated Data: \n Actual Parameters: rTE=${realrTE}, Beta=${exp(logrealdeg)}, Ms0=${realprot0}
+	Estimated rTE=${par[2]} (${rTElower} - ${rTEupper}) 
+	Estimated Beta=${par[1]} (${deglower} - ${degupper})  
+	Estimated Ms0=${par[3]} (${ms0lower} - ${ms0upper})')
+
+#simulate our data log scale
+svg(h=5,w=6,'../plots/simdata_degredationest_degdominantribo.svg'%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(
+	simdata2plot%>%
+		ggplot(data=.,aes(y=log2(value),x=time))+facet_grid(scale='free',assay~.)+geom_point(size=3)+theme_minimal()+
+		geom_point(data=fitsimmeddata2plot%>%filter(assay=='ms'),position='jitter',alpha=I(0.1))+
+		ggtitle(simdataplottitle)
+	
+)
+dev.off()

@@ -1,22 +1,5 @@
 library(parallel)
 
-readlengths <- 
-	Sys.glob('collapse_reads/*/*collreadstats.txt')%>%
-	grep(v=T,inv=T,patt='test')%>%
-	# str_subset('Poly|80S')%>%
-	map(.%>%{
-		message(.)
-		lines <- readLines(.)
-		tabstart = lines%>%str_detect('>read_lengths_unique')%>%which
-		tab <- fread(.,skip=tabstart+2)
-		tab$sample <- dirname(.)%>%basename
-		tab%<>%set_colnames(c('readlength','count','sample'))
-		tab
-	})%>%bind_rows
-
-readlengths$readlength = readlengths$readlength - 8
-
-
 getfastqlengths<-function(fastqfile,catbin='zcat'){
 	if(str_detect(fastqfile,'collapse')) catbin <- 'cat'
 	out<-fread(
@@ -31,17 +14,20 @@ getfastqlengths<-function(fastqfile,catbin='zcat'){
 getreadlengthcounts <- function(gtf,bamfile){
 	fread(str_interp("tail -n +4 ${gtf} | awk '{print $1,$4,$5,$6,$8,\"-\"}'  | samtools view -L - ${bamfile} | awk '{a[length($10)] += 1} END { for (key in a) { print key \"\\t\" a[key] } }' "))
 }
+Sys.glob.nonempty<-function(...){
+	globout <- Sys.glob(...)
+	stopifnot(length(globout)>0)
+	globout
+}
 
 fastqfiles<-
 	c(
-		# Sys.glob("collapse_reads/*/*.fastq.gz"),
-		Sys.glob("input/*/*.fastq.gz"),
-		Sys.glob("cutadapt_reads/*/*.fastq.gz"),
-		Sys.glob("collapse_reads/*/*.fastq.gz"),
-		Sys.glob("trim_reads/*/*.fastq.gz"),
-		Sys.glob("processed_reads/*/*.fastq.gz")
+		Sys.glob.nonempty("input/*/*.fastq.gz"),
+		Sys.glob.nonempty("cutadapt_reads/*/*.fastq.gz"),
+		Sys.glob.nonempty("collapse_reads/*/*.fastq.gz"),
+		Sys.glob.nonempty("trim_reads/*/*.fastq.gz"),
+		Sys.glob.nonempty("processed_reads/*/*.fastq.gz")
 	)
-
 
 readlengths <- fastqfiles%>%
 	setNames(.,.)%>%
@@ -68,52 +54,53 @@ readlengths <- rbind(readlengths,rlfrac80sbams)
 readlengths$processing_stage%<>%factor(.,unique(.))
 readlengths%>%filter(processing_stage=='aligned_to_cds')
 #
-pdf('../plots/80S_readlendists_prcstages.pdf'%>%normalizePath%T>%message,w=12,h=12)
-print(
-readlengths%>%
-	# filter(sample%>%str_detect('ribo'))%>%
-	filter(sample%>%str_detect('80S'))%>%
-	group_by(sample,processing_stage)%>%
+
+
+make_readcountplot <- .%>%{group_by(.,sample,processing_stage)%>%
 	mutate(count_frac=count/sum(count))%>%
-	ggplot(aes(x=readlength,y=count_frac,color=sample))+
+	ggplot(aes(x=readlength,y=count,color=sample))+
 		facet_grid(processing_stage~.,scale='free')+
 		geom_line()+
 		scale_x_continuous(breaks=seq_len(max(readlengths$readlength)))+
 		theme_minimal()+
 		theme(panel.grid.minor.x=element_blank(),panel.grid.minor.y=element_blank())
-		)
+		
+}
+
+pdf('../plots/80S_readlendists_prcstages.pdf'%>%normalizePath%T>%message,w=12,h=12)
+for(zoomlims in list(c(1,1e6),c(12,24))) {
+print(
+readlengths%>%
+	filter(sample%>%str_detect('80S'))%>%
+	filter(between(readlength,zoomlims[1],zoomlims[2]))%>%
+	make_readcountplot
+)
+}
 dev.off()
 
 pdf('../plots/Poly_readlendists_prcstages.pdf'%>%normalizePath%T>%message,w=12,h=12)
+for(zoomlims in list(c(1,1e6),c(12,24))) {
 print(
 readlengths%>%
 	# filter(sample%>%str_detect('ribo'))%>%
 	filter(sample%>%str_detect('Poly'))%>%
-	group_by(sample,processing_stage)%>%
-	mutate(count_frac=count/sum(count))%>%
-	ggplot(aes(x=readlength,y=count_frac,color=sample))+
-		facet_grid(processing_stage~.,scale='free')+
-		geom_line()+
-		scale_x_continuous(breaks=seq_len(max(readlengths$readlength)))+
-		theme_minimal()+
-		theme(panel.grid.minor.x=element_blank(),panel.grid.minor.y=element_blank())
-		)
+	filter(between(readlength,zoomlims[1],zoomlims[]))%>%
+	make_readcountplot
+	)
+
+}
 dev.off()
 
 pdf('../plots/Ribo_readlendists_prcstages.pdf'%>%normalizePath%T>%message,w=12,h=12)
+for(zoomlims in list(c(1,1e6),c(12,24))) {
 print(
 readlengths%>%
 	# filter(sample%>%str_detect('ribo'))%>%
 	filter(sample%>%str_detect('ribo'))%>%
-	group_by(sample,processing_stage)%>%
-	mutate(count_frac=count/sum(count))%>%
-	ggplot(aes(x=readlength,y=count_frac,color=sample))+
-		facet_grid(processing_stage~.,scale='free')+
-		geom_line()+
-		scale_x_continuous(breaks=seq_len(max(readlengths$readlength)))+
-		theme_minimal()+
-		theme(panel.grid.minor.x=element_blank(),panel.grid.minor.y=element_blank())
-		)
+	filter(between(readlength,zoomlims[1],zoomlims[2]))%>%
+	make_readcountplot
+	)
+}
 dev.off()
 
 #cludge - get rid of data form some small test files

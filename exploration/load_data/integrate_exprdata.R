@@ -24,14 +24,16 @@ args <- c(
   designmatrixfile=file.path('exprdata/designmatrix.txt'),
   normcountstable='exprdata/allcounts_snorm.tsv'
 )
-args <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
+args[] <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
 message(capture.output(dput(args)))
 for(i in names(args)) assign(i,args[i])
 
 # message(str_interp('filtered out ${length(nonmeasured_pids)} protein groups\
 #  that were unique to the total MS data, e.g.\n ${sample(specungenes,10)}'))
 
-countstable <- data.table::fread(countfile)%>%select(-matches('test'))
+countstable <- data.table::fread(countfile)%>%select(-dplyr::matches('test'))
+totcols<-countsmatrix%>%colnames%>%str_subset('total')
+ribcols<-countsmatrix%>%colnames%>%str_subset('ribo')
 
 #carry out individual processing of the data sources
 ids <- fread('ids.txt')%>%set_colnames(c('feature_id','gene_name'))%>%distinct
@@ -43,7 +45,7 @@ countstable %<>% select(gene_name,everything())
     
 #convert to matrix
 countsmatrix <- countstable%>% { set_rownames(as.matrix(.[-(1:2)]),.[[1]]) }
-
+countsmatrix %<>% .[,colnames(.)%>%str_detect('ribo|total')]
 #filter out stuff with very low counts
 lowmediancounts <- countsmatrix %>% apply(1,median) %>%`<`(LOWCOUNTLIM)
 countsmatrix <- countsmatrix[!lowmediancounts,]
@@ -53,7 +55,10 @@ countsmatrix <- countsmatrix[!lowmediancounts,]
 # dev.off()
 
 #and then transform the counts
-countsmatrix<-DESeq2::vst(countsmatrix)
+countsmatrix<-cbind(
+  DESeq2::vst(countsmatrix[,ribcols]),
+  DESeq2::vst(countsmatrix[,totcols])
+)
 
 countsmatrix_snorm <- countsmatrix %>% {sweep(.,2,STATS = DESeq2::estimateSizeFactorsForMatrix(.),FUN='/')}
 
@@ -90,7 +95,6 @@ mstable_gene <-
     distinct(gene_name,.keep_all=TRUE)
   )
 
-
 msmatrix<-mstable_gene%>%
   ungroup%>%
   select(gene_name,dataset,signal)%>%
@@ -107,15 +111,56 @@ assert_that(! msmatrix%>%colnames%>%str_detect('rep\\d+')%>%any)
 
 
 #print a pot showing homoskedasticity to the 
+
+plot(1)
+
 ms_meanvar_plotname <- basename(msfile)%>%paste0(.,'.pdf')
-pdf(file.path('../plots','mean_variance_plots',ms_meanvar_plotname)%T>%message)
-vsn::meanSdPlot(msmatrix)
+# pdf(file.path('../plots','mean_variance_plots',ms_meanvar_plotname)%T>%message)
+# vsn::meanSdPlot(msmatrix)
+# dev.off()
+
+svg(h=5,w=8,'../plots/Variance_stabilized_signal_ms.svg')
+msmatrix%>%{
+  standard_deviation = apply(.,1,sd,na.rm=T)
+  mean_signal = apply(.,1,mean,na.rm=T)
+  qplot(mean_signal,standard_deviation,geom='blank')+geom_hex()+geom_smooth()+
+  theme_minimal()+
+  ggtitle('Variance Stabilized Data Mass-Spec')
+}
 dev.off()
 
-count_meanvar_plotname <- basename(countfile)%>%paste0(.,'.pdf')
-pdf(file.path('../plots','mean_variance_plots',count_meanvar_plotname)%>%normalizePath%T>%message)
-vsn::meanSdPlot(countsmatrix)
+
+svg(h=5,w=8,'../plots/Variance_stabilized_signal_rnaseq.svg'%>%normalizePath%T>%message)
+countsmatrix[,totcols]%>%{
+  standard_deviation = apply(.,1,sd,na.rm=T)
+  mean_signal = apply(.,1,mean,na.rm=T)
+  qplot(mean_signal,standard_deviation,geom='blank')+geom_hex()+geom_smooth()+
+  theme_minimal()+
+  ggtitle('Variance Stabilized Counts')
+}
 dev.off()
+
+svg(h=5,w=8,'../plots/Variance_stabilized_signal_ribo.svg'%>%normalizePath%T>%message)
+countsmatrix[,ribcols]%>%{
+  standard_deviation = apply(.,1,sd,na.rm=T)
+  mean_signal = apply(.,1,mean,na.rm=T)
+  qplot(mean_signal,standard_deviation,geom='blank')+geom_hex()+geom_smooth()+
+  theme_minimal()+
+  ggtitle('Variance Stabilized Counts')
+}
+dev.off()
+
+
+
+fread('feature_counts_readrange/data/E16_ribo_2/cds/25_31/feature_counts')%>%filter(Geneid%in%spikegids)%>%select(Geneid,7)%>%head
+fread('feature_counts_readrange/data/E16_ribo_1/cds/25_31/feature_counts')%>%filter(Geneid%in%spikegids)%>%select(Geneid,7)%>%head
+
+
+
+# count_meanvar_plotname <- basename(countfile)%>%paste0(.,'.pdf')
+# pdf(file.path('../plots','mean_variance_plots',count_meanvar_plotname)%>%normalizePath%T>%message)
+# vsn::meanSdPlot(countsmatrix)
+# dev.off()
 
 #join the data sources together
 exprmatrix <- inner_join(

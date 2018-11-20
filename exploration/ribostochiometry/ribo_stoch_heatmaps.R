@@ -1,6 +1,13 @@
-
+suppressMessages(library(limma))
+suppressMessages(library(tidyverse))
+suppressMessages(library(magrittr))
+suppressMessages(library(stringr))
+suppressMessages(library(data.table))
+suppressMessages(library(assertthat))
 library(gplots)
 library(RColorBrewer)
+
+root<-'/fast/groups/ag_ohler/dharnet_m/cortexomics'
 
 vlookup <- function(query,dicttable,key,vals){
 	dict = dicttable%>%ungroup%>%distinct_(key,vals)
@@ -31,7 +38,7 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
 
 message('looking up protein ID annotations')
 #'get info on the ribosomal subunts from mats table
-rids <- read_tsv('~/projects/cortexomics/ext_data/riboprotids.tsv')
+rids <- read_tsv('/fast/groups/ag_ohler/dharnet_m/cortexomics/ext_data/riboprotids.tsv')
 ridssplit<-rids%>%filter(!`Mito-RP`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 
 #get info on proteins so we can catagorize them
@@ -40,19 +47,30 @@ mart <- useMart(biomart = "ENSEMBL_MART_MOUSE")
 mart <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
 listAttributes(mart)%>%filter(description%>%str_detect('Uni'))%>%filter(page!='homologs')
 ribogoterm <- "GO:0005840"
+lribogoterm <- 'GO:0015935'
+sribogoterm <- 'GO:0015934'
 riboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
                  filters=('go'),values=ribogoterm,
                  mart = mart)
+sriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
+                 filters=('go'),values=sribogoterm,
+                 mart = mart)%>%.[[1]]
+lriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
+                 filters=('go'),values=lribogoterm,
+                 mart = mart)%>%.[[1]]
 transreggoterm <- "GO:0006417"
 transregprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
                  filters=('go'),values=transreggoterm,
                  mart = mart)
-translationgoterm <- "GO:0006412"
+translationgoterm <- "GO:0006417"
 translationprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
                  filters=('go'),values=translationgoterm,
                  mart = mart)[[1]]
 ebp1pid = ms_tall$Protein_IDs[match('Pa2g4',ms_tall$gene_name)]
 
+
+
+ms_tall_trans%<>%filter(!gene_name%>%str_detect('Hbs1l'))
 
 
 #' Thi sis a title with inline R code `r foo`
@@ -66,6 +84,8 @@ allpgroups <- ms_tall$Protein_IDs%>%unique
 multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
 all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
 
+
+
 # ms_tall_trans<-ms_tall%>%mutate(ambig = sep_element_in(Protein_IDs,multids))
 
 
@@ -78,13 +98,16 @@ n_protid = ms_tall$Protein_IDs%>%str_split_fast(';')%>%unlist%>%n_distinct
 
 message('Labeling protein IDs with annotations')
 pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
+
 pids%<>%mutate(pcat = case_when(
-  (Protein_IDs==ebp1pid) ~ "Ebp1",
-  sep_element_in(Protein_IDs,ridssplit) ~ "Ribosomal",
-  sep_element_in(Protein_IDs,translationprotids) ~ "Translation Associated",
+ (Protein_IDs==ebp1pid) ~ "Ebp1",
+  sep_element_in(Protein_IDs,sriboprotids) ~ "Rps",
+  sep_element_in(Protein_IDs,lriboprotids) ~ "Rpl",
+  sep_element_in(Protein_IDs,translationprotids) ~ "translation-associated",
   TRUE ~ "other"
 ))
 stopifnot("Ebp1" %in% pids$pcat)
+pids$pcat%>%table
 
 ms_tall_trans <- ms_tall%>%
 	ungroup%>%
@@ -100,6 +123,7 @@ stopifnot(
 	str_split_fast(';')%>%unlist%>%
 	table%>%`==`(1)
 )
+
 #+ collect nums, eval =TRUE, cache = FALSE
 n_transids = n_distinct(ridssplit)
 n_ribogroups = n_distinct(ms_tall_trans$Protein_IDs)
@@ -128,7 +152,9 @@ sizefactors = DESeq2::estimateSizeFactorsForMatrix(datamat)
 sizefactors=sizefactors%>%stack%>%set_colnames(c('sizefactor','tmp'))%>%
 	separate(tmp,into=c('time','fraction','replicate'))
 
-ibnormms_tall <- ms_tall%>%filter(sigtype=='iBAQ')%>%left_join(sizefactors)%>%mutate(sigtype='norm_iBAQ',signal=signal*sizefactor)
+sizefactors$replicate %<>% as.character
+ms_tall_trans$replicate %<>% as.character
+ibnormms_tall <- ms_tall%>%filter(sigtype=='iBAQ')%>%left_join(sizefactors,by=c('time','fraction','replicate'))%>%mutate(sigtype='norm_iBAQ',signal=signal*sizefactor)
 
 #create normalized signal column in ms data
 ms_tall_trans%<>%left_join(sizefactors)%>%
@@ -157,7 +183,7 @@ stochmats <- lapply(2:ncol(sigmat),function(j) {
 	})%>%setNames(dsetnames)
 
 #plot the stochiometry heatmap
-catcolors = data_frame(color=c("Red","Black","Green"),pcat = c("Ribosomal","Translation Associated","Ebp1"))
+catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E"),pcat = c("translation-associated","Rps","Rpl","Ebp1"))
 #colors for fold changes
 colors = c(seq(-15,-log2(1.25),length=100),seq(-log2(1.25),log2(1.25),length=100),seq(log2(1.25),15,length=100))
 my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)
@@ -165,7 +191,8 @@ my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)
 for(dset in dsetnames){
 	# file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps.',dset,'.pdf'))%>%dirname%>%dir.create
 	hmapfile <- file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps.',dset,'.pdf'))
-	cairo_pdf(normalizePath(hmapfile) %T>% message,w = 12, h = 12)
+	hmapfile%>%dirname%>%dir.create(showWarnings=FALSE)
+	pdf(normalizePath(hmapfile) %T>% message,w = 12, h = 12)
 	stochmat = stochmats[[dset]]
 	stochmat = stochmat[apply(stochmat,1,.%>%is.na%>%all%>%not),apply(stochmat,2,.%>%is.na%>%all%>%not)]
 
