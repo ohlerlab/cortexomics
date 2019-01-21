@@ -1,7 +1,7 @@
 
 
 #this qill quickly check if we see regulation in opposing directions in our 
-defile <- '/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/xtail/xtail_P0.txt'%>%fread
+defile <- 'fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/xtail/xtail_P0.txt'%>%fread
 
 xtailres <- 'xtail/xtail_E175.txt'%>%fread
 

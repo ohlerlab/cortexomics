@@ -7,13 +7,13 @@ CHUNKSIZE=1e5
 message('...done')
 
 #load arguments
-args <- c(
+argv <- c(
 	geneids = 'ids.txt',
 	outputfile = 'gene_set_enrichment/allgenesets.gmt'
 )
-args <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
-for(i in names(args)) assign(i,args[i])
-
+argv <- commandArgs(trailingOnly=TRUE)[1:length(argv)]%>%setNames(names(argv))
+for(i in names(argv)) assign(i,argv[i])
+geneids
 
 outputfolder<-dirname(outputfile)
 outputfolder <- paste0(outputfolder,'/')
@@ -105,19 +105,18 @@ add_to_gmt('P_body_proteins_Hubstenberger_etal_2017',
 p_bodies_rna_tab<-'../ext_data/p_bodies_hubstenberger_etal_2017/RNA_enrich.csv'%>%
 	fread%>%
 	set_colnames(
-c("Ensembl Gene ID", "gene_name", "log2fc", 
-"pval", "padj", 
-"sorted P-body replicate 1 (count per million reads (CPM))", 
-"sorted P-body replicate 2 (count per million reads (CPM))", 
-"sorted P-body replicate 3 (count per million reads (CPM))", 
-"sorted P-body replicate average (count per million reads (CPM))", 
-"pre-sorted fraction replicate 1 (count per million reads (CPM))", 
-"pre-sorted fraction replicate 2 (count per million reads (CPM))", 
-"pre-sorted fraction replicate 3 (count per million reads (CPM))", 
-"pre-sorted fraction replicate average (count per million reads (CPM))", 
-"sorted P-body replicate 1 (mapped read number)", "sorted P-body replicate 2 (mapped read number)", 
-"sorted P-body replicate 3 (mapped read number)", "pre-sorted fraction replicate 1 (mapped read number)", 
-"pre-sorted fraction replicate 2 (mapped read number)", "pre-sorted fraction replicate 3 (mapped read number)"
+		c("Ensembl Gene ID", "gene_name", "log2fc", "pval", "padj", 
+		"sorted P-body replicate 1 (count per million reads (CPM))", 
+		"sorted P-body replicate 2 (count per million reads (CPM))", 
+		"sorted P-body replicate 3 (count per million reads (CPM))", 
+		"sorted P-body replicate average (count per million reads (CPM))", 
+		"pre-sorted fraction replicate 1 (count per million reads (CPM))", 
+		"pre-sorted fraction replicate 2 (count per million reads (CPM))", 
+		"pre-sorted fraction replicate 3 (count per million reads (CPM))", 
+		"pre-sorted fraction replicate average (count per million reads (CPM))", 
+		"sorted P-body replicate 1 (mapped read number)", "sorted P-body replicate 2 (mapped read number)", 
+		"sorted P-body replicate 3 (mapped read number)", "pre-sorted fraction replicate 1 (mapped read number)", 
+		"pre-sorted fraction replicate 2 (mapped read number)", "pre-sorted fraction replicate 3 (mapped read number)"
 ))
 
 
@@ -134,9 +133,48 @@ add_to_gmt('P_body_RNAs_Hubstenberger_etal_2017',
 	p_bodies_rna_tab$gene_id
 )
 
-library(biomaRt)
 
-humanmart = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+#Let's look at poly a genes
+altpagenes <- fread('../ext_data/ctag_paperclip_hwang_et_al_2017.csv')
+altpagenes%<>%left_join(ids)
+
+add_to_gmt('The few genes identified as having alternative polyadenylation in hwang et al 2017',
+	'',
+	altpagenes$gene_id
+)
+
+molyneuxdata<-readxl::read_xlsx('../ext_data/molyneux_etal_2015_tS3.xlsx',skip=1)%>%
+	mutate(tissue=
+		case_when(
+				cluster%in%c(5,0,15,10) ~ 'CPN', 
+				cluster %in% c(16,7,18,11,3) ~ 'SCPN',
+ 				cluster %in% c(6,9,2,12,17) ~ 'CThPN', 
+ 				TRUE ~ 'celltype_indep')
+	)
+molyneuxdata%<>%rename(gene_name=gene_id)
+molyneuxdata%<>%left_join(ids)
+
+add_to_gmt('From Molyneux et al - genes in clusters specific to CPN ( 5,0,15,10)',
+	'These genes are in clusters specific to corticothalamic projection neurons, i followd their figure 2 but excluded things that looked specific to 2 cell types',
+	molyneuxdata%>%filter(tissue=='CPN')%>%.$gene_id
+)
+
+add_to_gmt('From Molyneux et al - genes in clusters specific to SCPN ( 16,7,18,11,3 )',
+	'These genes are in clusters specific to subcerebral projection neurons, i followd their figure 2 but excluded things that looked specific to 2 cell types',
+	molyneuxdata%>%filter(tissue=='SCPN')%>%.$gene_id
+)
+
+add_to_gmt('From Molyneux et al - genes in clusters specific to CthPN ( 6,9,2,12,17 )',
+	'These genes are in clusters specific to corticospinal motor neurons, i followd their figure 2 but excluded things that looked specific to 2 cell types',
+	molyneuxdata%>%filter(tissue=='CThPN')%>%.$gene_id
+)
+
+
+
+#let's quickly get some clusters from the yuzwa data
+# library(biomaRt)
+
+# humanmart = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 
 
 
@@ -197,3 +235,10 @@ humanmart = useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 
 # up <-  UniProt.ws(taxId=9606)
 # ensemblgenes <- select(up,keys=p_bodies_prot_tab[[1]],columns='ENSEMBL',keytype='UNIGENE')
+
+
+rmarkdown::render(
+			"fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/gage_rep.Rmd",
+		knit_root_dir='fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline',
+		params=list(signalfile='xtail/xtail_P0.txt',gene_set_file='gene_set_enrichment/allgenesets.gmt',sigcol=NULL)
+)

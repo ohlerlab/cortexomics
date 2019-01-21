@@ -1,5 +1,6 @@
 # the qc step at the moment assumes that the data is single ended
 import csv
+import glob
 shell.executable("bash")
 shell.prefix("set -e  pipefail;")
 # user set parameter
@@ -89,9 +90,9 @@ GENEREGIONS = ['gene','cds','fputrs','tputrs']
 TRNAs = ['tRNAs']
 
 # READRANGES = ['25_30','1_26','27_28','29_100','1_300']
-READRANGES = ['25_31','1_300']
+READRANGES = ['21_22','25_31','1_300']
 # READRANGENUM = [[25,30],[1,26],[27,28],[29,100],[1,300]]
-READRANGENUM = [[25,31],[1,300]]
+READRANGENUM = [[21,22],[25,31],[1,300]]
 READRANGEDICT = dict(zip(READRANGES,READRANGENUM))
 
 
@@ -117,8 +118,8 @@ assert set(FASTQSAMPLES) == set(SAMPLES)
 
 # assert set(ASSAY_DICT.values()) in set(['ribo','total'])
 
-satan_annot_script =  '/fast/groups/ag_ohler/dharnet_m/satann_working/Annot_make_bioc_gtf.R'
-riboqc_script =  '/fast/groups/ag_ohler/dharnet_m/satann_working/analysis_qc_mod_jan2018_12.R'
+satan_annot_script =  'fast/groups/ag_ohler/work/dharnet_m/satann_working/Annot_make_bioc_gtf.R'
+riboqc_script =  'fast/groups/ag_ohler/work/dharnet_m/satann_working/analysis_qc_mod_jan2018_12.R'
 
 
 ribosamples=list(filter(lambda s: ASSAY_DICT[s] == 'ribo',SAMPLES))
@@ -138,11 +139,17 @@ nontestribosamples = list(filter(lambda x: not 'test' in x,ribosamples))
 motseqsets = ['xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
 motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
 
-groupnames = ['OD5P','ONVC','OMM']
+
+
 samplegroups = {
   'New': list(filter(lambda s: 'RPI' in s,ribosamples)),
   'old': list(filter(lambda s: not 'RPI' in s,ribosamples)),
 }
+groupnames = list(samplegroups.keys())
+samplegroups.update(dict(zip(SAMPLES,[[s] for s in SAMPLES] )))
+
+
+samplegroups
 
 rule all:
   input:
@@ -184,7 +191,8 @@ rule all:
     expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
-    expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets)
+    expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    expand('riboWaltz/{sample}/.done',sample=ribosamples)
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -359,7 +367,7 @@ rule make_bowtie_indices:
        bowtie2-build {REF} bowtie_index/ref 
        cp {REF} bowtie_index/ref.fa
        bowtie2-build {RNAFASTA} bowtie_index/transcriptome
-       cp {RNAFASTA} bowtie_index/transcriptome.fa 
+       cp {RNAFASTA} bowtie_index/transcriptome.fa
        
       """)
 
@@ -1460,7 +1468,7 @@ rule run_riboqc:
 
   """)
 
-SaTAnn_script = '/fast/groups/ag_ohler/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
+SaTAnn_script = 'fast/groups/ag_ohler/work/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
 
 rule make_chrnamefile:
  input: GTF
@@ -1491,7 +1499,7 @@ rule run_satann_group:
       """)
 
 
-ribqc_report='/fast/groups/ag_ohler/dharnet_m/satann_working/riboseqc.Rmd'
+ribqc_report='fast/groups/ag_ohler/work/dharnet_m/satann_working/riboseqc.Rmd'
 rule knit_riboqc:
   input: 
     riboqcoutput=lambda wc:
@@ -1514,6 +1522,27 @@ rule knit_riboqc:
 
 ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
 ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
+
+
+rule riboWaltz:
+  input: 
+    stardone='star/data/{sample}/.done',
+    gtf='my_gencode.vM12.annotation.gtf'
+  output:
+    touch('riboWaltz/{sample}/.done')
+  conda: '~/miniconda3/newr'
+  run:
+    transcriptbam = glob.glob(os.path.dirname(input['stardone'])+'/*star_transcript.bam')
+    assert len(transcriptbam) > 0
+    outfolder = os.path.dirname(output[0])
+    shell(r"""
+
+        Rscript ../src/R/riboWaltz.R \
+          {transcriptbam} \
+          {input.gtf} \
+          {outfolder}
+
+      """)
 
 
 rule make_id_table:
@@ -1687,6 +1716,39 @@ rule fpTOP_scan:
 
     fimo --oc $(dirname {output} ) {input.toppwm} motseqs/promotorseqs.fa 
 
+  """
+
+mappability_refbase = 'mappability/index'
+mappability_ref = mappability_refbase +'.fa'
+rule create_mappability_ref:
+  input: REF,filter_index
+  shell: r"""
+    bowtie2-build {REF},contaminants.fa {mappability_refbase}.fa
+  """
+
+rule create_mappability_tracks:
+  input: mappability_ref
+  shell: r"""
+  #do this for entire genome
+
+  #these one liners, in order create fastas from a bed file, stick together every second line, generate the tiles of kmer size, modify the names of hte
+  #tiles, and then finally turn them into fastq forma
+  bedtools getfasta -s -fi {REF} -bed -  -name <(&0) \
+    | sed '$!N;s/\n/ /'
+    | perl -lane '$i=0;while($i<=(length($F[1])-{kmer})){print $F[0] , "$i\n", substr $F[1],$i,{kmer} ; $i = $i +1}' \
+    | perl -lan -F'_|\)|\(' -e 'if( /^>/){print $F[0],"_",$F[1]+$F[4],"_",$F[2]+$F[4]}else{print @F}' \
+    | perl -lanpe 's/>/@/ ; s/^([^@]+)/\1\n+/; if($1){$a="I" x length($1); s/\+/+\n$a/}' 
+
+    tophat2 \
+                -p {threads} \
+                -z0 \
+                -g 20 \
+                --output-dir ${ourdir}/mappability \
+                --library-type fr-unstranded \
+                --no-coverage-search \
+                 -bowtie1 -transcriptome_only -no_novel-juncs -N 1
+                {mappability_refbase} \
+                ${{MY_TMP_DIR}}/mappability_reads.fastq.gz
   """
 
 #rule run_template:

@@ -1,4 +1,5 @@
 library(tidyverse)
+library(zeallot)
 
 
 #sim some data
@@ -47,7 +48,7 @@ simulate_data <- function(deg,rTE,ribo,ms0){
 
 
 #let's assume we know our ribosomal values...
-log.lklh.prot <- function(data,par,tps=5){
+log.lklh.prot <- function(data,par){
 	
 	deg = exp(par[1])
 	rTE = par[2]
@@ -148,7 +149,6 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 	interval<-data.frame(value=fit$par[1], upper=upper, lower=lower)
 
-	browser()
 	data_frame(
 		deginconf=between(logrealdeg,interval$lower[1],interval$upper[1]),
 		degdist = sqrt(((logrealdeg - fit$par[1])/logrealdeg)^2),#distance actual estimate
@@ -179,7 +179,7 @@ reptable<-reps%>%setNames(.,seq_along(.))%>%bind_rows%>%mutate(estprot0/realprot
 reptable$deginconf%>%mean
 
 
-Simulating data with 
+# Simulating data with 
 
 plotlist <- list()
 
@@ -192,7 +192,7 @@ ribo<- c(1600,800,400,200,100)
 
 
 simdata <- simulate_data(logrealdeg,realrTE,ribo,realprot0)
-#method='L-BFGS-B'
+
 TEinitial <- 100
 
 fit = optim(par=c(log(0.5),TEinitial,simdata$ms_1[1]),
@@ -250,3 +250,182 @@ ggpubr::ggarrange(
 	
 )
 dev.off()
+
+
+exprtable<-fread('exprdata/transformed_data.txt')
+ribocols <- exprtable%>%colnames%>%str_subset('ribo')
+
+sampdata<-exprtable%>%select(gene_name,one_of(ribocols))%>%
+	gather(dataset,value,-gene_name)%>%
+	separate(dataset,c('time','assay','rep'))%>%
+	filter(gene_name==sample(gene_name,1))
+
+
+	# %>%
+	# ggplot(aes(x=time,y=value))+geom_point()
+
+
+c(myvar1,myvar2,...myvar3) %<-% list(1,2,3,4)
+myvar1==1
+myvar2==2
+identical(myvar3,list(3,4))
+
+
+
+log.lklh.prot <- function(data,par){
+	
+	deg = exp(par[1])
+	rTE = par[2]
+	prot0 = par[3]
+	tps = nrow(data)
+
+	prot = rep(NA,tps)
+
+	prot[1] = prot0
+
+	trans <- (data$ribo1+data$ribo2)/2
+
+	for (i in 2:length(prot)){
+		prot[i] = prot[i-1] + (rTE*trans[i]) - (prot[i-1]*deg)
+	}
+
+	sum(c(
+		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
+		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
+		dnorm(data$MS1,mean=prot,sd=0.1,log=T),
+		dnorm(data$MS2,mean=prot,sd=0.1,log=T),
+		dnorm(data$MS3,mean=prot,sd=0.1,log=T)
+	))
+}
+
+prot[1] = ms0
+prot[2] = ms0 * exp(deg*1) + rTE*ribo * exp(deg*0)
+prot[3] = ms0 * exp(deg*2) + rTE*ribo[1,2]* exp(deg*1) + rTE*ribo[2,3* exp(deg*0)
+
+#Now with real data....
+
+#get our real data
+
+#for each gene, pull out estimates of degredation and rTE
+
+#update our prior distributions of these, weighting the observations by the inverse squared standard error (I think?)
+
+#Now, update
+exprdata<-fread('exprdata/transformed_data.txt')
+mscols <- exprdata%>%colnames%>%str_subset('MS_')
+ribocols <- exprdata%>%colnames%>%str_subset('ribo_')
+
+
+ms_tall<-exprdata%>%
+	select(one_of(mscols),gene_name)%>%
+	select(1:3,gene_name)%>%
+	gather(dataset,value,-gene_name)%>%
+	separate(dataset,c('time','assay','rep'))%>%
+	group_by(time,gene_name)
+
+ms_meansd <- ms_tall%>%	summarise(mean=mean(na.omit(value)),sd=sd(na.omit(value)))
+
+ms_meansd%>%filter(sd>0.5)%>%ungroup%>%arrange(gene_name)%>%as.data.frame%>%left_join(ms_tall)
+#there is some higher var at the low end of the protein scores as well....
+ms_meansd%>%ggplot(aes(x=sd))+geom_histogram()+coord_cartesian(xlim=c(0,0.5))
+ms_meansd%>%ggplot(aes(x=mean,y=sd))+geom_point()+geom_smooth()
+
+exprdatareshape<-exprdata%>%select(gene_name,one_of(c(ribocols,mscols)))%>%
+	gather(dataset,value,-gene_name)%>%
+	mutate(value = 2^value)%>%
+	separate(dataset,c('time','assay','rep'))%>%
+	identity%>%
+	group_by(gene_name,time)%>%mutate(datname=paste0(assay,rep))%>%
+	select(-assay,-rep)%>%
+	spread(datname,value)
+
+
+nloglikms <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg=log(0.5),rTE = TEinitial,prot0 = sampdata$MS1[1] ){
+
+	deg = exp(ldeg)	
+
+	tps = length(ribo1)
+
+	prot = rep(0,tps)
+
+	prot[1] = prot0
+
+	trans <- (ribo1+ribo2)/2
+
+
+	for (i in 2:tps){
+		prot[i] <- prot[i-1] + (rTE*trans[i]) - (prot[i-1]*deg)
+	}
+	prot <- log2(prot+1)
+	-sum(c(
+		dnorm(log2(MS1),mean=prot,sd=0.1,log=T),
+		dnorm(log2(MS2),mean=prot,sd=0.1,log=T),
+		dnorm(log2(MS3),mean=prot,sd=0.1,log=T)
+	))
+}
+
+exprdatareshape$gene_name
+
+gene_namei<-ugnames[1]
+
+getcoefestimates<-function(gene_namei){
+	sampdata <- exprdatareshape%>%ungroup%>%filter(gene_name==gene_namei)
+	startpars <-list(ldeg=log(0.5),rTE=TEinitial,prot0=sampdata$MS1[1])
+	fixedpars <- list(ribo1=sampdata$ribo1,ribo2=sampdata$ribo2,MS1=sampdata$MS1,MS2=sampdata$MS2,MS3=sampdata$MS3)%>%
+		lapply(na.omit)
+
+	do.call(nloglikms,c(startpars,fixedpars))
+	
+	out<-mle(nloglikms,
+		start=startpars,
+		# start=list(par=c(log(0.5),TEinitial,sampdata$MS1[1])),
+		method='L-BFGS-B',
+		fixed=fixedpars,
+		lower=c(log(0.00001),0,0),
+		upper=c(log(1),1e12,1e12))
+
+	cint <- confint(out)
+	cint[1,1:2]%<>%exp%>%round(3)
+	rownames(cint)[1]%<>%str_replace('ldeg','deg')
+	cint[2,1:2]%<>%round(5)
+	cint[3,1:2]%<>%round(5)
+	ests <- coef(out)[names(startpars)]
+	ests[1] %<>% exp%>%round(5)
+	cint%>%as.data.frame %>%mutate(estimate=round(ests,5))
+}
+library(parallel)
+
+ugnames <- exprdatareshape$gene_name%>%unique%>%sample(1000)
+
+tests<-mclapply(ugnames,function(i) safely(getcoefestimates)(i) )
+
+tests%>%map('error')%>%map_lgl(is,'simpleError')
+tests%>%map('error')%>%head
+tests%>%map('result')%>%keep(Negate(is.null))
+
+
+
+tests%>%map('result')%>%keep(Negate(is.null))%>%map(set_rownames,c('deg','rTE','prot0'))%>%map(rownames_to_column,'var')%>%bind_rows%>%
+	filter(var=='rTE')%>%set_colnames(c('var','lower','upper','est'))%>%
+	{ ggpubr::ggarrange(nrow=2,
+		ggplot(.,aes(ymin=lower,ymax=upper,y=est,x=seq_along(est)))+geom_pointrange()+coord_cartesian(ylim=c(0,1)),
+		ggplot(.,aes(est))+geom_histogram()+scale_x_continuous(limits=c(0,5)),
+		)
+	}
+
+tests%<>%setNames(ugnames)
+
+
+#plot the log distributions of rTE and rDeg.
+tests%>%map('result')%>%keep(Negate(is.null))%>%map(set_rownames,c('deg','rTE','prot0'))%>%map(rownames_to_column,'var')%>%bind_rows(.id='gene_name')%>%
+	filter(var!='prot0')%>%
+	set_colnames(c('gene_name','var','lower','upper','est'))%>%
+	select(var,est,gene_name)%>%
+	spread(var,est)%>%
+	filter(rTE < quantile(rTE,0.95))%>%
+	{
+	 # ggpubr::ggarrange(nrow=2,
+		ggplot(.,aes(y=log(deg),x=log(rTE)))+geom_point()
+		# )
+	}
+

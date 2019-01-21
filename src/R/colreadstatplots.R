@@ -28,7 +28,7 @@ fastqfiles<-
 		Sys.glob.nonempty("trim_reads/*/*.fastq.gz"),
 		Sys.glob.nonempty("processed_reads/*/*.fastq.gz")
 	)
-
+#
 readlengths <- fastqfiles%>%
 	setNames(.,.)%>%
 	mclapply(safely(getfastqlengths),mc.cores=20)

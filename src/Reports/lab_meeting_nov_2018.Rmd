@@ -61,7 +61,7 @@ my_include_graphics <- function(plotfile,redo=FALSE,resize=1,force=FALSE,...){
 
 ```{r}
 
-read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
+read_csv('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
 	dplyr::select(sample_id,cell_line,dosage,assay)%>%
 	dplyr::filter(sample_id%>%str_detect('ctrl_|_DAC_'))%>%
 	# gridExtra::grid.table(row=NULL)
@@ -71,78 +71,78 @@ read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_paramete
 ```
 ## Mapping 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot.png',dpi=100)
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot.png',dpi=100)
 ```
 
 ## Mapping 
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot_abs.png',dpi=100)
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/originalsamplesmappedplot_abs.png',dpi=100)
 ```
 
 ## Read Size distribution
 ###Mostly okay
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig2_readlendist_OD5P_05_uM_DAC_1.pdf')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig2_readlendist_OD5P_05_uM_DAC_1.pdf')
 ```
 
 ## Reads generally Map to the CDS
 <!-- 3slides -->
 ```{r}
-my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig1.1_readlocdist_OD5P_05_uM_DAC_1.pdf',resize=1,redo=T)
+my_include_graphics( 'fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OD5P/riboqcreport_fig1.1_readlocdist_OD5P_05_uM_DAC_1.pdf',resize=1,redo=T)
 ```
 
 ## Periodicity is there, but also a depletion at the 5' end of genes
 <!-- 3slides -->
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/periodicity_OD5P.png",dpi=200)
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/periodicity_OD5P.png",dpi=200)
 ```
 
 ## Can also see this along the gene body
 <!-- 3slides -->
 ```{r}
-my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fpdep_OD5P.png')
+my_include_graphics( 'fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/fpdep_OD5P.png')
 ```
 
 ## Large Amounts of non-cds reads in some samples like OMM_DAC_05_1
 <!-- 3slides -->
 ```{r}
-my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_1.pdf',resize=1,redo=T)
+my_include_graphics( 'fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_1.pdf',resize=1,redo=T)
 ```
 
 ## Large Amounts of non-cds reads in some samples like OMM_DAC_05_3
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_3.pdf')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig1.1_readlocdist_OMM_475_05_uM_DAC_3.pdf')
 ```
 
 ## These samples also have a second peak in their read length distribution
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/riboqc/reports/OMM/riboqcreport_fig2_readlendist_OMM_475_05_uM_DAC_3.pdf')
 ```
 
 ## This 5' Bias seems to be pretty similiar - runs out after about 300bp
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fp_bias_genelength.png')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/fp_bias_genelength.png')
 ```
 
 ## Does this lead to extra N-truncations?
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/n_trunc_genes_vs_fp_bias.svg')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/n_trunc_genes_vs_fp_bias.svg')
 ```
 
 ## Does this reduce number of small ORFs detected?
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/shortORF_frac.svg')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/shortORF_frac.svg')
 ```
 
 ## New Samples:
 
 ```{r}
-read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
+read_csv('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/sample_parameter.csv')%>%
 	dplyr::select(sample_id,cell_line,dosage,assay)%>%
 	dplyr::filter(sample_id%>%str_detect('\\dL$|\\dB$'))%>%
 	# gridExtra::grid.table(row=NULL)
@@ -153,13 +153,13 @@ read_csv('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/sample_paramete
 ## New samples show less 5' Depletion
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fp_bias_batches.svg')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/fp_bias_batches.svg')
 ```
 
 ## ORFs detected - overview
 <!-- 3slides -->
 ```{r}
-'/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/pipeline/satann_summary.tsv'%>%fread%>%filter(!str_detect(sample,'ctrl\\d(B|L)'))%>%dplyr::select(1:6)%>%
+'fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/pipeline/satann_summary.tsv'%>%fread%>%filter(!str_detect(sample,'ctrl\\d(B|L)'))%>%dplyr::select(1:6)%>%
 	kable(align='c')%>%
 	kable_styling('striped',font_size = 12,position='left')
 ```
@@ -167,8 +167,8 @@ my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/fp_bias
 ## ORFs detected - overview
 <!-- 3slides -->
 ```{r}
-my_include_graphics( '/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie.png',resize=1,redo=T)
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie_nccds.png',resize=1,redo=T)
+my_include_graphics( 'fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie.png',resize=1,redo=T)
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/OD5P_ctrlpie_nccds.png',resize=1,redo=T)
 
 ```
 
@@ -191,7 +191,7 @@ data.frame(n=c(55,36,14))%>%
 ## lincRNA example
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/lincRNAexample.png')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/lincRNAexample.png')
 ```
 
 ## Confirming Junction peptides found to be differntially expressed in response to DAC:
@@ -207,39 +207,39 @@ data.frame(n=c(22,17,7))%>%
 ## Junction Example
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/junctionexample.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/junctionexample.png')
 ```
 
 ## First look at differential translation - OD5P - biological process
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techangebp.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techangebp.png')
 ```
 ## First look at differential translation - OD5P - compartment
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techange.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_OD5P_techange.png')
 ```
 ## First look at differential translation - ONVC - biological process
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techangebp.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techangebp.png')
 ```
 ## First look at differential translation - ONVC - compartment
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techange.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_ONVC_techange.png')
 ```
 ## First look at differential translation - OMM - biological process
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techangebp.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techangebp.png')
 ```
 
 ## First look at differential translation - OMM - compartment
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techange.png')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/Ribo_Lausanne/plots/xtail_OMM_techange.png')
 ```
 
 ## Directions to go with the pipeline {.flexbox .vcenter}
@@ -270,14 +270,14 @@ my_include_graphics('/fast/groups/ag_ohler/dharnet_m/Ribo_Lausanne/plots/xtail_O
 ```{r fig.width=6, fig.height=6,echo=FALSE}
 library(png)
 library(grid)
-img <- readPNG("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/stages_differentiation.png")
+img <- readPNG("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/stages_differentiation.png")
  grid.raster(img)
 ```
 
 ## Recapping the data
 
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/datatypes.png")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/datatypes.png")
 ```
 
 + We measure steady state mRNA, translating mRNA, and steady state protein levels at 5 timepoints.
@@ -286,19 +286,19 @@ include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edi
 ## Types of regulation observed
 
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/Nes_trajectory.png")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/Nes_trajectory.png")
 ```
 
 ## Types of regulation observed
 
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/satb2_trajectory.png")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/satb2_trajectory.png")
 ```
 
 ## Types of regulation observed
 
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/tle4_trajectory.png")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/tle4_trajectory.png")
 ```
 
 ## Updates to calls of translational regulation
@@ -306,7 +306,7 @@ include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edi
 + Neurodevelopment and Neuron Projection terms
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/xtail_P0_goplot.png')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/xtail_P0_goplot.png')
 ```
 
 
@@ -320,7 +320,7 @@ include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/xtail_P0_gop
 
 ## VST gives us Homoskedasticity (riboseq)
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/Variance_stabilized_signal_ribo.svg")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/Variance_stabilized_signal_ribo.svg")
 ```
 
 
@@ -335,7 +335,7 @@ include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/Variance_sta
 <div style="float: left; width: 70%;">
 
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/clusters/limma_fold_changes/tsne/clusters_2perp5.pdf')
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/clusters/limma_fold_changes/tsne/clusters_2perp5.pdf')
 ```
 </div>
 
@@ -347,19 +347,19 @@ my_include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/cluste
 
 ## First pass at clustering the fold changes
 ```{r}
-my_include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/pipeline/heatmaps/transformed_data.txt_limma_cs.pdf',resize=0.7,redo=T)
+my_include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/heatmaps/transformed_data.txt_limma_cs.pdf',resize=0.7,redo=T)
 ```
 
 ## PCAs - First one dominates
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/pcafit_limmafcs.svg')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/pcafit_limmafcs.svg')
 ```
 
 ## Looking at the PCAs
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/limmafc_pca_loadings.svg')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/limmafc_pca_loadings.svg')
 ```
 
 ## Our system is a long way from equilibrium
@@ -380,7 +380,7 @@ include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/limmafc_pca_
 + Sometimes this kind of works - albeit with plenty of uncertainty about parameters (CIs via curvature of likelihood function)
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degredationest.svg')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/simdata_degredationest.svg')
 ```
 
 ## Modeling degredation and synthesis
@@ -388,7 +388,7 @@ include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degr
 + Other times it doesn't - the change over time can be explained too well by either degredation driven or synthesis driven patterns.
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degredationest_flatribo.svg')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/simdata_degredationest_flatribo.svg')
 ```
  
 ## What can we do about this?
@@ -406,13 +406,13 @@ include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/simdata_degr
 ## Meanwhile... Change in polysome/monosome ratio
 
 ```{r}
-include_graphics( "/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_ribosomes.png")
+include_graphics( "fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_ribosomes.png")
 ```
 
 ## Change in polysome/monosome ratio
 
 ```{r}
-include_graphics( "/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_absorbance.png")
+include_graphics( "fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/incoming_edits/sucrose_gradient_absorbance.png")
 ```
 
 ## Can we say if this shift in translational regulation is specific? {.flexbox .vcenter}
@@ -427,19 +427,19 @@ include_graphics( "/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/incoming_ed
 + The polysomal fraction worked well, the 80S....
 
 ```{r}
-include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/80S_Poly_riboseq.png")
+include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/80S_Poly_riboseq.png")
 ```
 
 ## New polysomal riboseq has periodicity
 
 ```{r}
-my_include_graphics("/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/polyper.png")
+my_include_graphics("fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/polyper.png")
 ```
 
 ## Translational Efficiency changes in uORFs vs. Main CDS
 
 ```{r}
-include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/uORF_host_TE.png')
+include_graphics('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/uORF_host_TE.png')
 ```
 
 ## Meanwhile - Motif Analysis - first looks
@@ -448,7 +448,7 @@ include_graphics('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/uORF_host_TE
 + Second strategy (used in other papers on gquads in translation) - simply compare to genes that have no significant TE change
 
 ```{r fig.width=4, fig.height=4}
-img <- readPNG('/fast/groups/ag_ohler/dharnet_m/cortexomics/plots/transregged_fputrs_motifs.png')
+img <- readPNG('fast/groups/ag_ohler/work/dharnet_m/cortexomics/plots/transregged_fputrs_motifs.png')
  grid.raster(img)
 ```
 

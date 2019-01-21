@@ -16,7 +16,7 @@ params:
 suppressMessages(library(gage))
 suppressMessages(library(knitr))
 
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = TRUE)
+knitr::opts_chunk$set(echo = FALSE, message = TRUE, warning = TRUE)
 
 custom_log2fc_th <- 0
 custom_q_value_cutoff <- 0.05
@@ -24,7 +24,6 @@ SETSIZEMAX <- 10e3
 signalfile<-params$signalfile
 sigcol<-params$sigcol
 gene_set_file<-params$gene_set_file
-
 
 ```
 
@@ -86,14 +85,15 @@ message(str_interp('using signal values from ${sigcol} e.g. : ${signalsample}'))
 
 gene_sets%>%lapply(length)%>%stack%>%set_colnames(c('Number with Signal','Gene Set'))%>%kable
 
-
-
+gene_sets['testgreater'] <- list(fread('xtail/xtail_P0.txt')%>%filter(adj_p_value < 0.05,log2fc > 1)%>%.$feature_id)
+gene_sets['testlower'] <- list(fread('xtail/xtail_P0.txt')%>%filter(adj_p_value < 0.05,log2fc < -1)%>%.$feature_id)
+gene_sets['testboth'] <- list(fread('xtail/xtail_P0.txt')%>%filter(adj_p_value < 0.05)%>%.$feature_id)
 
 gage_result <- gage(log2_fc, 
                     gsets=gene_sets, 
                     ref=NULL, 
                     sample=NULL,
-                   set.size=c(10,SETSIZEMAX)) 
+                   set.size=c(10,SETSIZEMAX))
 
 comb_gage_result <- rbind(gage_result$greater %>% 
                             as.data.frame() %>%
@@ -102,22 +102,34 @@ comb_gage_result <- rbind(gage_result$greater %>%
                           gage_result$less %>% 
                             as.data.frame() %>% 
                             tibble::rownames_to_column(var='set.name') %>%
-                            mutate(direction='lower'))%>% 
+                            mutate(direction='lower')
+                      )%>% 
     rowwise%>%dplyr::mutate(mean.log2FC=mean(log2_fc[gene_sets[[set.name]]],na.rm=TRUE)) %>%
-    dplyr::arrange(q.val)%>%
+    dplyr::arrange(p.val)%>%
     select(set.name,direction,mean.log2FC,p.val,everything())
 
-comb_gage_result%<>%group_by(set.name)%>%dplyr::slice(which.min(p.val))
+
+
+
+# comb_gage_result%<>%group_by(set.name)%>%dplyr::slice(which.min(p.val))
 
 # sig_gage_result <- comb_gage_result %>%
-#   dplyr::filter(q.val < custom_q_value_cutoff) %>%
-#   dplyr::filter(abs(mean.log2FC) > custom_log2fc_th)
-
-sig_gage_result%>%kable
+  # dplyr::filter(q.val < custom_q_value_cutoff) %>%
+  # dplyr::filter(abs(mean.log2FC) > custom_log2fc_th)
 
 sig_gage_result<-comb_gage_result
 
+sig_gage_result%>%kable
+sig_gage_result%>%filter(set.name%>%str_detect('test'))%>%as.data.frame
+sig_gage_result%>%select(set.name,direction,mean.log2FC,p.val)%>%as.data.frame%>%mutate(p.val<0.05)
+sig_gage_result<-comb_gage_result
+
 ```
+
+
+
+
+
 
 There are `r dim(sig_gage_result)[1]` mis-regulated gene sets at q-value < `r custom_q_value_cutoff` and |mean log2 FC| > `r custom_log2fc_th`:
 ```
