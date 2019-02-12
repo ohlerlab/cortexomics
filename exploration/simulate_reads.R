@@ -57,8 +57,8 @@ c(trnas[,NULL]%>%namegr('tRNA'),ebp1short[,NULL]%>%namegr('ebp1'))%>%
 simulate_reads(randomcoding,readlength=16,genome,'input/test_16bpRNA/test_16bpRNA.fastq.gz')
 
 
-#call it on our regions
-###Now test this
-testumapread <- GRanges('chr1:171101906-171101933:-')
+# #call it on our regions
+# ###Now test this
+# testumapread <- GRanges('chr1:171101906-171101933:-')
 
-testumapread%>%mergeByOverlaps(trnas)
+# testumapread%>%mergeByOverlaps(trnas)

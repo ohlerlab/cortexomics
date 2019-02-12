@@ -32,8 +32,6 @@ for(i in names(args)) assign(i,args[i])
 #  that were unique to the total MS data, e.g.\n ${sample(specungenes,10)}'))
 
 countstable <- data.table::fread(countfile)%>%select(-dplyr::matches('test'))
-totcols<-countsmatrix%>%colnames%>%str_subset('total')
-ribcols<-countsmatrix%>%colnames%>%str_subset('ribo')
 
 #carry out individual processing of the data sources
 ids <- fread('ids.txt')%>%set_colnames(c('feature_id','gene_name'))%>%distinct
@@ -50,6 +48,8 @@ countsmatrix %<>% .[,colnames(.)%>%str_detect('ribo|total')]
 lowmediancounts <- countsmatrix %>% apply(1,median) %>%`<`(LOWCOUNTLIM)
 countsmatrix <- countsmatrix[!lowmediancounts,]
 
+totcols<-countsmatrix%>%colnames%>%str_subset('total')
+ribcols<-countsmatrix%>%colnames%>%str_subset('ribo')
 # pdf(file.path('../plots','tmp.pdf')%T>%{normalizePath(.)%>%message})
 # countsmatrix%>%apply(1,median)%>%add(0.5)%>%log10%>%hist(breaks=20)
 # dev.off()
@@ -151,9 +151,6 @@ countsmatrix[,ribcols]%>%{
 dev.off()
 
 
-
-fread('feature_counts_readrange/data/E16_ribo_2/cds/25_31/feature_counts')%>%filter(Geneid%in%spikegids)%>%select(Geneid,7)%>%head
-fread('feature_counts_readrange/data/E16_ribo_1/cds/25_31/feature_counts')%>%filter(Geneid%in%spikegids)%>%select(Geneid,7)%>%head
 
 
 

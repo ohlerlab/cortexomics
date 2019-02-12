@@ -7,6 +7,10 @@ suppressMessages(library(assertthat))
 library(gplots)
 library(RColorBrewer)
 
+
+source("https://bioconductor.org/biocLite.R")
+
+
 root<-'/fast/groups/ag_ohler/dharnet_m/cortexomics'
 
 vlookup <- function(query,dicttable,key,vals){
@@ -37,27 +41,31 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
 }
 
 message('looking up protein ID annotations')
-#'get info on the ribosomal subunts from mats table
+#'get info on the ribosomal subu,nts from mats table
 rids <- read_tsv('/fast/groups/ag_ohler/dharnet_m/cortexomics/ext_data/riboprotids.tsv')
-ridssplit<-rids%>%filter(!`Mito-RP`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
+lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
+sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 
+
+c(lridssplit,sridssplit)
+rids%>%filter(!`Mito-RP`)%>%nrow
 #get info on proteins so we can catagorize them
 library(biomaRt)
 mart <- useMart(biomart = "ENSEMBL_MART_MOUSE")
 mart <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
 listAttributes(mart)%>%filter(description%>%str_detect('Uni'))%>%filter(page!='homologs')
-ribogoterm <- "GO:0005840"
-lribogoterm <- 'GO:0015935'
-sribogoterm <- 'GO:0015934'
-riboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
-                 filters=('go'),values=ribogoterm,
-                 mart = mart)
-sriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
-                 filters=('go'),values=sribogoterm,
-                 mart = mart)%>%.[[1]]
-lriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
-                 filters=('go'),values=lribogoterm,
-                 mart = mart)%>%.[[1]]
+# ribogoterm <- "GO:0005840"
+# lribogoterm <- 'GO:0015935'
+# sribogoterm <- 'GO:0015934'
+# riboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
+#                  filters=('go'),values=ribogoterm,
+#                  mart = mart)
+# sriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
+#                  filters=('go'),values=sribogoterm,
+#                  mart = mart)%>%.[[1]]
+# lriboprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
+#                  filters=('go'),values=lribogoterm,
+#                  mart = mart)%>%.[[1]]
 transreggoterm <- "GO:0006417"
 transregprotids <- biomaRt::getBM(attributes = c("uniprot_gn"), 
                  filters=('go'),values=transreggoterm,
@@ -83,6 +91,8 @@ ms_tall_trans%<>%filter(!gene_name%>%str_detect('Hbs1l'))
 allpgroups <- ms_tall$Protein_IDs%>%unique
 multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
 all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
+library(data.table)
+
 
 
 
@@ -101,8 +111,8 @@ pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
 
 pids%<>%mutate(pcat = case_when(
  (Protein_IDs==ebp1pid) ~ "Ebp1",
-  sep_element_in(Protein_IDs,sriboprotids) ~ "Rps",
-  sep_element_in(Protein_IDs,lriboprotids) ~ "Rpl",
+  sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
+  sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
   sep_element_in(Protein_IDs,translationprotids) ~ "translation-associated",
   TRUE ~ "other"
 ))
@@ -204,7 +214,7 @@ for(dset in dsetnames){
 		vlookup(catcolors,'pcat','color')
 
 	par(lend = 1)
-	heatmap.2(stochmat, 
+	hmout<-heatmap.2(stochmat, 
 		col=greenred(75),
 		trace="none",
 		keysize=1,
@@ -224,7 +234,9 @@ for(dset in dsetnames){
 	dev.off()
 }
 
-
+rids$Protein_IDs%>%str_subset('Q3V1Z5|E9Q070|Q9D8M4|Q9D823')
+ms_tall%>%filter(Protein_IDs%>%str_detect('Q3V1Z5|E9Q070|Q9D8M4|Q9D823'))%>%distinct(Protein_IDs,.keep_all=T)
+ms_tall$gene_name
 
 pdf(file.path(root,'plots/ribostochdist.pdf')%T>%message)
 	stochmats[[1]]%>%hist(breaks=42,xlim=c(-5,5))

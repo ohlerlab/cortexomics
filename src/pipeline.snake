@@ -39,7 +39,7 @@ CDSFASTA = ANNOBASE+'.cds.fa'
 KINDEXCDS = 'kallistoindex/mouse_encode_m12_cds.kdx'
 KINDEX    = 'kallistoindex/gencode.vM12.transcripts.kdx'
 KMERSIZE  = 21
-kallistobin = "~/bin/kallisto"
+kallistobin = "~/work/bin/kallisto"
 
 #
 filter_index = '../contaminants/contaminants.done'
@@ -118,8 +118,8 @@ assert set(FASTQSAMPLES) == set(SAMPLES)
 
 # assert set(ASSAY_DICT.values()) in set(['ribo','total'])
 
-satan_annot_script =  'fast/groups/ag_ohler/work/dharnet_m/satann_working/Annot_make_bioc_gtf.R'
-riboqc_script =  'fast/groups/ag_ohler/work/dharnet_m/satann_working/analysis_qc_mod_jan2018_12.R'
+satan_annot_script =  '/fast/groups/ag_ohler/work/dharnet_m/satann_working/Annot_make_bioc_gtf.R'
+riboqc_script =  '/fast/groups/ag_ohler/work/dharnet_m/satann_working/analysis_qc_mod_jan2018_12.R'
 
 
 ribosamples=list(filter(lambda s: ASSAY_DICT[s] == 'ribo',SAMPLES))
@@ -149,7 +149,8 @@ groupnames = list(samplegroups.keys())
 samplegroups.update(dict(zip(SAMPLES,[[s] for s in SAMPLES] )))
 
 
-samplegroups
+#
+MAPPABILITY_LENGTHS = [16,20,27]
 
 rule all:
   input:
@@ -187,18 +188,19 @@ rule all:
     # ('ribodiff/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
-    expand("SaTAnn/{sample}/.done", sample = ribosamples+groupnames),
-    expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
+    # expand("SaTAnn/{sample}/.done", sample = ribosamples+groupnames),
+    # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
-    expand('riboWaltz/{sample}/.done',sample=ribosamples)
+    # expand('riboWaltz/{sample}/.done',sample=ribosamples),
+    expand('mappability/mappa_{kmer}.bam', kmer = MAPPABILITY_LENGTHS)
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
 QUALLIM=20
-CUTADAPTBIN="~/bin/cutadapt"
-REMOVE8NBIN="~/bin/remove8N_twoarg.pl"
+CUTADAPTBIN="~/work/bin/cutadapt"
+REMOVE8NBIN="~/work/bin/remove8N_twoarg.pl"
 
 # for sample in $(find gdrive/RiboSeq_Ribo_Transcriptome/ | tail -n +2 |sed 's/.*\///g' | sed 's/.fastq.gz//g' ); do time=$( echo $sample | cut -d'_' -f 1); rep=$(echo $sample | cut -d'_' -f 2) ; sampname=${time}_ribo_$rep; sampfolder=pipeline/input/$sampname; mkdir -p $sampfolder ; ln -fs  $(readlink -f gdrive/RiboSeq_Ribo_Transcriptome/$sample*) $sampfolder/$sampname.fastq.gz ;done
 #for sample in $(find gdrive/RNASeq_Total_Transcriptome/ | tail -n +2 |sed 's/.*\///g' | sed 's/.fastq.gz//g' ); do time=$( echo $sample | cut -d'_' -f 1); rep=$(echo $sample | cut -d'_' -f 2) ; sampname=${time}_total_$rep; sampfolder=pipeline/input/$sampname; mkdir -p $sampfolder ; ln -fs  $(readlink -f gdrive/RNASeq_Total_Transcriptome/$sample*) $sampfolder/$sampname.fastq.gz ;done
@@ -242,8 +244,7 @@ rule link_in_files:
       mkdir -p $(dirname {output})
       ln -sf $(readlink -f input/{sample}/{fastq}) {output}
     """)
-
-
+    is_over_size(output[0],100)
 rule cutadapt_reads:
   input: 'preprocessed_reads/{sample}/{fastq}'
   output: 'cutadapt_reads/{sample}/{fastq}'
@@ -252,7 +253,7 @@ rule cutadapt_reads:
     sample = wildcards['sample']
 
     shell(r"""    #   set -evx
-      
+       source activate cutadapt
        mkdir -p cutadapt_reads/{sample}/
        
         zcat {input} \
@@ -263,7 +264,8 @@ rule cutadapt_reads:
             -q {QUALLIM} - \
         2> cutadapt_reads/{sample}/{wildcards.fastq}.cutadaptstats.txt \
         | gzip  > {output}
-""")
+    """)
+    is_over_size(output[0],100)
 
 rule collapse_reads:
     input: 'cutadapt_reads/{sample}/{fastq}'
@@ -277,11 +279,11 @@ rule collapse_reads:
        mkdir -p collapse_reads/{sample}/
      
        zcat {input}  \
-         | ~/bin/collapse_reads.pl {wildcards.sample} \
+         | ~/work/bin/collapse_reads.pl {wildcards.sample} \
          2> {colreadstatfile} \
          | cat > {output}
      """)
-        # is_over_size(output[0],100)
+        is_over_size(output[0],100)
         assert not "out of mem" in '\n'.join(open(colreadstatfile).readlines())
  
 #this finds small filse
@@ -572,6 +574,7 @@ rule make_utrs:
 rule fastqc:
      input: 'processed_reads/{sample}/.done'
      output: touch('fastqc/data/{sample}/.done')
+     conda: 'fastqc'
      threads: 4
      log:'fastqc/reports/{sample}/fastqc.log'
      run:
@@ -639,7 +642,8 @@ rule star:
 
         #--outSAMmultNmax 20 --winAnchorMultimapNmax 50 --outFilterMultimapNmax 20 \
 
-
+        source activate star
+        
         STAR \
               --genomeDir {input.STARINDEX} \
               --runThreadN {threads} \
@@ -661,8 +665,8 @@ rule star:
               --outFileNamePrefix ${{MY_TMP_DIR}}/star/ \
               --outReadsUnmapped Fastx \
               --readFilesIn {fastqops}
-              
-            source activate tophat
+
+         source deactivate star
 
           iftophat=
           if [ {remap} && ${{MY_TMP_DIR}}/star/Unmapped.out.mate* ]; then
@@ -700,7 +704,7 @@ rule star:
 
         #add the read length as a tag to our bam
         MY_TMP_BAM=$(mktemp)
-        samtools view -h {outputdir}/{sample}.bam | awk -vFS='\t' -vOFS='\t' '{print($0,"Xl:Z:"length($10))}'  | samtools view -bh > $MY_TMP_BAM
+        samtools view -h {outputdir}/{sample}.bam | awk -vFS='\t' -vOFS='\t' '{{print($0,"Xl:Z:"length($10))}}'  | samtools view -bh > $MY_TMP_BAM
         mv $MY_TMP_BAM {outputdir}/{sample}.bam
       
         samtools index {outputdir}/{sample}.bam
@@ -820,6 +824,8 @@ rule bigwigs:
         bedtools genomecov -ibam {bam} -bg -strand {strandsym} -split -scale $count > {bedgraph}
         bedSort {bedgraph} {bedgraph}
         bedGraphToBigWig {bedgraph} {chromsizes} {bw}
+
+
        
         """)
 
@@ -856,11 +862,7 @@ rule mergedbigwigs:
         
         bedSort {mergedfilebase}.bg {mergedfilebase}.bg 
 
-        bedGraphToBigWig \
-          {mergedfilebase}.bg \
-          {chromsizes} \
-          {mergedfilebase}.bw
-
+        co
         rm {mergedfilebase}.bg
         """)
 # set -e  pipefail; 
@@ -1025,12 +1027,14 @@ rule rsem:
 
 rrna_intervals = 'qc/picard_rrna_intervals.txt'
 refflat = 'qc/'+ANNOBASE+'.refflat'
+testsample = 'test_16bpRNA'#we need a bamheader for testing
 
 rule make_picard_files:
-  input: GTF,'star/data/'+SAMPLES[0]+'/.done'
+  input: GTF,'star/data/'+testsample+'/.done'
   output: intervals=rrna_intervals,refflat=refflat
   shell:r"""
-         samtools view -H star/data/{SAMPLES[0]}/{SAMPLES[0]}.bam > {output.intervals}
+         source activate picard
+         samtools view -H star/data/{testsample}/{testsample}.bam > {output.intervals}
 
          grep -Pe 'gene_type..rRNA.' {input[0]} \
          | awk '$3 =="transcript"' \
@@ -1058,6 +1062,7 @@ rule qc:
           r"""
           set -e
           set -xv
+          source activate picard
           
         OUTDIR=$(dirname {output.done})
         mkdir -p qc/reports/{wildcards.sample}/
@@ -1088,7 +1093,7 @@ rule qc:
 
           """)
 
-multiqcscript = '~/Applications/MultiQC/scripts/multiqc'
+multiqcscript = '~/work/Applications/MultiQC/scripts/multiqc'
 
 rule multiqc:
   input:
@@ -1326,6 +1331,7 @@ rule feature_counts_readrange:
      output:
           done = touch('feature_counts_readrange/data/{sample,[^/]+}/{generegions}/{readrange}/feature_counts')
      threads: 2
+     conda: 'subread'
      log: r"""feature_counts_readrange/reports/{sample}/{generegions}/{readrange}/feature_counts.log"""
      run:
           if (wildcards['generegions'] in ['gene','cds']):
@@ -1372,6 +1378,7 @@ rule feature_counts_readrange:
           rangebam = input['readrangefilt']
           
           shell(r"""
+          source activate subread
           set -ex
           mkdir -p feature_counts_readrange/data/{sample}/{generegions}/{readrange}/
 
@@ -1450,7 +1457,6 @@ rule make_riboqc_anno:
   output: touch('riboqc/annot.done')
   run:
     shell(r"""
-    source activate riboqc 
       mkdir -p riboqc
       Rscript {satan_annot_script} {GTF} riboqc/{ANNOBASE}.riboqc.db riboqc/{ANNOBASE}.annoout
 """)
@@ -1463,12 +1469,11 @@ rule run_riboqc:
     bamfile = 'star/data/'+wildcards['sample']+'/'+wildcards['sample']+'.bam' 
     shell(r""" 
             mkdir -p riboqc/data/{wildcards.sample}/
-            source activate riboqc
             Rscript {riboqc_script} {REF} riboqc/{ANNOBASE}.annoout {bamfile} riboqc/data/{wildcards.sample}/
 
   """)
 
-SaTAnn_script = 'fast/groups/ag_ohler/work/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
+SaTAnn_script = '/fast/groups/ag_ohler/work/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
 
 rule make_chrnamefile:
  input: GTF
@@ -1487,7 +1492,6 @@ rule run_satann_group:
     shell(r"""
     mkdir -p $( dirname {output} )
 
-    source activate riboqc
   
       Rscript {SaTAnn_script} \
         {REF} \
@@ -1499,7 +1503,7 @@ rule run_satann_group:
       """)
 
 
-ribqc_report='fast/groups/ag_ohler/work/dharnet_m/satann_working/riboseqc.Rmd'
+ribqc_report='/fast/groups/ag_ohler/work/dharnet_m/satann_working/riboseqc.Rmd'
 rule knit_riboqc:
   input: 
     riboqcoutput=lambda wc:
@@ -1515,7 +1519,6 @@ rule knit_riboqc:
     figpath = os.path.abspath(output[0]).replace('.html','')+'_fig'
     outpath = os.path.abspath(output[0])
     shell(r"""
-    source activate riboqc
     cd $(dirname {output})
     R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{sinputs}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
 """)
@@ -1530,7 +1533,7 @@ rule riboWaltz:
     gtf='my_gencode.vM12.annotation.gtf'
   output:
     touch('riboWaltz/{sample}/.done')
-  conda: '~/miniconda3/newr'
+ # conda: '~/miniconda3/newr'
   run:
     transcriptbam = glob.glob(os.path.dirname(input['stardone'])+'/*star_transcript.bam')
     assert len(transcriptbam) > 0
@@ -1718,38 +1721,97 @@ rule fpTOP_scan:
 
   """
 
-mappability_refbase = 'mappability/index'
+mappability_refbase = 'mappability/index/mref'
 mappability_ref = mappability_refbase +'.fa'
+mindex = ['mappability/index/mref.'+str(i)+'.bt2' for i in range(1,5)]
+contaminants = filter_index.replace('.done','.fa')
+
 rule create_mappability_ref:
   input: REF,filter_index
+  output: touch('mappability/index/.done')
   shell: r"""
-    bowtie2-build {REF},contaminants.fa {mappability_refbase}.fa
+    cat {REF} {contaminants} > {mappability_refbase}.fa
+    bowtie2-build {mappability_refbase}.fa {mappability_refbase}
   """
 
-rule create_mappability_tracks:
-  input: mappability_ref
+rule create_mappability_reads:
+  input: 'mappability/index/.done',
+  output: 'mappability/mappability_reads.{kmer}.fastq.gz'
+  threads: 8
   shell: r"""
   #do this for entire genome
+  set -x
+  #these one liners, in order, cat the chromosome sizesinto awk to create bed files spanning the chromosomes, 
+  #create fastas from a bed file, stick together every second line, generate the tiles of kmer size, modify the names of hte
+  #tiles, and then finally turn them into fastq format
+ 
+  cat my_GRCm38.p5.genome.chr_scaff.chromsizes \
+    | awk '{{print $1"\t"1"\t"$2}}' \
+    | bedtools getfasta -s -fi {REF} -bed -  \
+    | sed '$!N;s/\n/ /' \
+    | perl -lane '$i=0;while($i<=(length($F[1])-{wildcards.kmer})){{print $F[0] , "$i\n", substr $F[1],$i,{wildcards.kmer} ; $i = $i +1}}' \
+    | perl -lan -F'[\:\-|\)|\(]' -e 'if( /^>/){{print $F[0],"_",$F[1]+$F[4],"_",$F[1]+$F[4]+{wildcards.kmer}}}else{{print @F}}' \
+    | perl -lanpe 's/>/@/ ; s/^([^@]+)/\1\n+/; if($1){{$a="I" x length($1); s/\+/+\n$a/}}' \
+    | gzip > mappability/mappability_reads.{wildcards.kmer}.fastq.gz
 
-  #these one liners, in order create fastas from a bed file, stick together every second line, generate the tiles of kmer size, modify the names of hte
-  #tiles, and then finally turn them into fastq forma
-  bedtools getfasta -s -fi {REF} -bed -  -name <(&0) \
-    | sed '$!N;s/\n/ /'
-    | perl -lane '$i=0;while($i<=(length($F[1])-{kmer})){print $F[0] , "$i\n", substr $F[1],$i,{kmer} ; $i = $i +1}' \
-    | perl -lan -F'_|\)|\(' -e 'if( /^>/){print $F[0],"_",$F[1]+$F[4],"_",$F[2]+$F[4]}else{print @F}' \
-    | perl -lanpe 's/>/@/ ; s/^([^@]+)/\1\n+/; if($1){$a="I" x length($1); s/\+/+\n$a/}' 
+    """
+# rule create_mappability_bam:
+#   input: 'mappability/mappability_reads.{kmer}.fastq.gz'
+#   output: 'mappability/mappa_{kmer}.bam'
+#   shell: r"""
+#   source activate tophat
+#   set -x
+#   mkdir -p mappability/mapped_{wildcards.kmer}
+#    tophat2 \
+#           -p {threads} \
+#           -z0 \
+#           -g 20 \
+#           --output-dir mappability/mapped_{wildcards.kmer} \
+#           --library-type fr-unstranded \
+#           --no-coverage-search \
+#           -no_novel-juncs -N 1 \
+#           {mappability_refbase} \
+#           mappability/mappability_reads.{wildcards.kmer}.fastq.gz
 
-    tophat2 \
-                -p {threads} \
-                -z0 \
-                -g 20 \
-                --output-dir ${ourdir}/mappability \
-                --library-type fr-unstranded \
-                --no-coverage-search \
-                 -bowtie1 -transcriptome_only -no_novel-juncs -N 1
-                {mappability_refbase} \
-                ${{MY_TMP_DIR}}/mappability_reads.fastq.gz
+    
+#     samtools sort -@ {threads} mappability/mapped_{wildcards.kmer}/accepted_hits.bam -o {output}
+#   """
+
+rule create_mappability_bam:
+  input: 'mappability/mappability_reads.{kmer}.fastq.gz'
+  output: 'mappability/mappa_{kmer}.bam'
+  params: 
+    ref=REF,
+    maxmmap=20
+  resources:
+    mem=int(50*1e9)
+  shell: r"""
+  #conda create -n bbmap bbmap
+  source activate bbmap
+  set -x
+  bbmap.sh ref={params.ref} in={input} out={output} ambig=all nodisk vslow perfectmode maxsites={params.maxmmap}    
   """
+
+
+
+
+rule createmappability_bigwig:
+  input: 'mappability/mappa_{kmer}.bam'
+  output: 'mappability/mappa_{kmer}.bw'
+  threads: 8
+  shell: r"""
+  # MY_TMP_DIR=$(mktemp -d)
+  MY_TMP_DIR='mappatest'
+  mkdir -p $MY_TMP_DIR
+
+  samtools view -F 4 -q 50 {input[0]}  \
+    | awk -vOFS="\t" '{{print $3,$4-1,$4,0}}' > ${{MY_TMP_DIR}}/map.bg
+    bedSort ${{MY_TMP_DIR}}/map.bg ${{MY_TMP_DIR}}/map.sort.bg
+    bedGraphToBigWig ${{MY_TMP_DIR}}/map.sort.bg {chrsizes} {output[0]}
+"""
+
+#-transcriptome_only 
+           
 
 #rule run_template:
 #  input: templatefinput
