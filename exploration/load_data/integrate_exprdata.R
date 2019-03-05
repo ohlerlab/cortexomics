@@ -8,8 +8,10 @@ suppressMessages(library(DESeq2))
 suppressMessages(library(assertthat))
 suppressMessages(library(tidyverse))
 suppressMessages(library(dplyr))
+suppressMessages(library(DESeq2))
 
-message('...done')
+message('...done' )
+
 filter<-dplyr::filter
 select<-dplyr::select
 slice<-dplyr::slice
@@ -24,7 +26,10 @@ args <- c(
   designmatrixfile=file.path('exprdata/designmatrix.txt'),
   normcountstable='exprdata/allcounts_snorm.tsv'
 )
+for(i in names(args)) assign(i,args[i])
+
 args[] <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
+args <- args[!is.na(args)]
 message(capture.output(dput(args)))
 for(i in names(args)) assign(i,args[i])
 
@@ -32,6 +37,13 @@ for(i in names(args)) assign(i,args[i])
 #  that were unique to the total MS data, e.g.\n ${sample(specungenes,10)}'))
 
 countstable <- data.table::fread(countfile)%>%select(-dplyr::matches('test'))
+
+countstable%>%gather(library,count,-feature_id)%>%
+  {ggplot(.,aes(x=log10(count+1),fill=str_detect(library,'ribo')))+geom_histogram(binwidth = 0.1)+facet_wrap(scale='free_y',~library,ncol=4)+
+  theme_bw()
+  }%T>%
+  ggsave(file='../plots/readcounthistogram.pdf',h=24,w=24)
+
 
 #carry out individual processing of the data sources
 ids <- fread('ids.txt')%>%set_colnames(c('feature_id','gene_name'))%>%distinct

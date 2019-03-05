@@ -33,11 +33,6 @@ add_to_gmt<-function(catname,catdescription,catgenes,gmt=outputfile){
 
 
 
-####Molyneux cell specificity data
-molyneuxfile<-'../ext_data/molyneux_etal_2015_tS3.xlsx'
-molyneuxdata <- readxl::read_excel(molyneuxfile,sheet=1,skip=1)
-molyneuxdata[1,]%>%t
-
 #lots of data in this table, fold changes an pvalues and some clusteirng I can't remember
 #the point of. 
 neurites <- '../ext_data/neurites_zappulo_etal_2017.csv'
@@ -170,6 +165,30 @@ add_to_gmt('From Molyneux et al - genes in clusters specific to CthPN ( 6,9,2,12
 )
 
 
+#Scharma protein groups.
+#So I've got the proteingroups file from their paper, now i can look and see if 
+
+#read in complete excel file
+cells<-tidyxl::xlsx_cells('../ext_data/scharma_etal_proteomic/nn.4160-S15.xlsx')
+#munge it
+cells%>%
+	select(-sheet,-address,-comment,-height,-width)%>%
+	behead('NNW','cellsource')%>%
+	behead('NNW','sigtype')%>%
+	behead('N','colname')%>%
+	mutate(colname = paste0(sigtype,':',colname))%>%
+	select(data_type,numeric,character,row,colname)%>%
+	spatter(colname)
+
+
+
+
+
+
+
+
+
+#######RNA structure?
 
 #let's quickly get some clusters from the yuzwa data
 # library(biomaRt)

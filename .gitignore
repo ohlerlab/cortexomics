@@ -29,7 +29,7 @@ gdrive
 static_local
 processed_reads*
 archived_res
-pipeline
+./pipeline/
 *riboseqtbl*txt
 *riboseqres*txt
 *ribodiff_counts*txt

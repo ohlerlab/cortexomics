@@ -27,6 +27,35 @@ for (i in 2:length(ms)){
 	ms[i] = (rTE*mean(ribo[i],ribo[i-1]))+(ms[i-1]*deg)
 }
 
+optimwrap <- function (minuslogl, start = formals(minuslogl), method = "BFGS",
+    fixed = list(), nobs, ...)
+{
+    call <- match.call()
+    n <- names(fixed)
+    fullcoef <- formals(minuslogl)
+    if (any(!n %in% names(fullcoef)))
+        stop("some named arguments in 'fixed' are not arguments to the supplied log-likelihood")
+    fullcoef[n] <- fixed
+    if (!missing(start) && (!is.list(start) || is.null(names(start))))
+        stop("'start' must be a named list")
+    start[n] <- NULL
+    start <- sapply(start, eval.parent)
+    nm <- names(start)
+    oo <- match(nm, names(fullcoef))
+    if (anyNA(oo))
+        stop("some named arguments in 'start' are not arguments to the supplied log-likelihood")
+    start <- start[order(oo)]
+    nm <- names(start)
+    f <- function(p) {
+        l <- as.list(p)
+        names(l) <- nm
+        l[n] <- fixed
+        do.call("minuslogl", l)
+    }
+    oout <- if (length(start))
+        optim(start, f, method = method, hessian = TRUE, ...)
+}
+
 
 #function simulating ms given a degredation constant, a constant value for rTE, starting ms, the riboseq,
 simulate_data <- function(deg,rTE,ribo,ms0){
@@ -65,8 +94,6 @@ log.lklh.prot <- function(data,par){
 	msmeans <- replace_na((data$ms_1+data$ms_2+data$ms_1),0) / 3
 
 	sum(c(
-		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
-		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
 		dnorm(data$ms_1,mean=prot,sd=msmeans*0.2,log=T),
 		dnorm(data$ms_2,mean=prot,sd=msmeans*0.2,log=T),
 		dnorm(data$ms_3,mean=prot,sd=msmeans*0.2,log=T)
@@ -369,11 +396,10 @@ nloglikms <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg=log(0.5),rTE = TEinitial,prot
 	))
 }
 
-ugnames <- exprdatareshape$gene_
-ugnames%>%intersect('Satb2')
+ugnames <- exprdatareshape$gene_id
 
 getcoefestimates<-function(gene_namei){
-	sampdata <-  %>%ungroup%>%filter(gene_name==gene_namei)
+	sampdata <-  sampdata%>%ungroup%>%filter(gene_name==gene_namei)
 	startpars <-list(ldeg=log(0.5),rTE=TEinitial,prot0=sampdata$MS1[1])
 	fixedpars <- list(ribo1=sampdata$ribo1,ribo2=sampdata$ribo2,MS1=sampdata$MS1,MS2=sampdata$MS2,MS3=sampdata$MS3)%>%
 		lapply(na.omit)
@@ -438,7 +464,7 @@ indiv_ests <- tests%>%map('result')%>%
  pdfexpr<-function(file,expr,...){
     dir.create(dirname(file))
     pdf(file,...)
-     expr
+     print(expr)
      dev.off()
      message(normalizePath(file))
  }
@@ -527,33 +553,133 @@ pdfexpr('../plots/modelling/mass_spec_sdplot.pdf',{
 library(ggalt)
 
 ##I need to work out what the proper SD is for the mass spec data, on the log 2 scale.....
+
+#Load our LFQ values, ge the log2 mean and log2 sd for the complete cases
 sdplotdf<-'ms_tables/ms_LFQ_total_ms_tall.tsv'%>%
 	read_tsv%>%
 	filter(fraction=='total')%>%
 	group_by(time,fraction,Protein_IDs)%>%
 	filter(length(signal)==3)%>%
-	filter(!any(is.na(signal)))
-sdplotdf%>%	summarise(mean_sig=mean(signal),sd_signal = sd(signal))%>%
-	ggplot(aes(x=log2(mean_sig),y=log2(sd_signal)))+geom_point()+facet_wrap(~time)
+	filter(!any(is.na(signal)))%>%
+	summarise(mean_sig=log2(mean(signal)),sd_signal = log2(sd(signal)))
 
+
+#now plot the relationship between log2 signal and sd of the log2 signal
 pdfexpr('../plots/modelling/mass_spec_sdplot.pdf',{
-
-	
-{sdplotdf%>%	summarise(mean_sig=mean(signal),sd_signal = sd(signal))%>%
+{
+	sdplotdf%>%	
 	ggplot(aes(x=log2(mean_sig),y=log2(sd_signal)))+
 	# geom_bkde2d()+
 	facet_wrap(~time)+
 	# geom_point(alpha=I(0.1))+
 	geom_smooth(method = "lm", se = FALSE)+
-	stat_density_2d(aes(fill = ..level..), geom = "polygon")
+	stat_density_2d(aes(fill = ..level..), geom = "polygon")+
+	geom_abline(slope=1)+
+	theme_bw()
 }
-
 })
+
+
+#now plot the relationship between log2 signal and sd of the log2 signal
+pdfexpr('../plots/modelling/mass_spec_sdplot.pdf',{
+{
+	sdplotdf%>%	
+	ggplot(aes(x=(mean_sig),y=(sd_signal)))+
+	# geom_bkde2d()+
+	facet_wrap(~time)+
+	# geom_point(alpha=I(0.1))+
+	geom_smooth(method = "lm", se = FALSE,data=sdplotdf%>%filter(between(mean_sig,27,32) ))+
+	stat_density_2d(aes(fill = ..level..), geom = "polygon")+
+	geom_abline(slope=1)+
+	theme_bw()
+}
+})
+
+
+
+#now plot the relationship between log2 signal and sd of the log2 signal
+pdfexpr('../plots/modelling/mass_spec_sdplot_all.pdf',{
+{
+	sdplotdf%>%	
+	ggplot(aes(x=(mean_sig),y=(sd_signal)))+
+	# geom_bkde2d()+
+	geom_point(alpha=I(0.1))+
+	geom_smooth(method = "lm", se = TRUE)+
+	# stat_density_2d(aes(fill = ..level..), geom = "polygon")+
+	geom_abline(slope=1)+
+	theme_bw()
+}
+})
+
+
+#seems to be a predictable enough linear function, let's get those fits
 
 sd_mean_lmfits <- sdplotdf%>%	summarise(mean_sig=log2(mean(signal)),sd_signal = log2(sd(signal)))%>%
 	group_by(time)%>%nest%>%mutate(fit = map(data, ~ lm (data=. , sd_signal ~ mean_sig)) )
 
+sd_mean_lmfits[[3]]
+
 meansiglopes <- sd_mean_lmfits%>%mutate(l2mean_sig_slp =  fit%>%map_dbl(~ .$coef['mean_sig']))%>%{setNames(.$l2mean_sig_slp,.$time)}
+meansigint <- sd_mean_lmfits%>%mutate(l2mean_sig_slp =  fit%>%map_dbl(~ .$coef['Intercept']))%>%{setNames(.$l2mean_sig_slp,.$time)}
+
+sd_mean_lmfits$fit[[1]]$coef
+
+
+####Check math on this sd calc see https://en.wikipedia.org/wiki/Log-normal_distribution
+#we want u and s^2, the relevant parameters for the values on a log scale
+# we have m and and a means of getting v, the relevant parametrs for the values on the non-log scale
+# u = log ((m)/(sqrt(1+ v/(m^2))))
+# s^2 = log (1+v/(m^2))
+#so....
+# s = sqrt(log(1 + sd(m)^2 / (m^2)))
+
+#see 'Simulated linear test applied to quantitativeproteomics' eq 16,17
+#for the comments about coefficient of variation approach - but my lines aren't straight
+
+cvslope = sd_mean_lmfits$fit[[1]]$coef['mean_sig']
+cvint = sd_mean_lmfits$fit[[1]]$coef['(Intercept)']
+l2means = (sdplotdf%>%filter(time=='E13')%>%.$mean_sig)
+
+means = 2^(sdplotdf%>%filter(time=='E13')%>%.$mean_sig)
+sds = 2^((l2means*cvslope)+cvint)
+s = sqrt(log2(1 + (sds^2) / (means^2) ))
+u = log2(means/(sqrt(1+(sds)/(means^2))))
+simdata=replicate(3,rnorm(n=length(u),mean=u,sd=s))
+# simdatamean = simdata%>%apply(1,mean)
+simdatasd = 2^simdata%>%apply(1,sd)
+
+get_l2_ms_params <- function(m,cvslope,cvint){
+	l2m = log2(m)
+	sds = 2^((l2m*cvslope)+cvint)
+	s = sqrt(log2(1 + (sds^2) / (m^2) ))
+	u = log2(m/(sqrt(1+(sds)/(m^2))))
+	list(u=u,s=s)
+}
+
+ms_params <- 
+ list(
+ 	cvslope=sd_mean_lmfits$fit%>%map_dbl(~.$coef['mean_sig'])%>%setNames(sd_mean_lmfits$time),
+	cvint=sd_mean_lmfits$fit%>%map_dbl(~.$coef['(Intercept)'])%>%setNames(sd_mean_lmfits$time)
+)
+
+get_l2_ms_params(means[1:5],ms_params$cvslope,ms_params$cvint)
+
+pdfexpr('../plots/modelling/mass_spec_sdplot_sim.pdf',{
+	data.frame(mean_sig=l2means,sd_signal=log2(simdatasd))%>%	
+		ggplot(aes(x=(mean_sig),y=(sd_signal)))+
+		# geom_bkde2d()+
+		geom_point(alpha=I(0.1))+
+		geom_smooth(method = "lm", se = TRUE)+
+		# stat_density_2d(aes(fill = ..level..), geom = "polygon")+
+		geom_abline(slope=1)+
+		theme_bw()
+})
+
+
+
+
+
+
 
 #this is the negative log likelihood functon (i.e., func to be minimized)
 #ribo - a gene,timepoint matrix
@@ -561,7 +687,7 @@ meansiglopes <- sd_mean_lmfits%>%mutate(l2mean_sig_slp =  fit%>%map_dbl(~ .$coef
 #rTE a gene, vector - the 
 #prot0 a gene, vector - nuisance parameter - the initial protein level
 #ms_s a time, vector - used to get the SD for the log-MS values from the log-MS values
-nLL_model <- function(ribo,MS,ldeg,rTE,prot0,ms_sd){
+nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_sd){
 	#our degredation constant gets optimized in log space, but used in linear space
 	deg = exp(ldeg)	
 	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
@@ -579,9 +705,106 @@ nLL_model <- function(ribo,MS,ldeg,rTE,prot0,ms_sd){
 	#the sd will be a linear func of the mean, as per plots
 	ms_sd <- sweep(prot,2,ms_sd,FUN='*')
 	#finally get our log likelihood
+	out <- 
 	-sum(
-		dnorm(log2(MS),mean=prot,sd=prot * ms_sd,log=TRUE)
+		dnorm(log2(MS+1),mean=prot,sd=prot * ms_sd,log=TRUE)
 	,na.rm=T)
+	if(!is.finite(out)) browser()
+	out
+}
+
+nLL_model_deg <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
+	ldeg=ldeg_prot0[1]
+	prot0=ldeg_prot0[2]
+	#our degredation constant gets optimized in log space, but used in linear space
+	deg = exp(ldeg)	
+	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
+	prot = MS[,,1,drop=F]
+	dim(prot)=dim(prot)[1:2]
+	prot[] <- 0
+	prot[,1] <- prot0
+	#build up our protein array tp by tp
+	i=2
+	for (i in 2:ncol(ribo)){
+		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+	}
+	#transform our MS to log scale, using our parameters
+	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
+
+	#finally get our log likelihood
+	out <- 
+	-sum(
+		dnorm(log2(MS+1),mean=l2ms_params$u,sd=l2ms_params$s,log=TRUE)
+	,na.rm=T)
+	# if(!is.finite(out)) browser()
+	# browser()
+	out
+}
+
+
+nLL_model_deg_sep <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
+	#our degredation constant gets optimized in log space, but used in linear space
+	deg = exp(ldeg)	
+	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
+	prot = MS[,,1,drop=F]
+	dim(prot)=dim(prot)[1:2]
+	prot[] <- 0
+	prot[,1] <- prot0
+	#build up our protein array tp by tp
+	i=2
+	for (i in 2:ncol(ribo)){
+		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+	}
+	#transform our MS to log scale, using our parameters
+	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
+
+	#finally get our log likelihood
+	out <- 
+	-sum(
+		dnorm(log2(MS+1),mean=l2ms_params$u,sd=l2ms_params$s,log=TRUE)
+	,na.rm=T)
+	# if(!is.finite(out)) browser()
+	# browser()
+	out
+}
+
+#we are currently plotting the model's fit
+nLL_model_deg_plot <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
+	ldeg=ldeg_prot0[1]
+	prot0=ldeg_prot0[2]
+	#our degredation constant gets optimized in log space, but used in linear space
+	deg = exp(ldeg)	
+	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
+	prot = MS[,,1,drop=F]
+	dim(prot)=dim(prot)[1:2]
+	prot[] <- 0
+	prot[,1] <- prot0
+	#build up our protein array tp by tp
+	i=2
+	for (i in 2:ncol(ribo)){
+		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+	}
+	#transform our MS to log scale
+	# prot <- log2(prot+1)
+	#the sd will be a linear func of the mean, as per plots
+	# ms_sd <- sweep(prot,2,ms_sd,FUN='*')
+	#finally get our log likelihood
+	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
+	
+	melt(MS)%>%set_colnames(c('gene_id','time','rep','signal'))%>%
+	mutate(var='MS',pred=F,signal=log2(signal+1))%>%
+	{bind_rows(.,data.frame(gene_id=1,time=1:length(l2ms_params$u),rep=1,var='MS',pred=TRUE,signal=l2ms_params$u) )}%>%
+	{bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=F,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
+	{
+		ggplot(.,aes(y=signal,x=time))+
+		geom_point(data=filter(.,!pred))+
+		#facet_grid(scale='free',var ~ .)
+		geom_ribbon(data=filter(.,pred),aes(y=signal,ymax=signal+(2*l2ms_params$s),ymin=signal-(2*l2ms_params$s)),alpha=0.1)+
+		geom_line(data=filter(.,pred),alpha=0.1)+
+		facet_grid(scale='free',var ~. )
+	}%>%
+	identity
+	# ggsave(file='../plots/modelling/example_ms_fit.pdf'%T>%{normalizePath(.)%>%message})
 }
 
 n_genes = dim(expr_array)[1]
@@ -589,9 +812,10 @@ n_genes = dim(expr_array)[1]
 
 #test the likelihood function in single gene and group modes
 igenevect <- c(1,188)
+
 nLL_model(
-	ribo_matrix[igenevect,,drop=F],
-	expr_array[igenevect,,,drop=F],
+	ribo=ribo_matrix[igenevect,,drop=F],
+	MS=expr_array[igenevect,,,drop=F],
 	ldeg=rep(log(0.5),length(igenevect)),
 	rTE=100,
 	prot0=expr_array[igenevect,1,1],
@@ -599,89 +823,108 @@ nLL_model(
 )
 
 nLL_model(
-	ribo_matrix[10,,drop=F],
-	expr_array[10,,,drop=F],
+	ribo=ribo_matrix[10,,drop=F],
+	MS=expr_array[10,,,drop=F],
 	ldeg=c(log(0.5),log(0.1))[1],
 	rTE=100,
 	prot0=rep(30986,2)[1],
 	ms_sd=meansiglopes
 )
 
-#this is similiar to the above but takes ALL gene's expression as the input
-#and also a vector of degredation constants, 
-nLL_rTE <- function(ribo,MS,ldeg,rTE,prot0,ms_sd){
+nLL_model_deg(
+	ribo=ribo_matrix[10,,drop=F],
+	MS=expr_array[10,,,drop=F],
+	ldeg_prot0=c(c(log(0.5),log(0.1))[1],rep(30986,2)[1]),
+	rTE=100,
+	ms_params=ms_params
+)
 
-	deg = exp(ldeg)	
+nLL_model_deg_plot(
+	ribo=ribo_matrix[5,,drop=F],
+	MS=expr_array[5,,,drop=F],
+	ldeg_prot0=c(c(log(0.5),log(0.1))[1],rep(30986,2)[1]),
+	rTE=100,
+	ms_params=ms_params
+)%>%ggsave(file='../plots/modelling/example_ms_fit_2.pdf'%T>%{normalizePath(.)%>%message})
 
-	tps = nrow(ribo1)
+Q
 
-	prot = MS1
-	prot[] <- 0
-
-	prot[1,] = prot0
-
-	trans <- (ribo1+ribo2)/2
-
-	for (i in 2:tps){
-		prot[i,] <- prot[i-1,] + (rTE*trans[i,]) - (prot[i-1,]*deg)
-	}
-
-	prot <- log2(prot+1)
-
-	-sum(c(
-		dnorm(log2(MS1),mean=prot,sd=0.1,log=T),
-		dnorm(log2(MS2),mean=prot,sd=0.1,log=T),
-		dnorm(log2(MS3),mean=prot,sd=0.1,log=T)
-	))
-}
-
-
-nLL_deg <- function(ribo,MS,ldeg,rTE,prot0,ms_sd,tps){
-
-	deg = exp(ldeg)	
-
-	
-
-	prot[1] = prot0
-
-	for (i in 2:tps){
-		prot[i] <- prot[i-1] + (rTE*trans[i]) - (prot[i-1]*deg)
-	}
-	prot <- log2(prot+1)
-	-sum(c(
-		dnorm(log2(MS1),mean=prot,sd=ms_sd,log=T),
-		dnorm(log2(MS2),mean=prot,sd=ms_sd,log=T),
-		dnorm(log2(MS3),mean=prot,sd=ms_sd,log=T)
-	))
-}
-
-estimate_degredation <- function(rTE,exprdata_g){
-	startpars <-list(ldeg=log(0.5),prot0=exprdata_g$MS1[1])
-	fixedpars <- list(rTE=rTE,ribo1=exprdata_g$ribo1,ribo2=exprdata_g$ribo2,MS1=exprdata_g$MS1,MS2=exprdata_g$MS2,MS3=exprdata_g$MS3)%>%
-		lapply(na.omit)
-
-	do.call(nloglikms,c(startpars,fixedpars))
-	
-	out<-mle(nloglikms,
+#now you need to call as above in an mle loop to get the degredation constants for individual genes
+estimate_degredation <- function(ribo,MS,ldeg,rTE,prot0,ms_params){
+	#fixed vs start
+	startpars <-list(ldeg=ldeg,prot0=prot0)
+	fixedpars <- list(rTE=rTE,MS=MS,ribo=ribo,ms_params=ms_params)
+	#checks
+	stopifnot(is.array(MS))
+	stopifnot(is.numeric(MS))
+	stopifnot(is.numeric(ribo))
+	stopifnot(between(exp(ldeg),0,1))
+	#testrun	
+	do.call(nLL_model_deg_sep,c(startpars,fixedpars))
+	# out<-mle(nLL_model_deg_sep,
+	# 	start=startpars,
+	# 	# start=list(par=c(log(0.5),TEinitial,sampdata$MS1[1])),
+	# 	# method='Brent',
+	# 	method='L-BFGS-B',
+	# 	fixed=fixedpars,
+	# 	lower=c(log(0),0+(1/1e12)),
+	# 	upper=c(log(1-0.1),1e20),
+	# )
+	out<-optimwrap(nLL_model_deg_sep,
 		start=startpars,
 		# start=list(par=c(log(0.5),TEinitial,sampdata$MS1[1])),
+		# method='Brent',
 		method='L-BFGS-B',
 		fixed=fixedpars,
-		lower=c(log(0.00001),0,0),
-		upper=c(log(1),1e20,1e20))
+		lower=c(log(0),0+(1/1e12)),
+		upper=c(log(1-0.1),1e20),
+	)
 
-	# cint <- confint(out)
-	# cint[1,1:2]%<>%exp%>%round(3)
-	# rownames(cint)[1]%<>%str_replace('ldeg','deg')
-	# cint[2,1:2]%<>%round(5)
-	# cint[3,1:2]%<>%round(5)
-	ests <- coef(out)[names(startpars)]
-	# ests[1] %<>% exp%>%round(5)
-	# cint%>%as.data.frame %>%mutate(estimate=round(ests,5))
-	ests['ldeg']
+	nLL_model_deg_sep
+
+
+	if(out$convergence==0){
+		return(out$par)
+	}else{
+		return(NA)
+	}
 }
+# lapply(1:nrow(ribo_matrix),function(i){
+lapply(1:10,function(i){
+	estimate_degredation(
+		ribo=ribo_matrix[i,,drop=F],
+		MS=expr_array[i,,,drop=F],
+		ldeg=c(log(0.5),log(0.1))[1],
+		rTE=100,
+		prot0=rep(30986,2)[1],
+		ms_params=ms_params
+	)	
+})
 
 
+
+
+
+
+
+
+
+pdf('tmp.pdf')
+melt(MS)%>%set_colnames(c('gene_id','time','rep','signal'))%>%mutate(var='MS')%>%
+	{bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),rep=1,var='ribo',signal=ribo[1,]) )}%>%
+	ggplot(aes(y=signal,x=time))+geom_point()+facet_grid(scale='free',var ~ .)
+dev.off()
+
+pdfexpr('tmp.pdf',{plot(1)
+})
+
+
+
+
+
+
+
+0
 estimate_degredations <- function(exprdata,rTE){
 
 	fits<-mclapply(exprdata$data,safely(estimate_degredation)(exprdata_g), rTE = rTE )
@@ -760,7 +1003,7 @@ exprdata %>%
 #
 
 #main loop of the optimization cycle
-fit_rTE_degs <- function(exprdata,indiv_ests)
+fit_rTE_degs <- function(exprdata,indiv_ests){
 
 	rTE <- indiv_ests%>%spread(var,est)%>%pluck('rTE')%>%na.omit%>%{median(.[.!=min(.)])}
 	start_deg_med <- indiv_ests%>%spread(var,est)%>%pluck('deg')%>%na.omit%>%{median(.[.!=min(.)])}
@@ -804,6 +1047,7 @@ expr_array <- exprdata%>%ungroup%>%select(one_of(mscols))%>%as.matrix%>%array(di
 ribo_matrix <- exprdata$ribo%>%matrix(ncol=5,)
 
 debug(nLL_model)
+
 #test the likelihood function in single gene and group modes
 nLL_model(
 	ribo_matrix[T,,drop=F],
@@ -812,7 +1056,6 @@ nLL_model(
 	rTE=100,
 	prot0=3098,
 	ms_sd=meansiglopes,
-	tps=5
 )
 
 nLL_model(
@@ -836,3 +1079,14 @@ params_fit <- fit_rTE_degs(exprdata,indiv_ests)
 ####I'll use nest and unnest to start with - easy error handlng etc.
 
 
+#Okay so this is working.... acceptably well.
+#right now I can have my neg log likelihood function with all arguments sep, and I use optimwrap (just a truncated mle() ) to
+#clobber the function into something optim can pass it's vectors into....
+#I don't know if there's a speed down associated with the function overhead of having the optimized function wrapped like that in the
+#optime loop
+#My plotting function works okay, I should modify it to take seperate vairables again...
+#I've also spent a while trying to get the mass spec variance right - it's too wide right now, from the looks of things.
+#I should insepct that with my plotting function and then do something about it
+#I could try just using the simpler CV = exp(-c) formula for the variance, although the slopes don'' reeeeeaaaaaalllly look even
+#Or I could just leave it...
+#Like, is there a constant variance within a single gene
