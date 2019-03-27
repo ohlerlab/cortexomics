@@ -427,11 +427,29 @@ goenrichmentsmf<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
 goenrichmentscc<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
   map(~rungo((names(.)),GTOGO%>%mutate(ensembl_gene_id=gene_name)%>%filter(ensembl_gene_id %in%gnames),'CC'))
 
+#get all go terms
+allterms <- goenrichmentsbp%>%map('Term')%>%unlist%>%unique
+#now get the similiarity matrix in go terms
+godistmatrix <- goenrichmentsbp%>%
+    map(.%>%mutate(Term = paste0(Term,GO.ID),issig = elimFisher<0.05)%>%
+          select(Term,issig))%>%bind_rows(.id='cluster')%>%
+  mutate(cluster = paste0('k=',cluster))%>%
+  spread(cluster,issig)%>%
+  map_df(replace_na,F)%>%
+  {t(as.matrix(.[,-1]))}
 
 
+godistmatrix%>%
+  dist('manhattan')%>%
+  hclust%>%
+  as.dendrogram%>%
+  plot( cex = 0.2, horiz=TRUE, main = paste0('\nCLUTO clusters, distance by enriched GO terms :\n ',ont))
 
 
-save.image('data/spline_limmafit.image.Rdata')
+distgodistmatrix[1:10,1:10]
+
+lapply(goenrichmentsbp,function(x) allterms %in% x)
+
 
 
 
@@ -509,3 +527,4 @@ clutoclustlistraw[[13]]%>%table%>%sort
 clutoclustlist[[13]]%>%table%>%sort
 
 
+save.image('data/cluto_clusts.Rdata')
