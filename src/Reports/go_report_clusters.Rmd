@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
-load(('../data/cluto_clusts.Rdata'))
+load('~/projects/cortexomics/cluto_clusts.Rdata')
 ```
 
 ## R Markdown

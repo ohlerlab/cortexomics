@@ -29,21 +29,23 @@ transformed parameters {
   #defining deg in terms of logdeg
   deg = exp(ldeg);
   
-  prot[1,1:G] = MS0[1:G];
+  prot[1] = MS0;
   
   for(t in 2:T){
-    prot[t,] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
+    prot[t] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
   } 
 
 }
 
 model{
+  #priors
+  ms0logratio ~ normal(0,20);
   
   for(t in 1:T){//for each tp
     for(k in 1:K){//for each replicate
-      MS[t,k,1:G] ~ normal(prot[t,1:G], tau ) ;//normally distributed MS signal
+      MS[t,k] ~ normal(prot[t], tau ) ;//normally distributed MS signal
     }
   }
   
-    exp(tau) ~ lognormal(0.1,10);
+    // exp(tau) ~ lognormal(0.1,10);
 }

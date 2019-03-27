@@ -388,7 +388,7 @@ make_cluster_trajplots<-function(clutoclusts,indata=modelpreddf){
     select(gene_name,time,assay,predicted_signal_full_step,cluster)%>%
     filter(!is.na(predicted_signal_full_step))%>%
     filter(!is.na(cluster))%>%
-    group_by(cluster)%>%mutate(clustern=paste0('Cluster_',LETTERS[cluster+1],' n = ',n_distinct(gene_name)))%>%
+    group_by(cluster)%>%mutate(clustern=paste0('Cluster_',LETTERS[cluster],' n = ',n_distinct(gene_name)))%>%
     group_by(gene_name,assay)%>%
     mutate(predicted_signal_full_step = predicted_signal_full_step-mean(predicted_signal_full_step,na.rm=T))%>%
     ggplot(aes(x=as_factor(time),y=predicted_signal_full_step,group=gene_name,color=as.factor(clustern)))+
@@ -433,11 +433,10 @@ allterms <- goenrichmentsbp%>%map('Term')%>%unlist%>%unique
 godistmatrix <- goenrichmentsbp%>%
     map(.%>%mutate(Term = paste0(Term,GO.ID),issig = elimFisher<0.05)%>%
           select(Term,issig))%>%bind_rows(.id='cluster')%>%
-  mutate(cluster = paste0('k=',cluster))%>%
+  mutate(cluster = LETTERS[as.numeric(cluster)])%>%
   spread(cluster,issig)%>%
   map_df(replace_na,F)%>%
   {t(as.matrix(.[,-1]))}
-
 
 godistmatrix%>%
   dist('manhattan')%>%

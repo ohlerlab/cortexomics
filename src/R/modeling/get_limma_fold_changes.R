@@ -78,8 +78,6 @@ allcoefs<-coefs%>%setNames(.,.)%>%
 
 ###Look at fits, plot with the data
 gnames <- exprmatrix%>%rownames
-exprplot<function(gname,exprmatrix)
-exprplot(gname=genenames[i])
 
 
 
@@ -170,12 +168,11 @@ rnalimmafit_MS_change = limma::lmFit(exprmatrix[,designmatrix%>%filter(!assay=='
 
 exprdata$ribo <- exprdata$assay %in% c('ribo','MS')
 exprdata$MS <- exprdata$assay %in% c('MS')
-limmafit_full = lm(data=exprdata, (signal ~ time + ribo*time + MS*time))
 
 #variable for playing with pcas
 allcoefftbl <- limmafit$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%select(-`(Intercept)`)
 allcoefftbl <- limmafit_nTE_change$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%select(-`(Intercept)`)
-allcoefftbl <- limmafit_TE_change$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%select(-`(Intercept)`)
+allcoefftbl <- limmafit_TE_change$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%  select(-`(Intercept)`)
 allcoefftbl <- limmafit_full$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%select(-`(Intercept)`)
 allcoefftbl <- rlimmafit_MS_change$coefficients%>%as.data.frame%>%rownames_to_column('gene_name')%>%select(-`(Intercept)`)
 
@@ -309,14 +306,15 @@ vardf<-exprdata_withpred_ronly%>%
   filter(gene_name%in%gene_name)%>%group_by(gene_name)%>%
   filter(assay=='MS')%>%  
   filter(rep==1)%>%arrange(gene_name)
-
+  
 vardfrna<-exprdata_withpred_rnaonly%>%
   filter(gene_name%in%gene_name)%>%group_by(gene_name)%>%
   filter(assay=='MS')%>%  
   filter(rep==1)%>%arrange(gene_name)
 
 #for one gene
-anova(lm(data=vardf[1:5,],predicted_signal_MS_change ~ predicted_signal_nMS_change))$"Sum Sq"%>%{.[1]/sum(.)}
+vardf%>%filter(gene_name=='Satb2')%>%colnames
+anova(lm(data=vardf%>%filter(gene_name=='Satb2'),predicted_signal_MS_change ~ predicted_signal_nMS_change))$"Sum Sq"%>%{.[1]/sum(.)}
 
 #now do this for all genes
 varexpldf<-vardf%>%group_by(gene_name)%>%
@@ -325,6 +323,21 @@ varexpldf<-vardf%>%group_by(gene_name)%>%
   identity%>%
   select(-data)%>%
   unnest
+
+anova(lm(data=vardfrna%>%filter(gene_name=='Satb2'),predicted_signal_MS_change ~ predicted_signal_nMS_change))$"Sum Sq"%>%{.[1]/sum(.)}
+
+
+
+cor(
+  vardf%>%filter(gene_name=='Satb2')%>%.$predicted_signal_MS_change,
+  vardf%>%filter(gene_name=='Satb2')%>%.$predicted_signal_nMS_change  
+)
+
+cor(
+  vardfrna%>%filter(gene_name=='Satb2')%>%.$predicted_signal_MS_change,
+  vardfrna%>%filter(gene_name=='Satb2')%>%.$predicted_signal_nMS_change  
+  )
+
 
 #and for rna
 varexpldfrna<-vardfrna%>%group_by(gene_name)%>%
@@ -422,4 +435,60 @@ mostloadedgenespca1<-allcoefftbl$gene_name[pcafit$scores%>%order%>%tail(10)]
 library(data.table)
 
 fread('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/ids.txt')
+
+
+
+
+####Try to illustrate fit for MS being better in Riboseq than for RNAseq
+# exprdata_withpred_ronly%>%filter(gene_name==mstimetoptable%>%rownames%>%tail(26)%>%head(1))%>%
+satb2lineardevplotrna<-exprdata_withpred_rnaonly%>%filter(gene_name=='Satb2')%>%
+  filter(assay=='MS')%>%
+  {ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,color=assay))+
+   # geom_point(size=I(2))+
+    geom_line(linetype=2,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_nMS_change,color=assay,fill=assay),size=1.5)+
+    geom_line(linetype=1,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_MS_change,color=assay,fill=assay),size=1.5)+
+    ggtitle(paste0('Mass Spec Fit - RNA based Model:\n',.$gene_name[1]))+
+    theme_bw()
+  # geom_ribbon(data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=signal,color=assay,fill=assay,ymax=signal+sd_signal,ymin=signal-sd_signal),size=1.5)
+}
+
+satb2lineardevplotrna_nuc<-exprdata_withpred_rnaonly%>%filter(gene_name=='Satb2')%>%
+  filter(assay=='total')%>%
+  {ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,color=assay))+
+      # geom_point(size=I(2))+
+      geom_line(linetype=2,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_nMS_change,color=assay,fill=assay),size=1.5)+
+      geom_line(linetype=1,linetype=2,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_MS_change,color=assay,fill=assay),size=1.5)+
+      ggtitle(paste0('RNA Fit - RNA based Model:\n',.$gene_name[1]))+
+      theme_bw()
+    # geom_ribbon(data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=signal,color=assay,fill=assay,ymax=signal+sd_signal,ymin=signal-sd_signal),size=1.5)
+  }
+
+satb2lineardevplot<-exprdata_withpred_ronly%>%filter(gene_name=='Satb2')%>%
+  filter(assay=='MS')%>%
+  {ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,color=assay))+
+         # geom_point(size=I(2))+
+      geom_line(linetype=2,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_nMS_change,color=assay,fill=assay),size=1.5)+
+      geom_line(linetype=1,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_MS_change,color=assay,fill=assay),size=1.5)+
+      ggtitle(paste0('Mass Spec Fit - Ribo based Model:\n',.$gene_name[1]))+
+      theme_bw()
+    # geom_ribbon(data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=signal,color=assay,fill=assay,ymax=signal+sd_signal,ymin=signal-sd_signal),size=1.5)
+  }
+satb2lineardevplotnuc<-exprdata_withpred_ronly%>%filter(gene_name=='Satb2')%>%
+  filter(assay=='ribo')%>%
+  {ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,color=assay))+
+      # geom_point(size=I(2))+
+      geom_line(linetype=2,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_nMS_change,color=assay,fill=assay),size=1.5)+
+      geom_line(linetype=1,data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=predicted_signal_MS_change,color=assay,fill=assay),size=1.5)+
+      ggtitle(paste0('Ribo Fit - Ribo based Model:\n',.$gene_name[1]))+
+      theme_bw()
+    # geom_ribbon(data=filter(.,rep==1),aes(x=as.numeric(as.factor(time)),alpha=I(.5),y=signal,color=assay,fill=assay,ymax=signal+sd_signal,ymin=signal-sd_signal),size=1.5)
+  }
+
+library(ggpubr)
+compfitplot <- '~/projects/cortexomics/plots/modelling/rna_vs_ribofit_satb2.pdf'
+pdf(compfitplot,w=12,h=12)
+ggpubr::ggarrange(ncol=2,nrow=2,plotlist = list(satb2lineardevplotrna,satb2lineardevplot,satb2lineardevplotrna_nuc,satb2lineardevplotnuc))
+dev.off()
+compfitplot%>%normalizePath%>%message
+
 

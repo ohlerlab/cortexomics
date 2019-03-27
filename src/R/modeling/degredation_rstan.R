@@ -55,32 +55,30 @@ simdata <- map_df(1:n_genes,~simulate_data(
   log(degs[.]),
   rTEs[.],
   ribo[.,],
-  ms_sd=0.01)
-  ms0[.],
+  ms_sd=0.01,
+  prot0=(ribo[,1]*rTE)/2)
 )
 
 ms_array <- simdata$MS%>%simplify2array%>%aperm(c(1,2,3))
 ribo_mat <- simdata$ribo%>%simplify2array()
+simdata$prot0
 
-simdata$ribo
-
-
-stanfit <- rstan::stan(file='src/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
+stanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
                                                           MS=ms_array,ribo=ribo_mat),
-                       # control=list(adapt_delta=0.95,max_treedepth=15),
-                       chains=2,iter=1e3,
+                       control=list(adapt_delta=0.90,max_treedepth=15),
+                       chains=4,iter=1e3,
+                       # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+                       verbose=TRUE)
+stanfit
+stop()
+# 
+stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
+                        MS=ms_array,ribo=ribo_mat),
+                       control=list(adapt_delta=0.90,max_treedepth=10),
+                       chains=4,iter=2e3,
                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
                        verbose=TRUE)
 
-stop()
-# 
-# stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
-#                         MS=ms_array,ribo=ribo_mat),
-#                        #control=list(adapt_delta=0.95,max_treedepth=15),
-#                        chains=2,iter=1e3,
-#                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-#                        verbose=TRUE)
-# 
 
 # 
 
