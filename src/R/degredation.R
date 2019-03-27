@@ -1,7 +1,6 @@
-
 library(purrr)
 library(ggExtra)
-
+library(ggpubr)
 
 #sim some data
 tps = 5
@@ -77,6 +76,7 @@ simulate_data <- function(deg,rTE,ribo,ms0){
 }
 
 
+
 #let's assume we know our ribosomal values...
 log.lklh.prot <- function(data,par){
 	
@@ -94,9 +94,9 @@ log.lklh.prot <- function(data,par){
 	msmeans <- replace_na((data$ms_1+data$ms_2+data$ms_1),0) / 3
 
 	sum(c(
-		dnorm(data$ms_1,mean=prot,sd=msmeans*0.2,log=T),
-		dnorm(data$ms_2,mean=prot,sd=msmeans*0.2,log=T),
-		dnorm(data$ms_3,mean=prot,sd=msmeans*0.2,log=T)
+		dnorm(data$ms_1,mean=prot,sd=msmeans*0.2,log=TRUE),
+		dnorm(data$ms_2,mean=prot,sd=msmeans*0.2,log=TRUE),
+		dnorm(data$ms_3,mean=prot,sd=msmeans*0.2,log=TRUE)
 	))
 }
 
@@ -153,14 +153,14 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 		data=simdata,
 		lower=c(log(0.00001),0,0),
 		upper=c(log(1),1e12,1e12),
-		hessian=T)
+		hessian=TRUE)
 
 	# fit = optim(par=c(log(0.5),100,ribo[1]*100),
 	# 	method='Nelder-Mead',
 	# 	control=list('fnscale'= -1),
 	# 	fn=log.lklh.prot,
 	# 	data=simdata,
-	# 	hessian=T)
+	# 	hessian=TRUE)
 
 	fit$par
 	c(logrealdeg,realrTE,realprot0)
@@ -191,7 +191,7 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 degrange = log(seq(0.01,0.99,by=0.05))
 #test our model fitting
-reps<-replicate(simp=F,100,{
+reps<-replicate(simp=FALSE,100,{
 		test1dconfints(
 			logrealdeg=sample(degrange,1),
 			# realrTE=sample(seq(0.5,3,len=20),1),
@@ -231,9 +231,9 @@ fit = optim(par=c(log(0.5),TEinitial,simdata$ms_1[1]),
 	data=simdata,
 	lower=c(log(0.00001),0,0),
 	upper=c(log(1),1e12,1e12),
-	hessian=T)
+	hessian=TRUE)
 
-fitsimmeddata <- replicate(simp=F,100,simulate_data(fit$par[1],fit$par[2],ribo,fit$par[3]))
+fitsimmeddata <- replicate(simp=FALSE,100,simulate_data(fit$par[1],fit$par[2],ribo,fit$par[3]))
 fitsimmeddata%<>%bind_rows
 fitsimmeddata 
 
@@ -270,7 +270,7 @@ simdataplottitle<-str_interp('Simulated Data: \n Actual Parameters: rTE=${realrT
 	Estimated Ms0=${par[3]} (${ms0lower} - ${ms0upper})')
 
 #simulate our data log scale
-svg(h=5,w=6,'../plots/simdata_degredationest_degdominantribo.svg'%T>%{normalizePath(.)%>%message})
+svg(h=5,w=6,'../plots/simdata_degredationest_degdominantribo.svg'%TRUE>%{normalizePath(.)%>%message})
 ggpubr::ggarrange(
 	simdata2plot%>%
 		ggplot(data=.,aes(y=log2(value),x=time))+facet_grid(scale='free',assay~.)+geom_point(size=3)+theme_minimal()+
@@ -319,11 +319,11 @@ log.lklh.prot <- function(data,par){
 	}
 
 	sum(c(
-		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
-		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=T),
-		dnorm(data$MS1,mean=prot,sd=0.1,log=T),
-		dnorm(data$MS2,mean=prot,sd=0.1,log=T),
-		dnorm(data$MS3,mean=prot,sd=0.1,log=T)
+		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=TRUE),
+		# dnorm(data$ribo_1,mean=prot,sd=data$prot*0.2,log=TRUE),
+		dnorm(data$MS1,mean=prot,sd=0.1,log=TRUE),
+		dnorm(data$MS2,mean=prot,sd=0.1,log=TRUE),
+		dnorm(data$MS3,mean=prot,sd=0.1,log=TRUE)
 	))
 }
 
@@ -390,9 +390,9 @@ nloglikms <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg=log(0.5),rTE = TEinitial,prot
 	}
 	prot <- log2(prot+1)
 	-sum(c(
-		dnorm(log2(MS1),mean=prot,sd=0.1,log=T),
-		dnorm(log2(MS2),mean=prot,sd=0.1,log=T),
-		dnorm(log2(MS3),mean=prot,sd=0.1,log=T)
+		dnorm(log2(MS1),mean=prot,sd=0.1,log=TRUE),
+		dnorm(log2(MS2),mean=prot,sd=0.1,log=TRUE),
+		dnorm(log2(MS3),mean=prot,sd=0.1,log=TRUE)
 	))
 }
 
@@ -691,14 +691,14 @@ nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_sd){
 	#our degredation constant gets optimized in log space, but used in linear space
 	deg = exp(ldeg)	
 	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-	prot = MS[,,1,drop=F]
+	prot = MS[,,1,drop=FALSE]
 	dim(prot)=dim(prot)[1:2]
 	prot[] <- 0
 	prot[,1] <- prot0
 	#build up our protein array tp by tp
 	i=2
 	for (i in 2:ncol(ribo)){
-		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+		prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
 	}
 	#transform our MS to log scale
 	prot <- log2(prot+1)
@@ -708,7 +708,7 @@ nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_sd){
 	out <- 
 	-sum(
 		dnorm(log2(MS+1),mean=prot,sd=prot * ms_sd,log=TRUE)
-	,na.rm=T)
+	,na.rm=TRUE)
 	if(!is.finite(out)) browser()
 	out
 }
@@ -719,14 +719,14 @@ nLL_model_deg <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
 	#our degredation constant gets optimized in log space, but used in linear space
 	deg = exp(ldeg)	
 	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-	prot = MS[,,1,drop=F]
+	prot = MS[,,1,drop=FALSE]
 	dim(prot)=dim(prot)[1:2]
 	prot[] <- 0
 	prot[,1] <- prot0
 	#build up our protein array tp by tp
 	i=2
 	for (i in 2:ncol(ribo)){
-		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+		prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
 	}
 	#transform our MS to log scale, using our parameters
 	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
@@ -735,7 +735,7 @@ nLL_model_deg <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
 	out <- 
 	-sum(
 		dnorm(log2(MS+1),mean=l2ms_params$u,sd=l2ms_params$s,log=TRUE)
-	,na.rm=T)
+	,na.rm=TRUE)
 	# if(!is.finite(out)) browser()
 	# browser()
 	out
@@ -746,14 +746,14 @@ nLL_model_deg_sep <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
 	#our degredation constant gets optimized in log space, but used in linear space
 	deg = exp(ldeg)	
 	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-	prot = MS[,,1,drop=F]
+	prot = MS[,,1,drop=FALSE]
 	dim(prot)=dim(prot)[1:2]
 	prot[] <- 0
 	prot[,1] <- prot0
 	#build up our protein array tp by tp
 	i=2
 	for (i in 2:ncol(ribo)){
-		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+		prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
 	}
 	#transform our MS to log scale, using our parameters
 	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
@@ -762,7 +762,7 @@ nLL_model_deg_sep <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
 	out <- 
 	-sum(
 		dnorm(log2(MS+1),mean=l2ms_params$u,sd=l2ms_params$s,log=TRUE)
-	,na.rm=T)
+	,na.rm=TRUE)
 	# if(!is.finite(out)) browser()
 	# browser()
 	out
@@ -775,14 +775,14 @@ nLL_model_deg_plot <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
 	#our degredation constant gets optimized in log space, but used in linear space
 	deg = exp(ldeg)	
 	#Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-	prot = MS[,,1,drop=F]
+	prot = MS[,,1,drop=FALSE]
 	dim(prot)=dim(prot)[1:2]
 	prot[] <- 0
 	prot[,1] <- prot0
 	#build up our protein array tp by tp
 	i=2
 	for (i in 2:ncol(ribo)){
-		prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+		prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
 	}
 	#transform our MS to log scale
 	# prot <- log2(prot+1)
@@ -792,9 +792,9 @@ nLL_model_deg_plot <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
 	l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
 	
 	melt(MS)%>%set_colnames(c('gene_id','time','rep','signal'))%>%
-	mutate(var='MS',pred=F,signal=log2(signal+1))%>%
+	mutate(var='MS',pred=FALSE,signal=log2(signal+1))%>%
 	{bind_rows(.,data.frame(gene_id=1,time=1:length(l2ms_params$u),rep=1,var='MS',pred=TRUE,signal=l2ms_params$u) )}%>%
-	{bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=F,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
+	{bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=FALSE,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
 	{
 		ggplot(.,aes(y=signal,x=time))+
 		geom_point(data=filter(.,!pred))+
@@ -804,7 +804,7 @@ nLL_model_deg_plot <- function(ldeg_prot0,ribo,MS,rTE,ms_params){
 		facet_grid(scale='free',var ~. )
 	}%>%
 	identity
-	# ggsave(file='../plots/modelling/example_ms_fit.pdf'%T>%{normalizePath(.)%>%message})
+	# ggsave(file='../plots/modelling/example_ms_fit.pdf'%TRUE>%{normalizePath(.)%>%message})
 }
 
 n_genes = dim(expr_array)[1]
@@ -814,8 +814,8 @@ n_genes = dim(expr_array)[1]
 igenevect <- c(1,188)
 
 nLL_model(
-	ribo=ribo_matrix[igenevect,,drop=F],
-	MS=expr_array[igenevect,,,drop=F],
+	ribo=ribo_matrix[igenevect,,drop=FALSE],
+	MS=expr_array[igenevect,,,drop=FALSE],
 	ldeg=rep(log(0.5),length(igenevect)),
 	rTE=100,
 	prot0=expr_array[igenevect,1,1],
@@ -823,8 +823,8 @@ nLL_model(
 )
 
 nLL_model(
-	ribo=ribo_matrix[10,,drop=F],
-	MS=expr_array[10,,,drop=F],
+	ribo=ribo_matrix[10,,drop=FALSE],
+	MS=expr_array[10,,,drop=FALSE],
 	ldeg=c(log(0.5),log(0.1))[1],
 	rTE=100,
 	prot0=rep(30986,2)[1],
@@ -832,20 +832,20 @@ nLL_model(
 )
 
 nLL_model_deg(
-	ribo=ribo_matrix[10,,drop=F],
-	MS=expr_array[10,,,drop=F],
+	ribo=ribo_matrix[10,,drop=FALSE],
+	MS=expr_array[10,,,drop=FALSE],
 	ldeg_prot0=c(c(log(0.5),log(0.1))[1],rep(30986,2)[1]),
 	rTE=100,
 	ms_params=ms_params
 )
 
 nLL_model_deg_plot(
-	ribo=ribo_matrix[5,,drop=F],
-	MS=expr_array[5,,,drop=F],
+	ribo=ribo_matrix[5,,drop=FALSE],
+	MS=expr_array[5,,,drop=FALSE],
 	ldeg_prot0=c(c(log(0.5),log(0.1))[1],rep(30986,2)[1]),
 	rTE=100,
 	ms_params=ms_params
-)%>%ggsave(file='../plots/modelling/example_ms_fit_2.pdf'%T>%{normalizePath(.)%>%message})
+)%>%ggsave(file='../plots/modelling/example_ms_fit_2.pdf'%TRUE>%{normalizePath(.)%>%message})
 
 Q
 
@@ -892,8 +892,8 @@ estimate_degredation <- function(ribo,MS,ldeg,rTE,prot0,ms_params){
 # lapply(1:nrow(ribo_matrix),function(i){
 lapply(1:10,function(i){
 	estimate_degredation(
-		ribo=ribo_matrix[i,,drop=F],
-		MS=expr_array[i,,,drop=F],
+		ribo=ribo_matrix[i,,drop=FALSE],
+		MS=expr_array[i,,,drop=FALSE],
 		ldeg=c(log(0.5),log(0.1))[1],
 		rTE=100,
 		prot0=rep(30986,2)[1],
@@ -988,7 +988,7 @@ exprdata
 
 #Function to get the ribo vector we use to infer the protein levels, can mod later with splines
 get_trans_vect <- function(ribodata){
-	ribodata%>%as.matrix%>%apply(1,mean,na.rm=T)
+	ribodata%>%as.matrix%>%apply(1,mean,na.rm=TRUE)
 }
 
 exprdata$ribo <- get_trans_vect(exprdata%>%ungroup%>%select(matches('ribo')))
@@ -1050,8 +1050,8 @@ debug(nLL_model)
 
 #test the likelihood function in single gene and group modes
 nLL_model(
-	ribo_matrix[T,,drop=F],
-	expr_array[T,,,drop=F],
+	ribo_matrix[TRUE,,drop=FALSE],
+	expr_array[TRUE,,,drop=FALSE],
 	ldeg=c(log(0.5)),
 	rTE=100,
 	prot0=3098,
@@ -1059,8 +1059,8 @@ nLL_model(
 )
 
 nLL_model(
-	ribo_matrix[10,,drop=F],
-	expr_array[10,,,drop=F],
+	ribo_matrix[10,,drop=FALSE],
+	expr_array[10,,,drop=FALSE],
 	ldeg=c(log(0.5),log(0.1))[1],
 	rTE=100,
 	prot0=rep(30986,2)[1],

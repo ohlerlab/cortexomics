@@ -14,7 +14,7 @@ argv <- c(
   transformdexprfile=file.path('exprdata/transformed_data.txt')
 )
 
-argv[]<- commandArgs(trailingOnly=TRUE)
+if(length(commandArgs,trailing=T)) argv[]<- commandArgs(trailingOnly=TRUE)
 
 for(i in names(argv)) assign(i, argv[i])
 
@@ -25,13 +25,13 @@ exprtbl %<>% select(gene_name, everything())
 #read in the data
 allcoefftbl<-read_tsv(foldchangesfile)
 #perform pca
-pcafit <- princomp(allcoefftbl[,-1])
+pcafit <- princomp(allcoefftbl%>%select(matches('time')))
 
 #make plots of the pcas
 svglite::svglite('../plots/pcafit_limmafcs.svg')
 plot(pcafit,main='Fold Change Over Time - PCA')
-# plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
-# plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
+plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
+plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
 dev.off()
 getwd()%>%message
 
@@ -53,6 +53,7 @@ pcafit$loading[,2]%>%enframe('dimension','loading')%>%
   theme(axis.text.x=element_text(angle=45,size=8,vjust=0.5))+
   ggtitle('Developmental Fold Changes \n PCA2')
 )
+
 dev.off()
 
 # svdfit <- svd(t(allcoefftbl[,-1]))
@@ -63,12 +64,12 @@ hmapfile <- file.path(paste0('heatmaps/',basename(transformdexprfile),'_limma_cs
 hmapfile%>%dirname%>%dir.create
 
 #
-hmapdata <- as.matrix(allcoefftbl[,-1])%>%pmax(.,-3)%>%pmin(.,3)
+hmapdata <- as.matrix(allcoefftbl%>%select(matches('time')))%>%pmax(.,-3)%>%pmin(.,3)
 #
 cairo_pdf(normalizePath(hmapfile) %T>% message,w = 10, h = 10)
 #
 cbreaks <-
-  cut_number(as.matrix(allcoefftbl[,-1]),100,ordered=TRUE)%>%levels%>%str_split(',')%>%map(str_replace_all,'[^0-9\\-\\.]','')%>%{c(.[[1]][[1]],map_chr(.,2))}%>%as.numeric
+  cut_number(hmapdata,100,ordered=TRUE)%>%levels%>%str_split(',')%>%map(str_replace_all,'[^0-9\\-\\.]','')%>%{c(.[[1]][[1]],map_chr(.,2))}%>%as.numeric
 # 
 par(lend = 1,rend=1)
 par(mar=c(2, 2, 2, 2))
@@ -100,11 +101,11 @@ dev.off()
 geneofinterest='Shank2'
 
 anticorgenes <- allcoefftbl%>%filter(abs(`timeP0`)>2,abs(`timeP0`+`timeP0:assayMS`)<0.25)%>%.$gene_name
-selgenes <- sample(anticorgenes,20)
+selgenes <- sample(anticorgenes,4)
 
 pdf('tot_ms_fc_anticorgenes_trajectory.pdf')
 #
-for(geneofinterest in selgenes){
+for(geneofinterest in selgenes[1]){
   par(mfrow=c(1,3))
   #get transformed expression data
   exprplotdata <-

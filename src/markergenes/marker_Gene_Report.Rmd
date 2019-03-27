@@ -1,0 +1,207 @@
+---
+title: "Marker Gene Report"
+output: pdf_document
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rtracklayer)
+library(stringr)
+library(magrittr)
+library(assertthat)
+library(tidyverse)
+select =dplyr::select
+
+```
+
+
+## Our Marker genes
+We want an expression profile from RNAseq across development, for Riboseq and Total Rnaseq, for these genes:
+
+1. PA2G4 (EBP1), both isoforms there are two isoforms in mouse - long ("p48") vs. short ("p42") - differing in the N-terminus
+see attached about the isoforms' sequences
+
+2. Pax  shows timing of stem cell expression timing
+
+3. Tle4 shows timing of lower layer neuron differentiation
+
+4. Bcl11b (Ctip2) shows timing of lower-middle layer neuron differentiation
+
+5. Satb2 shows timing of upper layer neuron differentiation 
+
+6. Cdp (Cux1) also shows timing of upper layer neuron differentiation
+
+To do this we'll need to...
+
+1. Load up information linking transcripts to genes - I manually used gencode IDs to be safe.
+
+2. Get normalized expression values (TPM - transcripts per million) for our transcripts. I did this using Kallisto. The GENCODE M12 annotation release was used, with the mm10 mouse genome.
+
+3. Sum the expression values for most genes, keeping our isoforms seperate for PA2G4
+
+4. Calculate translational efficiency as the ratio of the Total RNAseq reads to the Riboseq reads.
+
+5. Finally plot these values over our developmental timepoints.
+
+
+
+```{r load_data, include=FALSE,cache = FALSE}
+
+kallistodir = "~/cortexomics/data/kallisto_out/"
+metacols = c('time','assay','replicate')
+#create table for 
+sep_iso_genes <- c('ENSMUSG00000025364','ENSMUSG00000020484')
+
+setwd(root)
+
+kallistocounts<-read_tsv(file.path(root,'exploration/tables/kallistocounts.tsv'),col_types=cols(
+  transcript_id = col_character(),
+  signal = col_double(),
+  dataset = col_character(),
+  time = col_character(),
+  assay = col_character(),
+  rep = col_integer(),
+  gene_id = col_character(),
+  gene_name = col_character(),
+  transcript_name = col_character()
+))
+#get our counts out of kallisto
+stopifnot(exists('kallistocounts'))
+
+#list of genes we want to plot
+markergenestbl <- readr::read_tsv(file.path(root,"ext_data/marker_genes.tsv"),col_names = TRUE)
+markergenes <- markergenestbl$gencode %>% str_split(',') %>% flatten_chr%>%str_replace('\\.\\d+','')
+# markergenestbl%>%rbind(data_frame(gene_name="Xbp1",gencode="ENSMUSG00000020484",notes=NA))%>%write_tsv(file.path(root,"ext_data/marker_genes.tsv"),col_names = TRUE)
+#this table now contains the transcripts and genes requested
+markercounts<- kallistocounts%>%subset(gene_id %in% markergenes)
+marker_tpm <- bind_rows(
+  markercounts%>%subset(gene_id%in%sep_iso_genes)%>%select(name=transcript_name,dataset,TPM=signal),
+  markercounts%>%subset(! gene_id%in%sep_iso_genes)%>%
+    group_by(gene_id,dataset,gene_name)%>%
+    summarise(TPM = sum(signal))%>%
+    select(name=gene_name,dataset,TPM)
+)
+
+#metadata for our datasets
+marker_tpm <- 
+  marker_tpm%>%
+  mutate(tmp = dataset%>%str_replace('_28_30','-28-30'))%>%
+  separate(tmp,metacols,sep='_')%>%
+  mutate(assay = str_replace(assay,'-28-30',''))
+
+#calculate translational efficiency
+markerTE <-  marker_tpm%>%
+  select(assay,name,time,replicate,TPM)%>%
+  spread(assay,TPM)%>%
+  mutate(TE = ribo/total)%>%select(-ribo,-total)
+
+markerTE<-
+    markerTE%>%
+    group_by(name)%>%mutate(TE = log2(TE/min(TE[time=='E13'])))%>%
+    mutate(TE =  replace(TE,is_in(TE,c(Inf)),NA))
+
+#summarise tpms by their 
+# marker_tpm <- marker_tpm %>%group_by(name,time,assay)%>%  summarise(TPM = sum(TPM))
+#check tbls look right
+marker_tpm %>% has_name(c('TPM','time','name','assay')) %>% all %>% stopifnot
+markerTE %>% has_name(c('TE','time','name')) %>% all %>% stopifnot
+
+
+```
+## Total And Ribocapture RNAseq read TPM (Transcripts Per Million) for our marker genes:
+(dots represent individual replicate values)
+Y axis log2 scaled (break labels not transformed)
+
+
+```{r TPMplots, echo=FALSE,cache = FALSE}
+marker_tpm%>%tail
+names = unique(marker_tpm$name)
+
+
+pdf('Xbp1.pdf',width=14,h=7)
+name_i=names%>%str_subset('Xbp')%>%.[1]
+for(name_i in names%>%str_subset('Xbp')){
+  
+  scale_y_log2_linlabels<-scale_y_continuous(
+        breaks = function(lims) {
+          nb = 7
+          step = ceiling((lims[2] - lims[1])/7)
+          lims[1] = nb*(floor(lims[1]/nb))
+          lims[2] = nb*(ceiling(lims[2]/nb))
+          seq(from=lims[1],to=lims[2],by=step);
+        },
+        labels = function(x) {paste0(format(refTPM*(2^x),digits = 2),' (',format(100*(2^x),digits=2),' %) ')}
+      )
+  
+ 
+  assayi =unique(marker_tpm$assay)[2]
+  assayplots=list()
+    
+  for(assayi in unique(marker_tpm$assay)){
+
+    plotdata <-   marker_tpm %>% filter(name==name_i)%>%group_by(name,assay)%>%
+      mutate(refTPM = median(na.omit(TPM)))%>%
+      mutate(relTPM = log2(TPM/refTPM)) %>%arrange(assay)
+    assaydata <- plotdata%>%filter(assay==assayi)
+
+    if(nrow(assaydata)==0){assayplots <- assayplots%>%append(list(qplot(geom='blank'))); next}
+
+    refTPM <- unique(assaydata$refTPM)
+    assayplots <- assayplots%>%append(list(
+      qplot(data=assaydata,y=relTPM,x = time, geom = 'point' , ylab =  'Relative TPM')+
+      expand_limits(y=c(floor(min(assaydata$relTPM)),ceiling(max(assaydata$relTPM))))+
+      scale_y_log2_linlabels+
+      ggtitle(str_interp("TPM for ${name_i}, ${assayi}"))+
+      theme_bw()+
+      theme(text = element_text(size = 16))
+    ))
+    
+  }
+  do.call(gridExtra::grid.arrange,c(assayplots,ncol=length(assayplots)))
+
+}
+
+dev.off()
+
+```
+
+## Translational Efficiency (RiboTotal) per timepoint/replicate
+(replicates divided seperately)
+
+Note that in some cases the total counts are very low - this will render the TE - which is a ratio, unreliable.
+
+I'm also unsure if transcript specific TE can be trusted - there may be differences in the ability to attribute total reads and Riboseq reads to their parent transcript...
+
+Note that values are not displayed if the TotalSeq reads are zero.
+
+```{r te, echo=FALSE,cache = FALSE}
+names = unique(markerTE$name)
+validvalue <- function(x) ! (is.na(x) | is.nan(x) | (!is.finite(x)))
+
+pdf('')
+for(name_i in names){
+                  
+
+  markerTE %>% filter(name==name_i)%>%
+  { 
+  ymax = ungroup(.)%>%select(.,`TE`)%>%.[[1]]%>%keep(is.finite)%>%keep(Negate(is.na))%>%keep(Negate(is.nan))%>%max%>%multiply_by(1.2)
+
+  # message(ymax)
+  if(!any(validvalue(.$TE))){ 
+    qplot(label=str_interp('cannot calculate TE\nfor ${name_i}'),geom='text',x=1,y=1,size=I(15))+theme_bw()
+  }else{
+  qplot(data=.,y=`TE`,x = time, geom = 'point' ,ylab = 'TE - T/T0')+
+      expand_limits(y=c(floor(min(.$TE)),ceiling(max(.$TE))))+
+      scale_y_log2_linlabels+    
+      ggtitle(str_interp("Translational Efficiency for ${name_i}"))+
+      theme_bw()+
+      theme(text = element_text(size = 16))
+  }
+    
+  }%>%print
+}
+
+```
+
+

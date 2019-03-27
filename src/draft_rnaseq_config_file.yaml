@@ -1,0 +1,34 @@
+#Welcome to the setup process for our RNAseq pipelines!
+#The RNAseq pipeline is intended to automate the process of QC'ing, aligning, and performing basic analyses on RNAseq data
+#Currently the QC steps consist of:
+#The mapping is done by:
+  #mapping is also done by kallisto since this provides input usable by the 
+#The analysis steps consist of:
+#
+
+#Fill in everything in this config file that has REQUIRED at it
+
+
+
+
+
+
+#A word on contrasts - DESEQ and Sleuth both fit linear models in log space - i.e. they fit a 'fold change' between groups with and without a given factor
+#Discrete catagories are treated in a binary fashion - if you have a factor with four columns, that's 3 mutually exclusive binary variables.
+#We can therefore ask about the effects of linear combinations of variables.
+#Time series support will be added later, at least for kallisto - at present time series can only be treated as catagorical varibles which is rather wasteful
+#in terms of statistical power,and also a pain in the ass to interpret.
+# 
+
+
+
+
+
+#setting up a conda env with our R packages
+#conda 
+source activate /fast/users/dharnet/cortexomics/venv
+conda install r
+conda install r-essentials
+conda install r-devtools
+conda install -c bioconda bioconductor-biocinstaller
+conda install 

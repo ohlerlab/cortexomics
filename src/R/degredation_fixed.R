@@ -5,6 +5,7 @@ library(stats4)
 library(parallel)
 library(ggExtra)
 
+
 #modify a function so that some of it's arguments are taken from the elements of a 'par' vector, for optim
 with_vectargs <- function (FUN, ... ) {
    vect <- map_chr(rlang::ensyms(...),as.character)
@@ -22,7 +23,7 @@ with_vectargs <- function (FUN, ... ) {
    }
    
    .FUN
-}
+}k
 
 mlemod <- function(minuslogl, start = formals(minuslogl), method = "BFGS",
     fixed = list(), nobs, ...){
@@ -68,14 +69,14 @@ nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
    #our degredation constant gets optimized in log space, but used in linear space
    deg = exp(ldeg)   
    #Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-   prot = MS[,,1,drop=F]
+   prot = MS[,,1,drop=FALSE]
    dim(prot)=dim(prot)[1:2]
    prot[] <- 0
    prot[,1] <- prot0
    #build up our protein array tp by tp
    i=2
    for (i in 2:ncol(ribo)){
-      prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+      prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
    }
    #transform our MS to log scale, using our parameters
    l2ms_params<-get_l2_ms_params(prot[1,],ms_params$cvslope,ms_params$cvint)
@@ -84,7 +85,7 @@ nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
    out <- 
    -sum(
       dnorm(log2(MS+1),mean=l2ms_params$u,sd=l2ms_params$s,log=TRUE)
-   ,na.rm=T)
+   ,na.rm=TRUE)
    # if(!is.finite(out)) browser()
    # browser()
    out
@@ -96,21 +97,21 @@ nLL_model_svar <- function(ldeg,prot0,ribo,MS,rTE,msvar){
    #our degredation constant gets optimized in log space, but used in linear space
    deg = exp(ldeg)   
    #Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-   prot = MS[,,1,drop=F]
+   prot = MS[,,1,drop=FALSE]
    dim(prot)=dim(prot)[1:2]
    prot[] <- 0
    prot[,1] <- prot0
    #build up our protein array tp by tp
    i=2
    for (i in 2:ncol(ribo)){
-      prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+      prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
    }
 
    #finally get our log likelihood
    out <- 
    -sum(
       dnorm(log2(MS+1),mean=log2(prot),sd=msvar,log=TRUE)
-   ,na.rm=T)
+   ,na.rm=TRUE)
    # if(!is.finite(out)) browser()
    # browser()
    out
@@ -121,14 +122,14 @@ nLL_model_plot <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
    #our degredation constant gets optimized in log space, but used in linear space
    deg = exp(ldeg)   
    #Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-   prot = MS[,,1,drop=F]
+   prot = MS[,,1,drop=FALSE]
    dim(prot)=dim(prot)[1:2]
    prot[] <- 0
    prot[,1] <- prot0
    #build up our protein array tp by tp
    i=2
    for (i in 2:ncol(ribo)){
-      prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+      prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
    }
    #transform our MS to log scale
    # prot <- log2(prot+1)
@@ -140,12 +141,12 @@ nLL_model_plot <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
 
   
    melt(MS)%>%set_colnames(c('gene_id','time','rep','signal'))%>%
-   mutate(var='MS',pred=F,signal=log2(signal+1))%>%
+   mutate(var='MS',pred=FALSE,signal=log2(signal+1))%>%
    {bind_rows(.,data.frame(gene_id=1,time=1:length(l2ms_params$u),rep=1,var='MS',pred=TRUE,signal=l2ms_params$u) )}%>%
-   {bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=F,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
+   {bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=FALSE,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
    mutate(ymin=ifelse(pred==TRUE,signal-2*l2ms_params$s,NA),ymax=ifelse(pred==TRUE,signal+2*l2ms_params$s,NA))
 
-   # ggsave(file='../plots/modelling/example_ms_fit.pdf'%T>%{normalizePath(.)%>%message})
+   # ggsave(file='../plots/modelling/example_ms_fit.pdf'%TRUE>%{normalizePath(.)%>%message})
 }
 
 
@@ -154,27 +155,27 @@ nLL_model_svar_plot <- function(ldeg,prot0,ribo,MS,rTE,msvar){
    #our degredation constant gets optimized in log space, but used in linear space
    deg = exp(ldeg)   
    #Our protein vector is shaped like a slice of the MS [gene,time,replicate] array
-   prot = MS[,,1,drop=F]
+   prot = MS[,,1,drop=FALSE]
    dim(prot)=dim(prot)[1:2]
    prot[] <- 0
    prot[,1] <- prot0
    #build up our protein array tp by tp
    i=2
    for (i in 2:ncol(ribo)){
-      prot[,i] <- prot[,i-1,drop=F] + (rTE*ribo[,i,drop=F]) - (prot[,i-1,drop=F]*deg)
+      prot[,i] <- prot[,i-1,drop=FALSE] + (rTE*ribo[,i,drop=FALSE]) - (prot[,i-1,drop=FALSE]*deg)
    }
 
    melt(MS)%>%set_colnames(c('gene_id','time','rep','signal'))%>%
-   mutate(var='MS',pred=F,signal=log2(signal+1))%>%
+   mutate(var='MS',pred=FALSE,signal=log2(signal+1))%>%
    {bind_rows(.,data.frame(gene_id=1,time=1:length(log2(prot[1,])),rep=1,var='MS',pred=TRUE,signal=log2(prot[1,])) )}%>%
-   {bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=F,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
+   {bind_rows(.,data.frame(gene_id=1,time=1:length(ribo),pred=FALSE,rep=1,var='ribo',signal=log2(ribo[1,]) ))}%>%
    mutate(ymin=ifelse(pred==TRUE,signal-2*msvar,NA),ymax=ifelse(pred==TRUE,signal+2*msvar,NA))
 }
 
 
 
 #########Load up data
-exprdata_all<-fread('./exprdata/transformed_data.txt')
+exprdata_all<-fread('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/exprdata/transformed_data.txt')
 mscols <- exprdata_all%>%colnames%>%str_subset('MS_')
 ribocols <- exprdata_all%>%colnames%>%str_subset('ribo_')
 
@@ -207,7 +208,7 @@ exprdatareshape<-exprdata_all%>%select(gene_name,one_of(c(ribocols,mscols)))%>%
 
 #Function to get the ribo vector we use to infer the protein levels, can mod later with splines
 get_trans_vect <- function(ribodata){
-   ribodata%>%as.matrix%>%apply(1,mean,na.rm=T)
+   ribodata%>%as.matrix%>%apply(1,mean,na.rm=TRUE)
 }
 exprdata <- exprdatareshape
 exprdata$ribo <- get_trans_vect(exprdata%>%ungroup%>%select(matches('ribo')))
@@ -238,7 +239,7 @@ satb2ind <- exprdata$gene_name%>%unique%>%`==`('Satb2')%>%which
 #Calculates for MS variance
 
 #Load our LFQ values, ge the log2 mean and log2 sd for the complete cases
-sdplotdf<-'ms_tables/ms_LFQ_total_ms_tall.tsv'%>%
+sdplotdf<-'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/ms_tables/ms_LFQ_total_ms_tall.tsv'%>%
    read_tsv%>%
    filter(fraction=='total')%>%
    group_by(time,fraction,Protein_IDs)%>%
@@ -363,8 +364,8 @@ exprdata%>%filter(gene_name=='Satb2')
 expr_array[3021,,]
 
 nLL_model(
-   ribo=ribo_matrix[igenevect,,drop=F],
-   MS=expr_array[igenevect,,,drop=F],
+   ribo=ribo_matrix[igenevect,,drop=FALSE],
+   MS=expr_array[igenevect,,,drop=FALSE],
    ldeg=rep(log(0.5),length(igenevect)),
    rTE=100,
    prot0=expr_array[igenevect,1,1],
@@ -372,8 +373,8 @@ nLL_model(
 )
 
 nLL_model(
-   ribo=ribo_matrix[10,,drop=F],
-   MS=expr_array[10,,,drop=F],
+   ribo=ribo_matrix[10,,drop=FALSE],
+   MS=expr_array[10,,,drop=FALSE],
    ldeg=c(log(0.5),log(0.1))[1],
    rTE=100,
    prot0=rep(30986,2)[1],
@@ -386,8 +387,8 @@ optim%>%args
 fTEfit <- optim(
    fn=with_vectargs(nLL_model,ldeg,prot0,rTE),
    par=c(log(0.1),expr_array[satb2ind,,][[1]],100),
-   ribo=ribo_matrix[satb2ind,,drop=F],
-   MS=expr_array[satb2ind,,,drop=F],
+   ribo=ribo_matrix[satb2ind,,drop=FALSE],
+   MS=expr_array[satb2ind,,,drop=FALSE],
    ms_params=ms_params,
    method='L-BFGS-B',
    lower = c(-Inf,1,1e-12),
@@ -399,8 +400,8 @@ fTEfit <- optim(
 constr_fit<-optim(
    fn=with_vectargs(nLL_model,ldeg,prot0),
    par=c(log(0.1),expr_array[satb2ind,,][[1]]),
-   ribo=ribo_matrix[satb2ind,,drop=F],
-   MS=expr_array[satb2ind,,,drop=F],
+   ribo=ribo_matrix[satb2ind,,drop=FALSE],
+   MS=expr_array[satb2ind,,,drop=FALSE],
    rTE=100,
    ms_params=ms_params,
    method='L-BFGS-B',
@@ -420,23 +421,23 @@ plot_LL<-function(.){
 #plot the free TE fit
 with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
    par=fTEfit$par,
-   ribo=ribo_matrix[satb2ind,,drop=F],
-   MS=expr_array[satb2ind,,,drop=F],
+   ribo=ribo_matrix[satb2ind,,drop=FALSE],
+   MS=expr_array[satb2ind,,,drop=FALSE],
    ms_params=ms_params,
 )%>%plot_LL+ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfit$par,3),collapse=';'))
 
 
 with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
    par=c(constr_fit[1:2,]),
-   ribo=ribo_matrix[satb2ind,,drop=F],
-   MS=expr_array[satb2ind,,,drop=F],
+   ribo=ribo_matrix[satb2ind,,drop=FALSE],
+   MS=expr_array[satb2ind,,,drop=FALSE],
    ms_params=ms_params,
 )
 
 with_vectargs(nLL_model_plot,ldeg,prot0)(
    par=constr_fit$par,
-   ribo=ribo_matrix[satb2ind,,drop=F],
-   MS=expr_array[satb2ind,,,drop=F],
+   ribo=ribo_matrix[satb2ind,,drop=FALSE],
+   MS=expr_array[satb2ind,,,drop=FALSE],
    rTE=100,
    ms_params=ms_params,
 )%>%plot_LL+ggtitle('constrained fit rTE=100',sub=paste0(c('ldeg','prot0'),' = ',round(fTEfit$par,3),collapse=';'))
@@ -455,13 +456,13 @@ gnames <- exprdata$gene_id%>%unique%>%.[ginds]
 fTEfits <- mclapply( ginds ,function(gind) {safely(optim)(
    fn=with_vectargs(nLL_model,ldeg,prot0,rTE),
    par=c(log(0.1),expr_array[gind,,][[1]],100),
-   ribo=ribo_matrix[gind,,drop=F],
-   MS=expr_array[gind,,,drop=F],
+   ribo=ribo_matrix[gind,,drop=FALSE],
+   MS=expr_array[gind,,,drop=FALSE],
    ms_params=ms_params,
    method='L-BFGS-B',
    lower = c(-20,1,1e-12),
    upper= c(0,+Inf,+Inf),
-   hessian=T,
+   hessian=TRUE,
    control=list(trace=1)
    )
 })
@@ -470,12 +471,12 @@ fTEfits <- mclapply( ginds ,function(gind) {safely(optim)(
 fTEfits_svar <- mclapply( ginds ,function(gind) {safely(optim)(
    fn=with_vectargs(nLL_model_svar,ldeg,prot0,rTE,msvar),
    par=c(log(0.1),expr_array[gind,,][[1]],1,1),
-   ribo=ribo_matrix[gind,,drop=F],
-   MS=expr_array[gind,,,drop=F],
+   ribo=ribo_matrix[gind,,drop=FALSE],
+   MS=expr_array[gind,,,drop=FALSE],
    method='L-BFGS-B',
    lower = c(-20,1,1e-12,1e-12),
    upper= c(0,+Inf,+Inf,10),
-   hessian=T,
+   hessian=TRUE,
    control=list(trace=1)
    )
 })
@@ -486,8 +487,8 @@ fTEfitsmle <- mclapply( ginds ,function(gind) {
    minuslogl=nLL_model,
    start=list(ldeg=log(0.1),prot0=expr_array[gind,,][[1]],rTE=100),
    fixed=list(
-      ribo=ribo_matrix[gind,,drop=F],
-      MS=expr_array[gind,,,drop=F],
+      ribo=ribo_matrix[gind,,drop=FALSE],
+      MS=expr_array[gind,,,drop=FALSE],
       ms_params=ms_params
    ),
    method='L-BFGS-B',
@@ -511,8 +512,8 @@ fTEfits <- mclapply( ginds[1] ,function(gind) {
    minuslogl=nLL_model,
    start=list(ldeg=log(0.1),prot0=expr_array[gind,,][[1]],rTE=100),
    fixed=list(
-      ribo=ribo_matrix[gind,,drop=F],
-      MS=expr_array[gind,,,drop=F],
+      ribo=ribo_matrix[gind,,drop=FALSE],
+      MS=expr_array[gind,,,drop=FALSE],
       ms_params=ms_params
    ),
    method='L-BFGS-B',
@@ -535,7 +536,7 @@ freeest_df<-fTEfits%>%
    map(enframe,name='var',value='est')%>%
    bind_rows(.id='gene_id')%>%
    spread(var,est)%>%
-   mutate(Gene_Name=fct_other(gene_id,'Satb2'))%T>%print
+   mutate(Gene_Name=fct_other(gene_id,'Satb2'))%TRUE>%print
  
 
 #get estimates of parameter values
@@ -547,7 +548,7 @@ freeest_df<-fTEfits_svar%>%
    map(enframe,name='var',value='est')%>%
    bind_rows(.id='gene_id')%>%
    spread(var,est)%>%
-   mutate(Gene_Name=fct_other(gene_id,'Satb2'))%T>%print
+   mutate(Gene_Name=fct_other(gene_id,'Satb2'))%TRUE>%print
  
 freeest_df$rTE%>%log10%>%keep(~ . > -5) %>% hist(50)
 
@@ -567,15 +568,15 @@ igeneind=7
 
 with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
    par=fTEfits[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
    ms_params=ms_params,
 )%>%plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfits[[igeneind]]$result$par,3),collapse=';'))
 
 #find the one with the weird ribo at timepoint 2
 igeneind <- exprdata%>%group_by(gene_name,time)%>%summarise(time_sd=sd(c(ribo1,ribo2)))%>%
    summarise(oratio =  time_sd[time=='E145'] / 4*(mean(time_sd)))%>%ungroup%>%slice(which.max(oratio))%>%
-   .$gene_name%>%unique%T>%print%>%
+   .$gene_name%>%unique%TRUE>%print%>%
    `==`(gnames,.)%>%which
 0
 options(error=NULL)
@@ -594,8 +595,8 @@ igeneind = which(gnames==ribodevgenes[3])
 
 with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
    par=fTEfits[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
    ms_params=ms_params,
 )%>%plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfits[[igeneind]]$result$par,3),collapse=';'))
 
@@ -606,8 +607,8 @@ igeneind =
 
 with_vectargs(nLL_model_svar_plot,ldeg,prot0,rTE,msvar)(
    par=fTEfits_svar[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
 )%>%plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfits_svar[[igeneind]]$result$par,3),collapse=';'))
 
 
@@ -636,12 +637,12 @@ fTEfits_rtefix <- mclapply( ginds ,function(gind) {safely(optim)(
    fn=with_vectargs(nLL_model_svar,ldeg,prot0,msvar),
    par=c(log(0.1),expr_array[gind,,][[1]],1),
    rTE= -1,
-   ribo=ribo_matrix[gind,,drop=F],
-   MS=expr_array[gind,,,drop=F],
+   ribo=ribo_matrix[gind,,drop=FALSE],
+   MS=expr_array[gind,,,drop=FALSE],
    method='L-BFGS-B',
    lower = c(-20,1,0.00001),
    upper= c(0,+Inf,10),
-   hessian=T,
+   hessian=TRUE,
    control=list(trace=1)
    )
 })
@@ -652,12 +653,12 @@ fTEfits_degfix <- mclapply( ginds ,function(gind) {safely(optim)(
    fn=with_vectargs(nLL_model_svar,prot0,msvar,rTE),
    par=c(expr_array[gind,,][[1]],1,0.1),
    ldeg= 0,
-   ribo=ribo_matrix[gind,,drop=F],
-   MS=expr_array[gind,,,drop=F],
+   ribo=ribo_matrix[gind,,drop=FALSE],
+   MS=expr_array[gind,,,drop=FALSE],
    method='L-BFGS-B',
    lower = c(1,0.00001,1,1e-12),
    upper= c(+Inf,10,+Inf),
-   hessian=T,
+   hessian=TRUE,
    control=list(trace=1)
    )
 })
@@ -678,24 +679,24 @@ igeneind <- which(gnames==igene)
 #plot the fixed TE fit
 with_vectargs(nLL_model_svar_plot,ldeg,prot0,msvar)(
    par=fTEfits_rtefix[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
    rTE=-1
 )%>% plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','msvar'),' = ',round(fTEfits_rtefix[[igeneind]]$result$par,3),collapse=';'))
 
 #plot the free fit
 with_vectargs(nLL_model_svar_plot,ldeg,prot0,rTE,msvar)(
    par=fTEfits_svar[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
 )%>%plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE','msvar'),' = ',round(fTEfits_svar[[igeneind]]$result$par,3),collapse=';'))
 c
 
 #and the fixed degredation
 with_vectargs(nLL_model_svar_plot,prot0,msvar,rTE)(
    par=fTEfits_degfix[[igeneind]]$result$par,
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
    ldeg=0,
 )%>%plot_LL + ggtitle('free fit',sub=paste0(c('prot0','msvar','rTE'),' = ',round(fTEfits_degfix[[igeneind]]$result$par,3),collapse=';'))
 
@@ -711,8 +712,8 @@ igeneind=3915
 #plot the free fit
 with_vectargs(nLL_model_svar,ldeg,prot0,rTE,msvar)(
    par=fTEfits_svar[[igeneind]]$result$par%>%{.},
-   ribo=ribo_matrix[igeneind,,drop=F],
-   MS=expr_array[igeneind,,,drop=F],
+   ribo=ribo_matrix[igeneind,,drop=FALSE],
+   MS=expr_array[igeneind,,,drop=FALSE],
 )
 # dnormcall <- as.list(body(nLL_model))%>%{.[[length(.)-1]][[3]][[2]][[2]]}
 # dnormcall<-c( quote(list),dnormcall$mean,dnormcall$sd)
@@ -731,7 +732,7 @@ with_vectargs(nLL_model_svar,ldeg,prot0,rTE,msvar)(
 
 # D <- matrix(10^c(0:4))
 # Di <- matrix(10^c(-(0:4)))
-# L <- lower.tri(diag(5),d=T)
+# L <- lower.tri(diag(5),d=TRUE)
 # o <- matrix(rep(1,5))
 
 
