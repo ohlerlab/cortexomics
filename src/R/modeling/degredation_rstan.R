@@ -24,16 +24,17 @@ simulate_data <- function(ldeg,rTE,ribo,prot0,ms_sd=1,n_reps=K){
 }
 
 #some basic patterns for the synthesis change pattern
-tps = 5
 ribopatterns = list(
   increasing=c(100,100,1000,1000,8000),
   stable=c(200,200,200,200,200),
   decreasing=c(3000,3000,100,100,50)
 )
+
 #constants describing data shape
 tps = 5
 n_genes = 1
 K = 3
+
 #mostly increasing, a few stable/decreasing genes
 ribopatinds <- sample(1:3,n_genes,rep=T,prob=c(.9,.05,.05))
 ribopatinds <- c(1)
@@ -54,8 +55,8 @@ ms0=ribo[,1]*exp(rnorm(n_genes,0,3))*rTEmu
 simdata <- map_df(1:n_genes,~simulate_data(
   log(degs[.]),
   rTEs[.],
-  ribo[.,],
-  ms_sd=0.01,
+  ribo[.,T],
+  ms_sd=10,
   prot0=(ribo[,1]*rTE)/2)
 )
 
@@ -63,9 +64,13 @@ ms_array <- simdata$MS%>%simplify2array%>%aperm(c(1,2,3))
 ribo_mat <- simdata$ribo%>%simplify2array()
 simdata$prot0
 
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+
+
 stanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
                                                           MS=ms_array,ribo=ribo_mat),
-                       control=list(adapt_delta=0.90,max_treedepth=15),
+                       control=list(adapt_delta=0.90,max_treedepth=20),
                        chains=4,iter=1e3,
                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
                        verbose=TRUE)
@@ -192,4 +197,4 @@ pairs(funnel_reparam, pars = c("y", "x[1]", "lp__"), las = 1) # below the diagon
 
 
 #ldeg_rTE parameter did NOT help, it just blows up to minus infinity
-
+#' Looks like scaling of the standard deviation makes things work just fine

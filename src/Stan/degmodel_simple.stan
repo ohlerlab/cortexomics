@@ -40,6 +40,7 @@ transformed parameters {
 model{
   #priors
   ms0logratio ~ normal(0,20);
+  log(tau) ~ normal(0,10);
   
   for(t in 1:T){//for each tp
     for(k in 1:K){//for each replicate
@@ -47,5 +48,4 @@ model{
     }
   }
   
-    // exp(tau) ~ lognormal(0.1,10);
 }
