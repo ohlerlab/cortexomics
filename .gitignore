@@ -34,3 +34,6 @@ archived_res
 *riboseqres*txt
 *ribodiff_counts*txt
 *.pkl
+pipeline/
+.DS_Store
+.DS_Store
