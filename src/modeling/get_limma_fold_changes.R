@@ -16,7 +16,7 @@ argv <- c(
   foldchangesfile='exprdata/limma_fold_changes.txt'
 )
 
-argv<- commandArgs(trailingOnly=TRUE)
+# argv<- commandArgs(trailingOnly=TRUE)
 
 for(i in names(argv)) assign(i, argv[i])
 
@@ -64,6 +64,67 @@ coeffstoexport%>%
   select(gene_name=gene,logFC,coefficient)%>%
   spread(coefficient,logFC)%>%
   write_tsv(paste0(foldchangesfile)%T>%message)
+
+
+
+#fit a linear model on 
+designmatrix%<>%mutate(ribo = assay %in%c('MS','ribo') )
+designmatrix%<>%mutate(MS = assay %in%c('MS') )
+
+rmscols <- designmatrix%>%filter(ribo|MS)%>%.$dataset
+
+fit_full <- lmFit(exprmatrix[,T],
+   model.matrix( ~ time + ribo + ribo:time + MS + MS:time , designmatrix))
+
+
+
+model.matrix( ~ time + MS, designmatrix%>%filter(dataset%in%rmscols))
+model.matrix( ~ time + MS + MS:time, designmatrix%>%filter(dataset%in%rmscols))
+
+rfit_linear <- lmFit(exprmatrix[,rmscols],
+   model.matrix( ~ time + MS, designmatrix%>%filter(dataset%in%rmscols)))
+
+rfit_mschange <- rfit_linear <- lmFit(exprmatrix[,rmscols],
+   model.matrix( ~ time + MS + time:MS , designmatrix%>%filter(dataset%in%rmscols)))
+
+
+allcoefftbl <- rfit_linear$coefficients
+
+
+dim(fit$design)
+dim(fit$coefficients)
+
+predictions <- fit$coefficients%*%t(fit$design)%>%set_colnames(rmscols)
+
+
+
+
+#fit a linear and full model on the MS
+
+#now use func to get the predicted vals for each model
+
+#plot linear fit vs the full fit
+
+#try using hdbscan to cluster out data
+pca <- princomp(fit_full$coefficients%>%as.data.frame%>%select(matches('time')))
+
+plot(pca)
+pca
+
+cl <- dbscan::hdbscan(pca$scores, minPts = 20)
+cl <- dbscan::hdbscan(fit_full$coefficients, minPts = 20)
+cl <- dbscan::hdbscan(fit_full$coefficients, minPts = 20)
+dbscan::hdbscan(rfit_linear$coefficients, minPts = 20)
+dbscan::hdbscan(rfit_mschange$coefficients, minPts = 20)
+
+
+predictions <- fit_full$coefficients%*%t(fit_full$design)%>%set_colnames(designmatrix$dataset)
+
+
+fit_full$coefficients %>% as.data.frame%>%rownames_to_column('gene_id') %>% gather(dataset,signal,-gene_id)%>%
+  separate(dataset,c('time','assay','rep'))  
+
+
 
 
 # #plot the stochiometry heatmap
