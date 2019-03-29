@@ -79,26 +79,19 @@ exprdata%>%
 library(zoo)
 # 
 tps <- c('E13','E145','E16','E175','P0')
-gnamei <- 'Satb2'
+
+gnamei <- exprdata%>%.$gene_name%>%sample(1)
+
 realdata <- list(
    G=1,T=length(tps),K=3,
    # gene_name=gnamei,
    MS=exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='MS')%>%.$signal%>%array(dim=c(3,5,1))%>%aperm(c(1,2,3))%>%{2^.},
-   ribo =matrix(exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.})
+   # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
+   ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%matrix
 )
-matrix(
-  exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)
-       )%>%
-  
-  
-# 
-# stanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
-#                                                           MS=ms_array,ribo=ribo_mat),
-#                        control=list(adapt_delta=0.95,max_treedepth=20),
-#                        chains=4,iter=2e3,
-#                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-#                        verbose=TRUE)
 
+  
+#Fit non-hierarchical model 
 realstanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
             control=list(adapt_delta=0.95,max_treedepth=20),
             chains=4,iter=2e3,
@@ -145,8 +138,8 @@ get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%r
 #get maximim likelihood (kinda) and mean values from our two models
 parsed_ml<-realstanfit%>%get_ml_stanfit
 parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
-parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=mean)
-parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=mean)
+parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=`50%`)
+parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=`50%`)
 #function to pull out the mcmc samples for plotting 
 get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
   filter(parameter=='prot')%>%select(time,value,sample)
@@ -164,32 +157,33 @@ protsampleslin<- get_prot_samples(realstanfit_lin)%>%mutate(sample=factor(sample
 protsamples<- get_prot_samples(realstanfit)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))
 
 #plot showing trajectories and fits with MCMC samples 
-trajectoryplot<-ggplot(rdata2plot%>%mutate(model='Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+geom_point()+
+trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+geom_point()+
   geom_line(size=I(1),data=ml2plot%>%mutate(model='Kinetic'),linetype=1)+
   geom_line(size=I(1),data=ml2plot_lin%>%mutate(model='Linear'),linetype=1)+
   geom_line(alpha=I(0.005),data=protsampleslin,aes(group=sample))+
   geom_line(alpha=I(0.005),data=protsamples,aes(group=sample))+
-  
   # geom_line(size=I(2),data=get_prot_samples(ml2plot_lin)%>%mutate(model='Linear'),linetype=1)+
   scale_x_continuous(name='Stage',labels=tps)+
-  scale_y_continuous(name='Log2 LFQ')+
-  scale_color_manual(values = c('Kinetic'='red','Linear'='blue','Data'='black'))+
+  scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
+  scale_color_manual(values = c('Kinetic'='red','Linear'='blue','MS Data'='black','Riboseq Data'='dark green'))+
   theme_bw()+
-  ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior")
+  geom_line(data=exprdata%>%filter(gene_name==gnamei,assay=='ribo',!is.na(predicted_signal))%>%mutate(signal=2^predicted_signal,model='Riboseq Data'))+
+  ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
   
 
 trajectoryplot
 
 gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
+
 arrangedplot<-gridExtra::grid.arrange(
   trajectoryplot,
-    realstanfit%>%as.data.frame%>%.$`rTE[1]`%>%qplot(bins=50,main='Posterior Distribution - rTE Satb2')+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main='Posterior Distribution - log(degredation / 1.5 days) Satb2')+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`deg[1]`%>%qplot(bins=50,main='Posterior Distribution - degredation / 1.5 days Satb2')+theme_bw()
-,layout_matrix=gglayout)
+    realstanfit%>%as.data.frame%>%.$`rTE[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - rTE ${gnamei}'))+theme_bw(),
+  realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main='Posterior Distribution - log(degredation / 1.5 days) ${gnamei}')+theme_bw(),
+  realstanfit%>%as.data.frame%>%.$`deg[1]`%>%qplot(bins=50,main='Posterior Distribution - degredation / 1.5 days ${gnamei}')+theme_bw(),
+layout_matrix=gglayout)
 
-ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePath(.)%>%message},arrangedplot,w=12,h=10,)
-
+arrangedplot
+ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePath(.)%>%message},arrangedplot,w=12,h=10)
 
 
 # 

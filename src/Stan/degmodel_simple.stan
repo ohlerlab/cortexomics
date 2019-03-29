@@ -36,7 +36,8 @@ transformed parameters {
   prot[1] = MS0;
   
   for(t in 2:T){
-    prot[t] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
+    // prot[t] = ((((ribo[t]+ribo[t-1])/2) .* rTE)) + ((prot[t-1,]) .* (1-deg));
+    // prot[t] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
   } 
 
 }

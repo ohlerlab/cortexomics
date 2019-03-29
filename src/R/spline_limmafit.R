@@ -1,5 +1,4 @@
 library(tidyverse)
-library(tidyverse)
 library(magrittr)
 library(data.table)
 library(stringr)
@@ -218,7 +217,7 @@ modelpreddf%>%left_join(data_frame(gene_name=rownames(difftecoeffs),cluster=diff
       select(gene_name,time,assay,predicted_signal_full_step,cluster)%>%
     filter(!is.na(predicted_signal_full_step))%>%
     filter(!is.na(cluster))%>%
-  group_by(cluster)%>%mutate(clustern=paste0('Cluster_',LETTERS[cluster+1],' n = ',n_distinct(gene_name)))%>%
+  group_by(cluster)%>%mutate(clustern=paste0('Cluster_',LETTERS[cluster],' n = ',n_distinct(gene_name)))%>%
     group_by(gene_name,assay)%>%
         mutate(predicted_signal_full_step = predicted_signal_full_step-mean(predicted_signal_full_step,na.rm=T))%>%
       ggplot(aes(x=as_factor(time),y=predicted_signal_full_step,group=gene_name,color=as.factor(clustern)))+

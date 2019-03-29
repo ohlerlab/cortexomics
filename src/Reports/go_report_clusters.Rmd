@@ -7,28 +7,43 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
-load('~/projects/cortexomics/cluto_clusts.Rdata')
+library(tidyverse)
+library(magrittr)
+library(data.table)
+library(stringr)
+library(magrittr)
+library(splines)
+
+load('~/projects/cortexomics/data/cluto_clusts.Rdata')
 ```
 
-## R Markdown
+##Clusters - CLUTO, Transformed Expr Data
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r Cluster trajectory plot,fig.width=12,fig.height=8,cache=T}
+make_cluster_trajplots(clutoclustlist_filt[[13]]$cluster)
+```
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## GO term enrichment per cluster
 
+```{r Go Enirched GO terms,results='asis'}
 
-```{r Go Enirched GO terms,asis=TRUE}
 go_enrichmenttables <- list(
   goenrichmentsbp,
   goenrichmentsmf,
   goenrichmentscc
 )
-for(onttable in go_enrichmenttables){
-  DT::datatable(onttable)
+
+for(onttable in go_enrichmenttables[1]){
+  for(cluster in names(onttable[1:2])){
+    cat(str_interp('\n### Cluster: ${cluster}'))
+   # DT::datatable(onttable[[cluster]])
+    knitr::kable(onttable[[cluster]])
+   # cat(knitr::knit_child(text = knitr::knit_expand('knitr::kable(onttable[[cluster]])'),envir = globalenv(),quiet=T))
+  }
 }
 ```
 
-
+##Clusters - Relationships by GO shared terms
 
 ```{r Go Enrichment Cladograms}
 for(on in c('BP','CC','MF')){
