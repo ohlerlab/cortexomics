@@ -18,7 +18,8 @@ simulate_data <- function(ldeg,rTE,ribo,prot0,ms_sd=1,n_reps=K){
   }
   prot
 
-  MS=replicate(n_reps,{rnorm(n=seq_along(prot),mean=prot,sd=ms_sd)})
+  # MS=replicate(n_reps,{exp(rnorm(n=seq_along(prot),mean=logprot),sd=ms_sd))})
+  MS=replicate(n_reps,{(rnorm(n=seq_along(prot),mean=prot,sd=ms_sd))})
 
   data_frame(ldeg=ldeg,rTE=rTE,ribo=list(ribo),prot0=prot0,ms_sd=ms_sd,MS=list(MS))
 }
@@ -67,22 +68,137 @@ simdata$prot0
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
 
+#get the names of some increasing rna dudes
+exprdata%>%
+  group_by(gene_name)%>%
+  filter(rep==1,assay=='total')%>%
+  filter(signal[5] > 3+signal[1])%>%.$gene_name%>%
+  sample(10)
 
-stanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
-                                                          MS=ms_array,ribo=ribo_mat),
-                       control=list(adapt_delta=0.90,max_treedepth=20),
-                       chains=4,iter=1e3,
-                       # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-                       verbose=TRUE)
-stanfit
-stop()
+#we need a 
+library(zoo)
 # 
-stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
-                        MS=ms_array,ribo=ribo_mat),
-                       control=list(adapt_delta=0.90,max_treedepth=10),
-                       chains=4,iter=2e3,
-                       # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-                       verbose=TRUE)
+tps <- c('E13','E145','E16','E175','P0')
+gnamei <- 'Satb2'
+realdata <- list(
+   G=1,T=length(tps),K=3,
+   # gene_name=gnamei,
+   MS=exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='MS')%>%.$signal%>%array(dim=c(3,5,1))%>%aperm(c(1,2,3))%>%{2^.},
+   ribo =matrix(exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.})
+)
+matrix(
+  exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)
+       )%>%
+  
+  
+# 
+# stanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=list(G=n_genes,T=tps,K=K,
+#                                                           MS=ms_array,ribo=ribo_mat),
+#                        control=list(adapt_delta=0.95,max_treedepth=20),
+#                        chains=4,iter=2e3,
+#                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+#                        verbose=TRUE)
+
+realstanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
+            control=list(adapt_delta=0.95,max_treedepth=20),
+            chains=4,iter=2e3,
+            # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+            verbose=TRUE)
+
+#now fit linear model
+realstanfit_lin <- rstan::stan(file='src/Stan/degmodel_simple_linear.stan',data=realdata,
+                           control=list(adapt_delta=0.95,max_treedepth=20),
+                           chains=4,iter=2e3,
+                           # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+                           verbose=TRUE)
+##Now with fixed values
+realstanfit_test <- rstan::stan(file='src/Stan/degmodel_simple_linear.stan',data=realdata,
+                               control=list(adapt_delta=0.95,max_treedepth=20),
+                               init = list(list(lrTE=array(0,dim=c(1)))),
+                               chains=1,iter=1,warmup = 0,
+                               # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+                               verbose=TRUE)
+
+stanpars <- colnames(as.data.frame(realstanfit))
+
+realdata$MS
+
+parse_stan_pars<-function(stanpars,indnames=c()){
+  parsedpars<-stanpars%>%str_match('([^\\[]+)\\[?(\\d*),?(\\d*)\\]?')%>%as.data.frame%>%
+    .[,-1]
+  n_inds <- length(colnames(parsedpars))-1
+
+    parsedpars[,-1]%>%.[,]%>%apply(1,function(x){k = keep(x,~ . !='');c(rep(NA,n_inds-length(k)),k)})%>%t%>%
+            set_colnames(c('time','gene'))%>%
+            as.data.frame%>%
+            map_df(.,as.integer)%>%
+          mutate(parameter=parsedpars[,1])%>%
+      select(parameter,time,gene)%>%
+      split(.,seq_len(nrow(.)))
+
+}
+#get maximim likelihood (kinda) and mean values from our two models, with these functions
+get_ml_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
+get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest
+#get_samples_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
+
+#get maximim likelihood (kinda) and mean values from our two models
+parsed_ml<-realstanfit%>%get_ml_stanfit
+parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
+parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=mean)
+parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=mean)
+#function to pull out the mcmc samples for plotting 
+get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
+  filter(parameter=='prot')%>%select(time,value,sample)
+#e.g.
+#realstanfit %>% get_prot_samples
+
+
+rdata2plot<-realdata$MS%>%as.data.frame%>%set_colnames(tps)%>%mutate(rep=1:3)%>%gather(time,signal,-rep)
+
+ml2plot<-parsed_ml%>%filter(parameter=='prot')%>%transmute(time=as_factor(tps[time]),signal=(val))
+ml2plot_lin<-parsed_ml_lin%>%filter(parameter=='prot')%>%transmute(time=as_factor(tps[time]),signal=(val))
+parsed_summ%>%filter(gene%in%c(1,NA))%>%filter(parameter=='prot',gene==1)
+
+protsampleslin<- get_prot_samples(realstanfit_lin)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Linear'))
+protsamples<- get_prot_samples(realstanfit)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))
+
+#plot showing trajectories and fits with MCMC samples 
+trajectoryplot<-ggplot(rdata2plot%>%mutate(model='Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+geom_point()+
+  geom_line(size=I(1),data=ml2plot%>%mutate(model='Kinetic'),linetype=1)+
+  geom_line(size=I(1),data=ml2plot_lin%>%mutate(model='Linear'),linetype=1)+
+  geom_line(alpha=I(0.005),data=protsampleslin,aes(group=sample))+
+  geom_line(alpha=I(0.005),data=protsamples,aes(group=sample))+
+  
+  # geom_line(size=I(2),data=get_prot_samples(ml2plot_lin)%>%mutate(model='Linear'),linetype=1)+
+  scale_x_continuous(name='Stage',labels=tps)+
+  scale_y_continuous(name='Log2 LFQ')+
+  scale_color_manual(values = c('Kinetic'='red','Linear'='blue','Data'='black'))+
+  theme_bw()+
+  ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior")
+  
+
+trajectoryplot
+
+gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
+arrangedplot<-gridExtra::grid.arrange(
+  trajectoryplot,
+    realstanfit%>%as.data.frame%>%.$`rTE[1]`%>%qplot(bins=50,main='Posterior Distribution - rTE Satb2')+theme_bw(),
+  realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main='Posterior Distribution - log(degredation / 1.5 days) Satb2')+theme_bw(),
+  realstanfit%>%as.data.frame%>%.$`deg[1]`%>%qplot(bins=50,main='Posterior Distribution - degredation / 1.5 days Satb2')+theme_bw()
+,layout_matrix=gglayout)
+
+ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePath(.)%>%message},arrangedplot,w=12,h=10,)
+
+
+
+# 
+# stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
+#                         MS=ms_array,ribo=ribo_mat),
+#                        control=list(adapt_delta=0.90,max_treedepth=10),
+#                        chains=4,iter=2e3,
+#                        # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+#                        verbose=TRUE)
 
 
 # 
@@ -125,7 +241,7 @@ print(pairs(stanfit,pars=parstoplot))
 plot(stanfit,pars=parstoplot%>%str_subset('prot'))
 
 
-pairs(stanfit,pars=allpars%>%str_subset('prot|_|tau'))
+pairs(realstanfit,pars=allpars%>%str_subset('prot|_|tau'))
 
 pdf('tmp.pdf');pairs(stanfit,pars=parstoplot);dev.off()
 pdf('tmp.pdf');pairs(stanfit,pars=parstoplot%>%str_subset('prot|_'));dev.off()
@@ -198,3 +314,4 @@ pairs(funnel_reparam, pars = c("y", "x[1]", "lp__"), las = 1) # below the diagon
 
 #ldeg_rTE parameter did NOT help, it just blows up to minus infinity
 #' Looks like scaling of the standard deviation makes things work just fine
+#' Now I"ll try putting things on a log scale
