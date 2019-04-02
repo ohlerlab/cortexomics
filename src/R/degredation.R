@@ -1,6 +1,9 @@
 library(purrr)
 library(ggExtra)
 library(ggpubr)
+library(tidyverse)
+library(zeallot)
+
 
 #sim some data
 tps = 5
@@ -26,35 +29,6 @@ for (i in 2:length(ms)){
 	ms[i] = (rTE*mean(ribo[i],ribo[i-1]))+(ms[i-1]*deg)
 }
 
-optimwrap <- function (minuslogl, start = formals(minuslogl), method = "BFGS",
-    fixed = list(), nobs, ...)
-{
-    call <- match.call()
-    n <- names(fixed)
-    fullcoef <- formals(minuslogl)
-    if (any(!n %in% names(fullcoef)))
-        stop("some named arguments in 'fixed' are not arguments to the supplied log-likelihood")
-    fullcoef[n] <- fixed
-    if (!missing(start) && (!is.list(start) || is.null(names(start))))
-        stop("'start' must be a named list")
-    start[n] <- NULL
-    start <- sapply(start, eval.parent)
-    nm <- names(start)
-    oo <- match(nm, names(fullcoef))
-    if (anyNA(oo))
-        stop("some named arguments in 'start' are not arguments to the supplied log-likelihood")
-    start <- start[order(oo)]
-    nm <- names(start)
-    f <- function(p) {
-        l <- as.list(p)
-        names(l) <- nm
-        l[n] <- fixed
-        do.call("minuslogl", l)
-    }
-    oout <- if (length(start))
-        optim(start, f, method = method, hessian = TRUE, ...)
-}
-
 
 #function simulating ms given a degredation constant, a constant value for rTE, starting ms, the riboseq,
 simulate_data <- function(deg,rTE,ribo,ms0){
@@ -65,7 +39,7 @@ simulate_data <- function(deg,rTE,ribo,ms0){
 		ms[i] = ms[i-1]+ (rTE*mean(ribo[i],ribo[i-1]))-(ms[i-1]*deg) 
 	}
 	ms
-	simdata <- data.frame(trans=ribo,time=1:tps,ms,
+	simdata <- data_frame(trans=ribo,time=1:tps,ms,
 		ribo_1=rpois(n=seq_along(ribo),lambda=rnorm(n=seq_along(ribo),mean=ribo,sd=1)),
 		ribo_2=rpois(n=seq_along(ribo),lambda=rnorm(n=seq_along(ribo),mean=ribo,sd=1)),
 		ms_1=rnorm(n=seq_along(ms),mean=ms,sd=ms*0.2),
@@ -108,7 +82,6 @@ ribo = sample(ribopatterns,1)[[1]]
 ms0 = ribo[1] * rTE * (1/deg)
 #now simulate data
 simulate_data(log(deg),rTE,ribo,ms0)
-
 
 ggarrange(
 	simdata%>%select(-trans,-ms)%>%gather(assay,value,-time)%>%separate(assay,into=c('assay','rep'))%>%
@@ -178,7 +151,7 @@ test1dconfints<-function(logrealdeg,realrTE,realprot0,ribo,
 
 	interval<-data.frame(value=fit$par[1], upper=upper, lower=lower)
 
-	data.frame(
+	data_frame(
 		deginconf=between(logrealdeg,interval$lower[1],interval$upper[1]),
 		degdist = sqrt(((logrealdeg - fit$par[1])/logrealdeg)^2),#distance actual estimate
 		degup=exp(interval$upper[1]),deglow=exp(interval$lower[1]),
@@ -203,7 +176,7 @@ reps<-replicate(simp=FALSE,100,{
 )
 
 #show as a table
-reptable<-reps%>%setNames(.,seq_along(.))%>%keep(~ ! any(is.na(.)))%>%bind_rows%>%mutate(estprot0/realprot0)%>%arrange(logrealdeg)
+reptable<-reps%>%setNames(.,seq_along(.))%>%bind_rows%>%mutate(estprot0/realprot0)%>%arrange(logrealdeg)
 
 reptable$deginconf%>%mean
 
@@ -281,7 +254,7 @@ ggpubr::ggarrange(
 dev.off()
 
 
-exprtable<-fread('./exprdata/transformed_data.txt')
+exprtable<-fread('exprdata/transformed_data.txt')
 ribocols <- exprtable%>%colnames%>%str_subset('ribo')
 
 sampdata<-exprtable%>%select(gene_name,one_of(ribocols))%>%
@@ -327,9 +300,9 @@ log.lklh.prot <- function(data,par){
 	))
 }
 
-# prot[1] = ms0
-# prot[2] = ms0 * exp(deg*1) + rTE*ribo * exp(deg*0)
-# prot[3] = ms0 * exp(deg*2) + rTE*ribo[1,2]* exp(deg*1) + rTE*ribo[2,3* exp(deg*0)
+prot[1] = ms0
+prot[2] = ms0 * exp(deg*1) + rTE*ribo * exp(deg*0)
+prot[3] = ms0 * exp(deg*2) + rTE*ribo[1,2]* exp(deg*1) + rTE*ribo[2,3* exp(deg*0)
 
 #Now with real data....
 
@@ -339,13 +312,13 @@ log.lklh.prot <- function(data,par){
 
 #update our prior distributions of these, weighting the observations by the inverse squared standard error (I think?)
 
-#Now, update 
-exprdata_all<-fread('./exprdata/transformed_data.txt')
-mscols <- exprdata_all%>%colnames%>%str_subset('MS_')
-ribocols <- exprdata_all%>%colnames%>%str_subset('ribo_')
+#Now, update
+exprdata<-fread('exprdata/transformed_data.txt')
+mscols <- exprdata%>%colnames%>%str_subset('MS_')
+ribocols <- exprdata%>%colnames%>%str_subset('ribo_')
 
 
-ms_tall<-exprdata_all%>%
+ms_tall<-exprdata%>%
 	select(one_of(mscols),gene_name)%>%
 	select(1:3,gene_name)%>%
 	gather(dataset,value,-gene_name)%>%
@@ -359,17 +332,14 @@ ms_meansd%>%filter(sd>0.5)%>%ungroup%>%arrange(gene_name)%>%as.data.frame%>%left
 ms_meansd%>%ggplot(aes(x=sd))+geom_histogram()+coord_cartesian(xlim=c(0,0.5))
 ms_meansd%>%ggplot(aes(x=mean,y=sd))+geom_point()+geom_smooth()
 
-exprdatareshape<-exprdata_all%>%select(gene_name,one_of(c(ribocols,mscols)))%>%
+exprdatareshape<-exprdata%>%select(gene_name,one_of(c(ribocols,mscols)))%>%
 	gather(dataset,value,-gene_name)%>%
-	mutate(value = 2^value)%>% ####NOTE I'm de-logging it here... probably not good
+	mutate(value = 2^value)%>%
 	separate(dataset,c('time','assay','rep'))%>%
 	identity%>%
 	group_by(gene_name,time)%>%mutate(datname=paste0(assay,rep))%>%
 	select(-assay,-rep)%>%
 	spread(datname,value)
-
-'Satb2' %in% exprdata_all$gene_name
-'Satb2' %in% exprdatareshape$gene_name
 
 
 nloglikms <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg=log(0.5),rTE = TEinitial,prot0 = sampdata$MS1[1] ){
@@ -396,10 +366,12 @@ nloglikms <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg=log(0.5),rTE = TEinitial,prot
 	))
 }
 
-ugnames <- exprdatareshape$gene_id
+exprdatareshape$gene_name
+
+gene_namei<-ugnames[1]
 
 getcoefestimates<-function(gene_namei){
-	sampdata <-  sampdata%>%ungroup%>%filter(gene_name==gene_namei)
+	sampdata <- exprdatareshape%>%ungroup%>%filter(gene_name==gene_namei)
 	startpars <-list(ldeg=log(0.5),rTE=TEinitial,prot0=sampdata$MS1[1])
 	fixedpars <- list(ribo1=sampdata$ribo1,ribo2=sampdata$ribo2,MS1=sampdata$MS1,MS2=sampdata$MS2,MS3=sampdata$MS3)%>%
 		lapply(na.omit)
@@ -425,38 +397,29 @@ getcoefestimates<-function(gene_namei){
 }
 library(parallel)
 
-ugnames <- exprdatareshape$gene_name%>%unique%>%sample(1000)%>%c('Satb2')%>%unique
+ugnames <- exprdatareshape$gene_name%>%unique%>%sample(1000)
 
 tests<-mclapply(ugnames,function(i) safely(getcoefestimates)(i) )
-tests%<>%setNames(ugnames)
 
-tests%>%map('error')%>%map_lgl(is,'simpleError')%>%table
+tests%>%map('error')%>%map_lgl(is,'simpleError')
+tests%>%map('error')%>%head
 tests%>%map('result')%>%keep(Negate(is.null))
 
-#Plot the distribution of parameter estimates
-tests%>%map('result')%>%
-	keep(Negate(is.null))%>%
-	map(set_rownames,c('deg','rTE','prot0'))%>%
-	map(rownames_to_column,'var')%>%
-	bind_rows%>%
-	filter(var=='rTE')%>%
-	set_colnames(c('var','lower','upper','est'))%>%
+
+
+tests%>%map('result')%>%keep(Negate(is.null))%>%map(set_rownames,c('deg','rTE','prot0'))%>%map(rownames_to_column,'var')%>%bind_rows%>%
+	filter(var=='rTE')%>%set_colnames(c('var','lower','upper','est'))%>%
 	{ ggpubr::ggarrange(nrow=2,
 		ggplot(.,aes(ymin=lower,ymax=upper,y=est,x=seq_along(est)))+geom_pointrange()+coord_cartesian(ylim=c(0,1)),
 		ggplot(.,aes(est))+geom_histogram()+scale_x_continuous(limits=c(0,5)),
 		)
 	}
 
+tests%<>%setNames(ugnames)
 
-
-'Satb2' %in% ugnames
-tests$Satb2
 
 #plot the log distributions of rTE and rDeg.
-indiv_ests <- tests%>%map('result')%>%
-	keep(Negate(is.null))%>%
-	map(set_rownames,c('deg','rTE','prot0'))%>%
-	map(rownames_to_column,'var')%>%bind_rows(.id='gene_name')%>%
+tests%>%map('result')%>%keep(Negate(is.null))%>%map(set_rownames,c('deg','rTE','prot0'))%>%map(rownames_to_column,'var')%>%bind_rows(.id='gene_name')%>%
 	filter(var!='prot0')%>%
 	set_colnames(c('gene_name','var','lower','upper','est'))
 
@@ -1077,16 +1040,3 @@ params_fit <- fit_rTE_degs(exprdata,indiv_ests)
 
 ###Not sure what the most efficient way to strucutre the esxpr data is..
 ####I'll use nest and unnest to start with - easy error handlng etc.
-
-
-#Okay so this is working.... acceptably well.
-#right now I can have my neg log likelihood function with all arguments sep, and I use optimwrap (just a truncated mle() ) to
-#clobber the function into something optim can pass it's vectors into....
-#I don't know if there's a speed down associated with the function overhead of having the optimized function wrapped like that in the
-#optime loop
-#My plotting function works okay, I should modify it to take seperate vairables again...
-#I've also spent a while trying to get the mass spec variance right - it's too wide right now, from the looks of things.
-#I should insepct that with my plotting function and then do something about it
-#I could try just using the simpler CV = exp(-c) formula for the variance, although the slopes don'' reeeeeaaaaaalllly look even
-#Or I could just leave it...
-#Like, is there a constant variance within a single gene

@@ -174,7 +174,7 @@ nloglikms_matrix <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg,rTE,prot0){
 	for (i in 2:tps){
 		prot[i,] <- prot[i-1,] + (rTE*trans[i,]) - (prot[i-1,]*deg)
 	}
-	
+
 	prot <- log2(prot+1)
 	-sum(c(
 		dnorm(log2(MS1),mean=prot,sd=0.1,log=T),
@@ -182,6 +182,12 @@ nloglikms_matrix <- function(ribo1,ribo2,MS1,MS2,MS3,ldeg,rTE,prot0){
 		dnorm(log2(MS3),mean=prot,sd=0.1,log=T)
 	))
 }
+
+
+#what we want to do is a pick a subset of the most expressed genes,
+#
+
+
 
 Lorenz<-function(t, state, parameters) {
 	with(as.list(c(state, parameters)),{
@@ -198,4 +204,7 @@ Lorenz<-function(t, state, parameters) {
 
 
 
+
+#Optimization strategy:
+# We're going to iteratively optimize rTE 
 

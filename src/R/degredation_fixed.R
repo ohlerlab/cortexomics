@@ -16,7 +16,7 @@ with_vectargs <- function (FUN, ... ) {
    .FUN <- FUN
    formals(.FUN) <- as.pairlist(c(list(par=quote(NULL)),as.list(formals(.FUN))))
 
-   #now assign the default for each of our vector arguments, as that element of the vector
+   #now assign the default for each of our vector arguments, as source("", chdir = TRUE)that element of the vector
    for(i in seq_along(vect)){
        vect_argname <- vect[i]
        formals(.FUN)[[vect_argname]] <- parse(text=paste0('par[',i,']',collapse=''))[[1]]
@@ -63,6 +63,14 @@ mlemod <- function(minuslogl, start = formals(minuslogl), method = "BFGS",
         nobs = if (missing(nobs))
             NA_integer_
         else nobs, method = method)
+}
+
+pdfexpr<-function(file,expr,...){
+  dir.create(dirname(file))
+  pdf(file,...)
+  expr
+  dev.off()
+  message(normalizePath(file))
 }
 
 nLL_model <- function(ldeg,prot0,ribo,MS,rTE,ms_params){
@@ -427,12 +435,13 @@ with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
 )%>%plot_LL+ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfit$par,3),collapse=';'))
 
 
-with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
-   par=c(constr_fit[1:2,]),
-   ribo=ribo_matrix[satb2ind,,drop=FALSE],
-   MS=expr_array[satb2ind,,,drop=FALSE],
+with_vectargs(nLL_model_plot,ldeg,prot0)(
+   par=c(constr_fit$par[1:2]),
+   rTE=100,
+   ribo=ribo_matrix[satb2ind,,drop=F],
+   MS=expr_array[satb2ind,,,drop=F],
    ms_params=ms_params,
-)
+)%>%plot_LL+ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfit$par,3),collapse=';'))
 
 with_vectargs(nLL_model_plot,ldeg,prot0)(
    par=constr_fit$par,
@@ -448,7 +457,7 @@ with_vectargs(nLL_model_plot,ldeg,prot0)(
 ############Now optimize with free TE for all genes
 #optimize with free rTE
 ginds = 1:nrow(expr_array)
-ginds = sample(ginds,10)
+#ginds = sample(ginds,10)
 gnames <- exprdata$gene_id%>%unique%>%.[ginds]
 
 
@@ -466,6 +475,7 @@ fTEfits <- mclapply( ginds ,function(gind) {safely(optim)(
    control=list(trace=1)
    )
 })
+fTEfits%<>%setNames(gnames)
 
 ###With optim, and free variance
 fTEfits_svar <- mclapply( ginds ,function(gind) {safely(optim)(
@@ -480,9 +490,10 @@ fTEfits_svar <- mclapply( ginds ,function(gind) {safely(optim)(
    control=list(trace=1)
    )
 })
+fTEfits_svar%<>%setNames(gnames)
 
 #mle works, but then I can't get confints
-fTEfitsmle <- mclapply( ginds ,function(gind) {
+fTEfitsmle <- mclapply( ginds[1:10] ,function(gind) {
    safely(mle)(
    minuslogl=nLL_model,
    start=list(ldeg=log(0.1),prot0=expr_array[gind,,][[1]],rTE=100),
@@ -564,21 +575,19 @@ freeest_df %>%  {
 igeneind <- freeest_df%>%filter(ldeg==0)%>%.$gene_id%>%sample(1)%>%match(gnames)
 
 #plot the free TE fit
-igeneind=7
-
 with_vectargs(nLL_model_plot,ldeg,prot0,rTE)(
    par=fTEfits[[igeneind]]$result$par,
    ribo=ribo_matrix[igeneind,,drop=FALSE],
    MS=expr_array[igeneind,,,drop=FALSE],
    ms_params=ms_params,
-)%>%plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfits[[igeneind]]$result$par,3),collapse=';'))
+)%>% plot_LL + ggtitle('free fit',sub=paste0(c('ldeg','prot0','rTE'),' = ',round(fTEfits[[igeneind]]$result$par,3),collapse=';'))
 
 #find the one with the weird ribo at timepoint 2
 igeneind <- exprdata%>%group_by(gene_name,time)%>%summarise(time_sd=sd(c(ribo1,ribo2)))%>%
    summarise(oratio =  time_sd[time=='E145'] / 4*(mean(time_sd)))%>%ungroup%>%slice(which.max(oratio))%>%
    .$gene_name%>%unique%TRUE>%print%>%
    `==`(gnames,.)%>%which
-0
+
 options(error=NULL)
 testgene <- gnames[igeneind]
 exprdata%>%filter(gene_id==testgene)
@@ -587,8 +596,6 @@ ribo_matrix[igeneind,]
 fTEfits[[igeneind]]
 fTEfits[igeneind]
 freeest_df%>%filter(gene_id==testgene)
-
-0
 
 
 igeneind = which(gnames==ribodevgenes[3])
@@ -629,6 +636,7 @@ ribodevgenes<- exprdata%>%summarize(tmp=abs(ribo1-ribo2)/sum(abs(ribo1)))%>%filt
 
 exprdata%>%select(gene_id,time,ribo1,ribo2)
 
+ginds <- gnames
 
 
 
@@ -647,7 +655,7 @@ fTEfits_rtefix <- mclapply( ginds ,function(gind) {safely(optim)(
    )
 })
 
-
+gind=10
 ###And with the degredation rate fixed at one
 fTEfits_degfix <- mclapply( ginds ,function(gind) {safely(optim)(
    fn=with_vectargs(nLL_model_svar,prot0,msvar,rTE),
@@ -663,18 +671,21 @@ fTEfits_degfix <- mclapply( ginds ,function(gind) {safely(optim)(
    )
 })
 
-gind=igeneind
 
 ###Quick chisq tests comparing likelihood under fixed deg and 
 modelcomppvals <- map(ginds,safely(function(gind){
    ms_degfix <- 2  * fTEfits_degfix[[gind]]$result$value
    ms_freedeg <- 2  * fTEfits_svar[[gind]]$result$value
    Deviance <-  ms_degfix - ms_freedeg
-   1 - pchisq(Deviance,1)
+   pchisq(Deviance,1, lower=FALSE)
 }))%>%map('result')%>%setNames(gnames)%>%keep(Negate(is.null))%>%unlist
+
 
 igene <- modelcomppvals%>%sort%>%tail(3)%>%head(1)%>%names
 igeneind <- which(gnames==igene)
+
+
+
 
 #plot the fixed TE fit
 with_vectargs(nLL_model_svar_plot,ldeg,prot0,msvar)(
@@ -725,7 +736,11 @@ with_vectargs(nLL_model_svar,ldeg,prot0,rTE,msvar)(
 
 
 
-
+new("mle", call = call, coef = coef, fullcoef = unlist(fullcoef), 
+        vcov = vcov, min = min, details = oout, minuslogl = minuslogl, 
+        nobs = if (missing(nobs)) 
+            NA_integer_
+        else nobs, method = method)
 
 
 
@@ -757,10 +772,6 @@ with_vectargs(nLL_model_svar,ldeg,prot0,rTE,msvar)(
 ###My estimate of varianc in the ms look good but there's still a relationship between the mean and variance there.....
 
 ####Maybe I should even do teh steps on the log scale, so that the degredation factor is a constant, not sure how to do this
-
-####Okay, maybe we need to go back and make totally sure that linear fitting can't work.... Let's find hte guys who are most
-#####Strongly loaded on the "MS only" pca, based on the linear fitting..
-#####Also, we should 
 
 #I need to simulate some data and show that my tests are actually finding the ones with degredation kinetics...
 
