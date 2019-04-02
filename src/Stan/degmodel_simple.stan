@@ -12,7 +12,7 @@ parameters {
 
   vector<lower=-20,upper=0>[G] ldeg;  //amount degraded each tp - log scale
   
-  real<lower=0> tau;
+  vector[G] ltau;
   vector[G] lrTE;
   
 }
@@ -23,9 +23,13 @@ transformed parameters {
   vector[G] prot[T];
   vector<lower=0>[G] MS0;
   vector<lower=0>[G] rTE;
+  vector<lower=0>[G] tau;
 
   #rTE on log scale
   rTE = exp(lrTE);
+  
+  #tau on log scale
+  tau = exp(ltau);
 
   #defining our starting parameter MS0 in terms of it's ratio to the production
   MS0 = rTE .* exp(ms0logratio);
@@ -36,8 +40,7 @@ transformed parameters {
   prot[1] = MS0;
   
   for(t in 2:T){
-    // prot[t] = ((((ribo[t]+ribo[t-1])/2) .* rTE)) + ((prot[t-1,]) .* (1-deg));
-    // prot[t] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
+    prot[t] = ((ribo[t] .* rTE)) + ((prot[t-1,]) .* (1-deg));
   } 
 
 }
@@ -45,7 +48,8 @@ transformed parameters {
 model{
   #priors
   ms0logratio ~ normal(0,20);
-  log(tau) ~ normal(0,1000);
+  ltau ~ normal(0,1000);
+  lrTE ~ normal(0,1000);
 
   for(t in 1:T){//for each tp
     for(k in 1:K){//for each replicate
@@ -54,14 +58,14 @@ model{
   }
 }
 
-generated quantities{
-   vector<lower=0>[G] dP[T-1];
-   vector<lower=0>[G] sP[T-1];
-   vector[G] degfact;
-   
-   for(t in 2:T){
-    sP[t-1] = ((ribo[t] .* rTE));
-    dP[t-1] = ((prot[t-1,]) .* (1-deg));
-    degfact = (1-deg);
-  } 
-}
+// generated quantities{
+//    vector<lower=0>[G] dP[T-1];
+//    vector<lower=0>[G] sP[T-1];
+//    vector[G] degfact;
+//    
+//    for(t in 2:T){
+//     sP[t-1] = ((ribo[t] .* rTE));
+//     dP[t-1] = ((prot[t-1,]) .* (1-deg));
+//     degfact = (1-deg);
+//   } 
+// }

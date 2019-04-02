@@ -19,7 +19,7 @@ load('~/projects/cortexomics/data/cluto_clusts.Rdata')
 
 ##Clusters - CLUTO, Transformed Expr Data
 
-```{r Cluster trajectory plot,fig.width=12,fig.height=8,cache=T}
+```{r Cluster trajectory plot,fig.width=12,fig.height=8,cache=F}
 make_cluster_trajplots(clutoclustlist_filt[[13]]$cluster)
 ```
 
@@ -31,13 +31,18 @@ go_enrichmenttables <- list(
   goenrichmentsbp,
   goenrichmentsmf,
   goenrichmentscc
-)
+)%>%setNames(c('BP','MF','CC'))
 
-for(onttable in go_enrichmenttables[1]){
-  for(cluster in names(onttable[1:2])){
-    cat(str_interp('\n### Cluster: ${cluster}'))
-   # DT::datatable(onttable[[cluster]])
-    knitr::kable(onttable[[cluster]])
+ontlongs<-c('Biological Process','Molecular Function','Cellular Compartment')%>%setNames(c())
+
+for(on in names(go_enrichmenttables)[T]){
+  for(cluster in names(onttable[T])){
+    onttable <- go_enrichmenttables[[ont]]
+    ontlong <- ontlongs[ont]
+    clusterletter <- LETTERS[as.numeric(cluster)]
+    cat(str_interp('\n### ${ontlong} ; Cluster: ${clusterletter}'))
+   # print(DT::datatable(onttable[[cluster]]%>%arrange(elimFisher)%>%head(20)))
+    print(knitr::kable(onttable[[cluster]]%>%arrange(elimFisher)%>%filter(elimFisher<0.05)%>%head(20)))
    # cat(knitr::knit_child(text = knitr::knit_expand('knitr::kable(onttable[[cluster]])'),envir = globalenv(),quiet=T))
   }
 }
@@ -46,13 +51,28 @@ for(onttable in go_enrichmenttables[1]){
 ##Clusters - Relationships by GO shared terms
 
 ```{r Go Enrichment Cladograms}
-for(on in c('BP','CC','MF')){
 
-godistmatrix%>%
-  dist('manhattan')%>%
-  hclust%>%
-  as.dendrogram%>%
-  plot( cex = 0.2, horiz=TRUE, main = paste0('\nCLUTO clusters, distance by enriched GO terms :\n ',ont))
+go_enrichmenttables <- list(
+  goenrichmentsbp,
+  goenrichmentsmf,
+  goenrichmentscc
+)%>%setNames(c('BP','MF','CC'))
 
+for(ont in names(go_enrichmenttables)){
+  goenrichments <- go_enrichmenttables[[ont]]
+  godistmatrix <- goenrichments%>%
+    map(.%>%mutate(Term = paste0(Term,GO.ID),issig = elimFisher<0.05)%>%
+          select(Term,issig))%>%bind_rows(.id='cluster')%>%
+    mutate(cluster = LETTERS[as.numeric(cluster)])%>%
+    spread(cluster,issig)%>%
+    map_df(replace_na,F)%>%
+    {t(as.matrix(.[,-1]))}
+  
+  godistmatrix%>%
+    dist('manhattan')%>%
+    hclust%>%
+    as.dendrogram%>%
+    plot( cex = 0.2, horiz=TRUE, main = paste0('\nCLUTO clusters, distance by enriched GO terms :\n ',ont))
 }
+
 ```

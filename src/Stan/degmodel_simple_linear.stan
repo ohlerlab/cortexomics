@@ -8,7 +8,7 @@ data {
 
 }
 parameters {
-  real<lower=0> tau;
+  vector[G] ltau;
   vector[G] lrTE;
   
 }
@@ -17,9 +17,13 @@ transformed parameters {
 
   vector[G] prot[T];
   vector<lower=0>[G] rTE;
+  vector<lower=0>[G] tau;
 
   #rTE on log scale
   rTE = exp(lrTE);
+
+  #rTE on log scale
+  tau = exp(ltau);
 
   #defining deg in terms of logdeg
   
@@ -33,7 +37,9 @@ transformed parameters {
 
 model{
   #priors
-  log(tau) ~ normal(0,1000);
+  ltau ~ normal(0,1000);
+  lrTE ~ normal(0,1000);
+
 
   for(t in 1:T){//for each tp
     for(k in 1:K){//for each replicate
