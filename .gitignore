@@ -37,3 +37,17 @@ archived_res
 pipeline/
 .DS_Store
 .DS_Store
+
+ext_data
+
+results_2018*
+
+contaminants
+
+annotation
+
+envs
+
+cortexomics_bak
+
+tables
