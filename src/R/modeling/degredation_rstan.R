@@ -33,7 +33,7 @@ gnamesi <- c('Isoc1')
 
 gnamesi <- exprdata%>%.$gene_name%>%sample(1)
 
-gnamesi <- 'Orc3'
+gnamesi <- 'Satb2'
 
 getstanfits <- function(gnamesi,...){
 
@@ -45,7 +45,6 @@ realdata <- list(
    ribo =exprdata%>%filter(gene_name%in%gnamesi)%>%filter(assay=='ribo',rep==1)%>%arrange(match(gene_name,gnamesi),time)%>%.$predicted_signal%>%{2^.}%>%matrix(ncol=length(gnamesi))
 )
 realdata
-realdataold
 # realdataold <- realdata
 
 #Fit non-hierarchical model 
@@ -64,8 +63,24 @@ realstanfit_lin <- rstan::stan(file='src/Stan/degmodel_simple_linear.stan',data=
 
 list(realstanfit,realstanfit_lin)
 }
-allstanfits <- lapply(exprdata$gene_name%>%unique,safely(getstanfits))
+
+allstanfits <- lapply(exprdata$gene_name%>%unique%>%sample(100),safely(getstanfits))
+allstanfits <- lapply(exprdata$gene_name%>%unique%>%sample(100),safely(getstanfits))
+
+# allstanfits%>%saveRDS('data/allstanfits.rds')
+
 allstanfits %<>% setNames(exprdata$gene_name%>%unique)
+
+allstanfits%>%map('result')%>%map(1)%>%map(as.data.frame)%>%setNames(.,seq_along(.))%>%
+  bind_rows(.id='gene')%>%
+  filter(gene%in%sample(unique(gene),10))%>%
+  select(lrTE=`lrTE[1]`,gene)%>%
+  group_by(gene)%>%
+  mutate(spread=sd(lrTE))%>%
+  arrange(spread)%>%
+  qplot(data=.,x=lrTE)+facet_grid(gene~.)
+
+  qplot(data=.,y=as_factor(gene),x=lrTE)
 ##Now with fixed values
 # realstanfit_test <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
 #                                control=list(adapt_delta=0.95,max_treedepth=20),
@@ -90,6 +105,8 @@ parse_stan_pars<-function(stanpars,indnames=c()){
       split(.,seq_len(nrow(.)))
 
 }
+
+
 #get maximim likelihood (kinda) and mean values from our two models, with these functions
 get_ml_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
 get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest
@@ -101,14 +118,14 @@ parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
 parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=`50%`)
 parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=`50%`)
 #function to pull out the mcmc samples for plotting 
-fit <- realstanfit
+fit <- allstanfits%>%names
 get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
   filter(parameter=='prot')%>%select(time,value,sample,gene)
 #e.g.
 #realstanfit %>% get_prot_samples
 
-gene_ind <- 1
-gnamei <- gnamesi[gene_ind]
+gene_ind <- 2
+gnamei <- g2plot[gene_ind]
 
 rdata2plot<-realdata$MS[,,gene_ind]%>%as.data.frame%>%set_colnames(tps)%>%mutate(rep=1:3)%>%gather(time,signal,-rep)
 
@@ -142,9 +159,6 @@ trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=lo
 
 gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
 
-dev.off()
-
-stop()
 
 arrangedplot<-gridExtra::grid.arrange(
   trajectoryplot,

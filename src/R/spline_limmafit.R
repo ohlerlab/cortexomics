@@ -64,6 +64,15 @@ limmafits[['spline_2']] = limma::lmFit(exprmatrix,
                                        design=model.matrix( ~ ns(as.numeric(time),2)*(ribo+MS), designmatrix)
 )
 
+limmafits[['spline_2']] = limma::lmFit(exprmatrix,
+                                       design=model.matrix( ~ ns(as.numeric(time),2)*(ribo+MS), designmatrix)
+)
+
+limmafits[['spline_2']] = limma::lmFit(exprmatrix,
+                                       design=model.matrix( ~ ns(as.numeric(time),2)*(ribo+MS), designmatrix)
+)
+
+
 ###And the stepwise model
 tps <- designmatrix$time%>%levels
 designmatrix%<>%.[,colnames(.)%>%setdiff(tps)]
@@ -104,16 +113,29 @@ get_varexplained_df <- function(modelpreddf,fullpredname,redpredname){
     select(-data)%>%
     unnest
 }
+
 varexpldf<-get_varexplained_df(modelpreddf,fullpredname = 'predicted_signal_full',redpredname = 'predicted_signal_full_step')
 ##This confirms the stepwise model gives identical predictions to the non stepwise model
-
 varexpldf$varexplained%>%table
 
 
 ##Now let's compare the full model to 3df spline - a 4 df spline is simply a perfect fit
-varexpldf<- get_varexplained_df(modelpreddf,fullpredname = 'predicted_signal_full',redpredname = 'predicted_signal_spline_4')
+varexpldf_full_vs_s4<- get_varexplained_df(modelpreddf,fullpredname = 'predicted_signal_full',redpredname = 'predicted_signal_spline_4')
+varexpldf_full_vs_s4$varexplained%>%table
+varexpldf_full_vs_s3<- get_varexplained_df(modelpreddf,fullpredname = 'predicted_signal_full',redpredname = 'predicted_signal_spline_3')
+varexpldf_full_vs_s3
+stop()
 
-varexpldf<- get_varexplained_df(modelpreddf,fullpredname = 'predicted_signal_full',redpredname = 'predicted_signal_spline_3')
+
+#' We want to look at instances in which we've smoothed out the RNAseq by a lot...
+spline_misfit_gene<-'Orc3'
+spline_misfit_gene<-varexpldf_full_vs_s3%>%arrange(varexplained)%>%.$gene_name%>%.[2]
+
+qplot(data=exprdata%>%filter(gene_name==spline_misfit_gene,assay%in%c('ribo','total')),y=signal,color=assay,x=as.numeric(as_factor(time)))+
+    scale_x_continuous()+
+    geom_line(data=modelpreddf%>%filter(gene_name==spline_misfit_gene,assay=='ribo')%>%mutate(signal=predicted_signal_spline_3))+
+  theme_bw()+
+  ggtitle('Riboseq Spline Smoothing')
 
 ##Now let's look at our PCA plots using the step wise
 

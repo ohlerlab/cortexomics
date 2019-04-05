@@ -16,7 +16,7 @@ argv <- c(
   foldchangesfile='exprdata/limma_fold_changes.txt'
 )
 
-argv <- commandArgs(trailingOnly=TRUE)
+argv <- if(!interactive()) commandArgs(trailingOnly=TRUE) else argv
 
 for(i in names(argv)) assign(i, argv[i])
 
