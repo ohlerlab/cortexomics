@@ -3,78 +3,27 @@ library(ggExtra)
 library(ggpubr)
 library(tidyverse)
 library(Rcpp)
+library(doMC)
 library(rstan)
-
-options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
-
-#get the names of some increasing rna dudes
-exprdata%>%
-  group_by(gene_name)%>%
-  filter(rep==1,assay=='total')%>%
-  filter(signal[5] > 3+signal[1])%>%.$gene_name%>%
-  sample(10)
-
-#we need a 
-library(zoo)
-# 
-tps <- c('E13','E145','E16','E175','P0')
+#BiocManager::install('rstan')
+library(tidyverse)
+library(magrittr)
+library(data.table)
+library(stringr)
+library(magrittr)
+library(splines)
+library(parallel)
+#!/usr/bin/env Rscript
+message('loading libraries')
+suppressMessages(library(assertthat))
+suppressMessages(library(limma))
+message('...done')
 
 
-gnamei <- 'Satb2'
+root <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/'
 
-#increasing genes
-gnamesi <- c('Satb2')
-#decreasing genes
-'Isoc1'
-gnamesi <- c('')
-# gnamesi <- c('Satb2')
-gnamesi <- c('Isoc1')
-
-gnamesi <- exprdata%>%.$gene_name%>%sample(1)
-
-gnamesi <- 'Orc3'
-
-getstanfits <- function(gnamesi,...){
-
-realdata <- list(
-   G=length(gnamesi),T=length(tps),K=3,
-   # gene_name=gnamei,
-   MS=exprdata%>%filter(gene_name%in%gnamesi)%>%filter(assay=='MS')%>%arrange(match(gene_name,gnamesi),time,rep)%>%.$signal%>%array(dim=c(3,5,length(gnamesi)))%>%aperm(c(1,2,3))%>%{2^.},
-   # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
-   ribo =exprdata%>%filter(gene_name%in%gnamesi)%>%filter(assay=='ribo',rep==1)%>%arrange(match(gene_name,gnamesi),time)%>%.$predicted_signal%>%{2^.}%>%matrix(ncol=length(gnamesi))
-)
-realdata
-realdataold
-# realdataold <- realdata
-
-#Fit non-hierarchical model 
-realstanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
-            control=list(adapt_delta=0.95,max_treedepth=20),
-            chains=4,iter=2e3,
-            # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-            verbose=TRUE)
-
-#now fit linear model
-realstanfit_lin <- rstan::stan(file='src/Stan/degmodel_simple_linear.stan',data=realdata,
-                           control=list(adapt_delta=0.95,max_treedepth=20),
-                           chains=4,iter=2e3,
-                           # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-                           verbose=TRUE)
-
-list(realstanfit,realstanfit_lin)
-}
-allstanfits <- lapply(exprdata$gene_name%>%unique,safely(getstanfits))
-allstanfits %<>% setNames(exprdata$gene_name%>%unique)
-##Now with fixed values
-# realstanfit_test <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
-#                                control=list(adapt_delta=0.95,max_treedepth=20),
-#                                init = list(list(lrTE=array(0,dim=c(1)))),
-#                                chains=1,iter=1,warmup = 0,
-#                                # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-#                                verbose=TRUE)
-
-stanpars <- colnames(as.data.frame(realstanfit))
+get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
+  filter(parameter=='prot')%>%select(time,value,sample,gene)
 
 parse_stan_pars<-function(stanpars,indnames=c()){
   parsedpars<-stanpars%>%str_match('([^\\[]+)\\[?(\\d*),?(\\d*)\\]?')%>%as.data.frame%>%
@@ -93,75 +42,399 @@ parse_stan_pars<-function(stanpars,indnames=c()){
 #get maximim likelihood (kinda) and mean values from our two models, with these functions
 get_ml_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
 get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest
-#get_samples_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
 
-#get maximim likelihood (kinda) and mean values from our two models
-parsed_ml<-realstanfit%>%get_ml_stanfit
-parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
-parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=`50%`)
-parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=`50%`)
-#function to pull out the mcmc samples for plotting 
-fit <- realstanfit
-get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
-  filter(parameter=='prot')%>%select(time,value,sample,gene)
-#e.g.
-#realstanfit %>% get_prot_samples
+get_limmafit_predvals <- function(limmafit,designmatrix){
+  (limmafit$coefficients %*% t(limmafit$design))%>%
+    set_colnames(designmatrix$dataset)%>%
+    as.data.frame%>%
+    rownames_to_column('gene_name')%>%
+    gather(dataset,predicted_signal,-gene_name)%>%
+    left_join(designmatrix)%>%
+    distinct(gene_name,time,assay,.keep_all = TRUE)
+}
 
-gene_ind <- 1
-gnamei <- gnamesi[gene_ind]
 
-rdata2plot<-realdata$MS[,,gene_ind]%>%as.data.frame%>%set_colnames(tps)%>%mutate(rep=1:3)%>%gather(time,signal,-rep)
+get_limmafit_stdevs <- function(limmafit,designmatrix){
+  (((limmafit$stdev.unscaled)^2) %*% t(limmafit$design))%>%
+    set_colnames(designmatrix$dataset)%>%
+    as.data.frame%>%
+    rownames_to_column('gene_name')%>%
+    gather(dataset,var_signal,-gene_name)%>%
+    mutate(sd_signal = sqrt(var_signal))%>%
+    left_join(designmatrix)%>%
+    distinct(gene_name,time,assay,.keep_all = TRUE)
+}
 
-ml2plot<-parsed_ml%>%filter(parameter=='prot')%>%transmute(gene,time=as_factor(tps[time]),signal=(val))%>%filter(gene==gene_ind)
-ml2plot_lin<-parsed_ml_lin%>%filter(parameter=='prot')%>%transmute(gene,time=as_factor(tps[time]),signal=(val))%>%filter(gene==gene_ind)
+getlimmapredictions <- function(modfit,modname,designmatrix){
+  predictedvals <- get_limmafit_predvals(modfit,designmatrix)
+  predictedstdevs <- get_limmafit_stdevs(modfit,designmatrix)
+  predictedvals%<>%left_join(predictedstdevs)
+  predictedvals%<>%select(-matches('var_'))
+  predictedvals%<>%filter(rep==1)
+  predictedvals%<>%select(-rep)
+  colnames(predictedvals) %<>%str_replace('predicted_signal',paste0('predicted_signal_',modname))
+  colnames(predictedvals) %<>%str_replace('sd_signal',paste0('sd_signal_',modname))
+  predictedvals
+}
 
-protsampleslin<- get_prot_samples(realstanfit_lin)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Linear'))%>%filter(gene==gene_ind)
-protsamples<- get_prot_samples(realstanfit)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
+# message('temp commented out')
 
+transformdexprfile=file.path('exprdata/transformed_data.txt')
+designmatrixfile=file.path('exprdata/designmatrix.txt')
+
+
+
+# save.image();stop('imagesaved')
+
+#and export
+dir.create('exprdata',showWarnings = FALSE)
+exprtbl <- read_tsv(transformdexprfile) 
+exprtbl %<>% select(gene_name, everything())
+assert_that(map_chr(exprtbl,class)[1] == 'character')
+assert_that(all(map_chr(exprtbl,class)[-1] == 'numeric'))
+
+exprmatrix <- exprtbl  %>% { set_rownames(as.matrix(.[,-1]),.[[1]]) }
+
+
+designmatrix <- read_tsv(designmatrixfile)
+
+levels(designmatrix$assay) <- c('total','ribo','MS')
+
+
+########Now, let's compare models of different complexity levels
+designmatrix$ribo <- designmatrix$assay %in% c('ribo','MS')
+designmatrix$MS <- designmatrix$assay %in% c('MS')
+
+design = model.matrix( ~ time + assay + time:assay , designmatrix, xlev = list(assay = c('total','ribo','MS')) )
+
+exprdata <- exprmatrix%>%
+  set_colnames(designmatrix$dataset)%>%
+  as.data.frame%>%
+  rownames_to_column('gene_name')%>%
+  gather(dataset,signal,-gene_name)%>%
+  left_join(designmatrix)
+
+increasinggenes <- exprdata%>%
+  group_by(gene_name)%>%filter(assay=='MS')%>%
+  mutate(increasingMS = (mean(signal[time=='P0']) - mean(signal[time=='E13'])) > 2 )%>%
+  filter(increasingMS)%>%.$gene_name
+
+decreasinggenes <- exprdata%>%
+  group_by(gene_name)%>%filter(assay=='MS')%>%
+  mutate(decreasingMS = (mean(signal[time=='P0']) - mean(signal[time=='E13'])) < -2 )%>%
+  filter(decreasingMS)%>%.$gene_name
+
+
+#Check we aren't using hte wrongly scaled data.
+stopifnot(exprdata%>%filter(gene_name=='Satb2',assay=='ribo',time=='E13')%>%.$signal%>%`<`(10))
+
+limmafits <- list()
+designmatrix$time %<>% as_factor
+
+#fit the full model
+limmafits[['full']] = limma::lmFit(exprmatrix,
+                                   design=model.matrix( ~ time*(ribo+MS), designmatrix)
+)
+
+#with 4 splines
+limmafits[['spline_4']] = limma::lmFit(exprmatrix,
+                                        design=model.matrix( ~ ns(as.numeric(time),4)*(ribo+MS), designmatrix)
+)
+
+#with fewer splines
+limmafits[['spline_3']] = limma::lmFit(exprmatrix,
+                                       design=model.matrix( ~ ns(as.numeric(time),3)*(ribo+MS), designmatrix)
+)
+
+preddf <- exprdata %>%select(gene_name,dataset,signal)%>%
+  left_join(getlimmapredictions(limmafits[['full']],'full',designmatrix)) %>%
+  left_join(getlimmapredictions(limmafits[['spline_4']],'spline_4',designmatrix))%>%
+  left_join(getlimmapredictions(limmafits[['spline_3']],'spline_3',designmatrix))
+
+
+####Quick and dirty imputation with splines
+exprdata%<>%left_join(preddf%>%select(gene_name,time,assay,predicted_signal_spline_3))%>%
+  mutate(signal = ifelse(is.na(signal),predicted_signal_spline_3,signal))%>%
+  select(-predicted_signal_spline_3)
+
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+
+
+
+
+
+
+#sketch
+#we need a 
+library(zoo)
 # 
-# protsamples_lowrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`<0.01))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
-# protsamples_highrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`>0.1))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
-# 
+tps <- c('E13','E145','E16','E175','P0')
+#
+gnamei <- 'Satb2'
+#
+#increasing genes
+gnamesi <- c('Satb2')
+#decreasing genes
+'Isoc1'
+# gnamesi <- c('Satb2')
+gnamesi <- c('Isoc1')
+#
+gnamesi <- exprdata%>%.$gene_name%>%sample(7)
+#
+gnamesi <- 'Satb2'
+g2fit <- gnamesi
 
-#plot showing trajectories and fits with MCMC samples 
-trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+geom_point()+
-  geom_line(size=I(1),data=ml2plot%>%mutate(model='Kinetic'),linetype=1)+
-  geom_line(size=I(1),data=ml2plot_lin%>%mutate(model='Linear'),linetype=1)+
-  geom_line(alpha=I(0.005),data=protsampleslin,aes(group=sample))+
-  geom_line(alpha=I(0.005),data=protsamples,aes(group=sample))+
-  # geom_line(size=I(2),data=get_prot_samples(ml2plot_lin)%>%mutate(model='Linear'),linetype=1)+
-  scale_x_continuous(name='Stage',labels=tps)+
-  scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
-  scale_color_manual(values = c('Kinetic'='red','Linear'='blue','MS Data'='black','rTE: 0'='purple','Riboseq Data'='dark green'))+
-  theme_bw()+
-  geom_line(data=exprdata%>%filter(gene_name==gnamesi[gene_ind],assay=='ribo',!is.na(predicted_signal))%>%mutate(signal=2^predicted_signal,model='Riboseq Data'))+
-  ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
+
+
+#named vector containg gene legnths
+genelengths <- fread('feature_counts/data/E13_ribo_1/feature_counts')%>%
+  select(Geneid,Length)%>%
+  left_join(fread('ids.txt'),by=c(Geneid='gene_id'))%>%
+  arrange(sample(1:n()))%>%
+  group_by(gene_name)%>%
+  slice(1)%>%
+  {setNames(.$Length,.$gene_name)}
+
+
+max_cores <- 32
+g2fit<-exprdata$gene_name%>%unique%>%head(3)
+lengthnorm=TRUE
+
+
+
+g2fit <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
+"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
+"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
+"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
+pars=NA
+g2fit<-'Satb2'
+
+#Funciton to fit linear and nonlinear model with stan
+getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
+
+  MS_array <- exprdata%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay=='MS')%>%
+    arrange(match(gene_name,g2fit),time,rep)%>%
+    .$signal%>%
+    array(dim=c(3,5,length(g2fit)))%>%
+    aperm(c(1,2,3))%>%
+    {2^.}
+
+  riboarray<-preddf%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay=='ribo')%>%
+    arrange(match(gene_name,g2fit),time)%>%
+    .$predicted_signal_full%>%
+    {2^.}%>%
+    matrix(ncol=length(g2fit))
+
+  #Use gene lengths to get DENSITY - we care about this, not the total counts
+  if(lengthnorm) riboarray%<>%sweep(2,STATS=genelengths[g2fit],FUN='/')
+
+  #timepoint averaging - we'll leave in the first, unused timepoint...
+  riboarray_old<-riboarray
+  for(i in 2:nrow(riboarray)){
+    riboarray[i,] <- (riboarray_old[i,]+riboarray_old[i-1,])/2
+  }
+
+  standata <- list(
+     G=length(g2fit),T=length(tps),K=3,
+     # gene_name=gnamei,
+     MS=MS_array,
+     # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
+     ribo =riboarray 
+  )
+
+
+  #Fit non-hierarchical model 
+  modelnm=paste0(g2fit[1],'_',length(g2fit))
+  file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
+  origmodelfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
+  tdir <-   tempdir()
+  dir.create(tdir)
+  file.exists(origmodelfile)
+  file.copy(origmodelfile,tdir)
+  modelcopy=file.path(tdir,basename(origmodelfile))
+  stopifnot(file.exists(modelcopy))
+  modelcopy
   
-# trajectoryplot
+  #
+  n_chains <- 1
+  realstanfit <- rstan::stan(file=modelcopy,
+          model_name=basename(tdir),seed=1,
+          # model_name=modelnm,seed=1,
+          data=standata,
+              control=list(adapt_delta=0.95,max_treedepth=15),save_dso=FALSE,
+              pars=pars,
+              # init = lapply(seq_len(n_chains),function(id)list('lrTE'=array(rep(20,length(g2fit))))),
+              chains=n_chains,iter=1e3,cores=4,verbose=TRUE,save_warmup=FALSE,
+              # sample_file='tmpstansamples.txt',
+              # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+            )
+
+  #now fit linear model
+  modelnm=paste0(g2fit[1],'_linear_',length(g2fit))
+  file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
+ 
+  realstanfit_lin <- rstan::stan(file=file.path(root,'src/Stan/degmodel_simple_linear.stan'),seed=1,model_name=modelnm,data=standata,
+                             control=list(adapt_delta=0.95,max_treedepth=20),sample_file='tmpstansamples.txt',
+                             chains=4,iter=1000,cores=4,verbose=F,
+                              pars=pars%>%setdiff(c('deg','ldeg')),
+                             # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+                            )
+
+  list(kinetic=realstanfit,linear=realstanfit_lin,data=standata,genes=g2fit)
+
+}
+
+genes2fit <- exprdata$gene_name%>%c('Satb2','Orc3')%>%unique%>%setNames(.,.)
+testgeneset <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
+"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
+"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
+"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
+genes2fit<-testgeneset
+which(genes2fit == 'Satb2')
+
+# allstanfits <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=FALSE)
+
+registerDoMC(32)
+
+dir.create(paste0('stanfits/'),showWarnings=F)
 
 
-gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
+# message('testing fit')
+# # modob<-safely(getstanfits)('Satb2',genelengths,exprdata,pars=c('lrTE','ldeg','prot'),lengthnorm=FALSE)
+# stopifnot(is.null(modob$error))
+# saveRDS(modob, paste0('stanfits/','Satb2','nonh_vs_lin.stanfit.rds'))
+# message( paste0('stanfits/','Satb2','nonh_vs_lin.stanfit.rds'))
+# modob$result$genes
 
-dev.off()
+
+# source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R')
+
+# stop()
+
+# #Use do par to write the inidividual model fits to disc
+# parrun<-foreach(g=genes2fit) %dopar%{
+#   suppressMessages({modob<-safely(getstanfits)(g,genelengths,exprdata,lengthnorm=FALSE)})
+#   saveRDS(modob, paste0('stanfits/',g,'nonh_vs_lin.stanfit.rds'))
+#   message(paste0(which(genes2fit==g), '/',length(genes2fit)))
+# }
+
+
+
+#Now fit all models together
+allstanfitssim <- safely(getstanfits)(genes2fit,genelengths,exprdata,lengthnorm=TRUE,pars=c('lrTE','ldeg'))
 
 stop()
 
-arrangedplot<-gridExtra::grid.arrange(
-  trajectoryplot,
-    realstanfit%>%as.data.frame%>%.$`lrTE[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution log rTE\n${gnamei}'))+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - log(degredation / 1.5 days) ${gnamei}'))+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`deg[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - degredation / 1.5 days ${gnamei}'))+theme_bw(),
-layout_matrix=gglayout)
+
+# allstanfitssim%>%saveRDS('../data/allstanfitssim.rds')
 
 
-#' sab2 increasing
-#' Orc3 weird zig zag in the riboseq that the model fits by just completely disregarding it.... This may be an instance of the riboseq signal itself
-#' being fucked up
-#' Ewsr1 - another fucking weird, zig-zaggy riboseq signal, that the model just chucks away.
-#' 'Ap1' nice clear signal for rTE, increasing
 
-ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePath(.)%>%message},arrangedplot,w=12,h=10)
 
+###########PRocessing results
+
+fitfiles <- Sys.glob(paste0('stanfits/*nonh_vs_lin.stanfit.rds'))
+fitfiles%<>%setNames(.,basename(.)%>%str_replace('nonh_vs.*',''))
+
+####Now read in the individual fits
+allstanfits <- mclapply(fitfiles,readRDS)
+allstanfits%<>%setNames(names(fitfiles))
+
+allstanfitsln <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=TRUE)
+allstanfitsln%<>%setNames(names(fitfiles))
+
+#save larger objects
+allstanfits%>%saveRDS('../data/allstanfits.rds')
+allstanfitsln%>%saveRDS('../data/allstanfitsln.rds')
+
+
+allstanfits%>%map('result')%>%
+  map('kinetic')%>%
+  map(summary)%>%map(1)%>%object.size%>%divide_by(1e6)
+
+stop()
+
+
+#Now, don't store all in memory, just save the summary
+allstanfitsumm<-fitfiles%>%mclapply(safely(.%>%readRDS(.)%>%.$result%>%.$kinetic%>%summary%>%.[[1]]%>%as.data.frame))
+stopifnot(allstanfitsumm%>%map('error')%>%map_lgl(is.null)%>%all)#they all worked
+allstanfitsumm%<>%map('result')
+
+####Now read in the list of indiivdual fit summaries
+allstanfitsumm%>%saveRDS('../data/allstanfitsumm.rds')
+allstanfitsumm<-readRDS('../data/allstanfitsumm.rds')
+
+# stopifnot(allstanfitsumm%>%map_lgl(is,'matrix')%>%all)
+allstanfitsumm
+
+allsummary <- allstanfitsumm%>%
+  map(as.data.frame)%>%
+  map(rownames_to_column,'par')%>%
+  bind_rows(.id='gene_name')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  select(-gene)
+
+allsummarysim <- allstanfitssim$result[[1]]%>%summary%>%.[[1]]%>%as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  mutate(gene_name=genes2fit[gene])
+
+
+#Plot distributipon of rTEs
+
+#about a fifth of them had convergenet TE
+stopifnot(allsummary%>%filter(parameter=='lrTE')%>%
+  .$sd %>%`>`(2.5)%>%mean%>%between(0.1,0.3))
+
+
+
+
+
+stop()
+allstanfits%>%map
+
+
+allstanfits$lrTE
+
+
+realdata
+
+fitfiles <- Sys.glob(paste0('stanfits/*nonh_vs_lin.stanfit.rds'))
+
+
+gnamei<-gnamesi
+
+#Getting the log likelihood 
+getloglikratios <- function(fitfile){
+  fit<-fitfile%>%readRDS
+  realstanfit <- fit%>%.$result%>%.$kinetic
+  realstanfit_lin <- fit%>%.$result%>%.$linear
+  fitdata<-fit%>%.$result%>%.$data
+  kin=extract(realstanfit,'lp__')%>%.[[1]]%>%min
+  lin=extract(realstanfit_lin,'lp__')%>%.[[1]]%>%min
+  kin-lin
+}
+
+loglikratios <- fitfiles%>%str_subset('Flna')%>%mclapply(mc.cores=20,getloglikratios)
+
+
+##Now with fixed values
+# realstanfit_test <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
+#                                control=list(adapt_delta=0.95,max_treedepth=20),
+#                                init = list(list(lrTE=array(0,dim=c(1)))),
+#                                chains=1,iter=1,warmup = 0,
+#                                # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+#                                verbose=TRUE)
+
+
+stop()
 
 # 
 # stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
@@ -172,7 +445,7 @@ ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePa
 #                        verbose=TRUE)
 
 
-# 
+##########Examining stanfits
 
 samples=stanfit%>%as.data.frame
 
@@ -193,9 +466,6 @@ summary(stanfit)%>%as.data.frame%>%rownames_to_column('parameter')%>%filter(para
 comp_paramval(param='rTE',  realval=simdata$rTE)
 comp_paramval('MS0',simdata$prot0)
 comp_paramval('deg',exp(simdata$ldeg))
-
-
-
 
 
 stanfit<-realstanfit
@@ -236,17 +506,12 @@ print(pairs(stanfit,pars=parstoplot))
 
 
 ####So... parametrizing in terms of half life doesn't really seem to have helped. Makes everything pretty bimodal in fact.
-
 ##back to ldeg parametrization and things ar e
-
 #What does this distribution of degs look like??
-
 #What if i simulate values with the stan model?
-
 map_df(1:10,~simulate_data(log(0.5),100,c(100,200,200,500,500),5e4,n_reps=3))%>%
   .$MS%>%simplify2array%>%aperm(c(1,2,3))%>%
-  identity()%>%
-  
+  identity()%>%  
 
 k = - log(0.5) / (10^rnorm(10e3,log10(48),log10(30)))
 degs <- 1-exp(-k*36)
@@ -260,13 +525,6 @@ log(1-degs) = -k*36
  - log(1-degs) / 36 = k
 
 rnorm(10e3,log10(48),log10(30))%>%hist(20)
-
-10^(log10(12))
-
-exp(log10(12))*exp(log10(10))
-
-2^4
-3^4
 
 hist(degs,50)
 
@@ -282,8 +540,33 @@ pairs(funnel_reparam, pars = c("y", "x[1]", "lp__"), las = 1) # below the diagon
 
 
 #ldeg_rTE parameter did NOT help, it just blows up to minus infinity
+
+
+#' Notes on nodel fitting.... 
 #' Looks like scaling of the standard deviation makes things work just fine
 #' Now I"ll try putting things on a log scale
 #' Okay so applying a prior like that to transformed parameters is bad (warning about needing to add in the jacobian of the transform)
 #' so I now have rTE and tau getting initilialized on a log scale.
 #' Combining the two genes Isoc1 seems to make the second one kind of divergent... (low Rhat, neff)
+#' 
+#' 
+#' Open questions - how many things have flatly contradictory evidence for the rTE? - now with the new data have to recheck
+#' 
+#' I need to show that the similtaneous model doesn't give different fits to the single ones, or at least not too badly.
+#' 
+#' I need to identify a couple of test genes - e.g. the one with contradictory TE, a few with vauge TE, and a few with certain TE. Then I should put them in a big model together
+#' First without contradictory one, then with, then with plus a mixture model component if necessary
+#' Then I should introduce some library specific scaling factors.
+#' 
+#' I should bear in mind there could be some gene name - id conflicts....
+#' 
+#' Looking at the fits - a kind of consistent pattern seems to be emerging where the linear fit looks okay just.... understated. This would not I think be fixed by simple coefficients for the timepoints,
+#' Because It's in opposite direction depending on time.
+#' The things I"m wondering about are a) Should I average between timepoints (seems like obviously yes, actually) and should I try restricting the rTE to the reasonable value space?
+#' Let's try tp restriction with a
+#' 
+#' NOt much discernable difference from the tp averaging. Didn't hurt, at least
+#' 
+#' Now to try the blunt prior on rTE - 
+#' Programming this is a nightmare, as it turns out. Getting initialization to work ont he stan object was hard, but getting it to actually recompile teh model whenever I run was harder... still haven't.
+#' 

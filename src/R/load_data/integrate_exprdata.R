@@ -18,6 +18,7 @@ slice<-dplyr::slice
 
 LOWCOUNTLIM <- 10
 setwd('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/')
+
 args <- c(
 	countfile='feature_counts/all_feature_counts',
 	msfile=file.path('ms_tables/ms_LFQ_total_ms_tall.tsv'),
@@ -26,9 +27,10 @@ args <- c(
   designmatrixfile=file.path('exprdata/designmatrix.txt'),
   normcountstable='exprdata/allcounts_snorm.tsv'
 )
+
 for(i in names(args)) assign(i,args[i])
 
-if(length(commandArgs(trailingOnly=TRUE))) args[] <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
+if(length(base::commandArgs(trailingOnly=TRUE))) args[] <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
 args <- args[!is.na(args)]
 message(capture.output(dput(args)))
 for(i in names(args)) assign(i,args[i])
@@ -74,6 +76,7 @@ countsmatrix<-cbind(
   DESeq2::vst(countsmatrix[,ribcols]),
   DESeq2::vst(countsmatrix[,totcols])
 )
+countsmatrix['Satb2',]
 
 countsmatrix_snorm <- countsmatrix %>% {sweep(.,2,STATS = DESeq2::estimateSizeFactorsForMatrix(.),FUN='/')}
 
@@ -251,4 +254,7 @@ exprmatrix2%>%as.data.frame%>%rownames_to_column('gene_name')%>%write_tsv('./exp
 #exprmatrix2%<>%{sweep(.,2,STATS = meanlogdeviance(.),FUN='-')}
 
 #exprmatrix2 <- DESeq2::vst(exprmatrix2%>%replace_na(0))
+
+exprmatrix['Satb2',]
+exprmatrix2['Satb2',]
 

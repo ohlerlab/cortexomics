@@ -47,11 +47,3 @@ model{
     }
   }
 }
-
-generated quantities{
-   vector<lower=0>[G] sP[T-1];
-   
-   for(t in 2:T){
-    sP[t-1] = ((ribo[t] .* rTE));
-  } 
-}
