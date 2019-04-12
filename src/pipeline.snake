@@ -1003,7 +1003,6 @@ rule rsemref:
                               --star  \
                               {input.REF} \
                               {RSEMINDEXFOLD}/{ANNOBASE} 
-
       """) 
 
 

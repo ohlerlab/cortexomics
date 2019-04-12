@@ -208,7 +208,8 @@ g2fit <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
 "Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
 "Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
 pars=NA
-g2fit<-'Satb2'
+g2fit<-exprdata$gene_name%>%unique
+# g2fit<-'Satb2'
 
 #Funciton to fit linear and nonlinear model with stan
 getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
@@ -251,7 +252,8 @@ getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
   #Fit non-hierarchical model 
   modelnm=paste0(g2fit[1],'_',length(g2fit))
   file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
-  origmodelfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
+  # origmodelfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
+  origmodelfile<-file.path(root,'src/Stan/degmodel_hierarch.stan')
   tdir <-   tempdir()
   dir.create(tdir)
   file.exists(origmodelfile)
@@ -259,9 +261,11 @@ getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
   modelcopy=file.path(tdir,basename(origmodelfile))
   stopifnot(file.exists(modelcopy))
   modelcopy
-  
+  message(paste0('fitting model ',basename(origmodelfile),' on ',length(g2fit),' genes'))
+  modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(origmodelfile),'_modsamples')
+
   #
-  n_chains <- 1
+  n_chains <- 4
   realstanfit <- rstan::stan(file=modelcopy,
           model_name=basename(tdir),seed=1,
           # model_name=modelnm,seed=1,
@@ -269,8 +273,8 @@ getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
               control=list(adapt_delta=0.95,max_treedepth=15),save_dso=FALSE,
               pars=pars,
               # init = lapply(seq_len(n_chains),function(id)list('lrTE'=array(rep(20,length(g2fit))))),
-              chains=n_chains,iter=1e3,cores=4,verbose=TRUE,save_warmup=FALSE,
-              # sample_file='tmpstansamples.txt',
+              chains=n_chains,iter=1e3,cores=n_chains,verbose=TRUE,save_warmup=FALSE,
+              sample_file=modelsamplefile,
               # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
             )
 
@@ -278,10 +282,14 @@ getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
   modelnm=paste0(g2fit[1],'_linear_',length(g2fit))
   file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
  
-  realstanfit_lin <- rstan::stan(file=file.path(root,'src/Stan/degmodel_simple_linear.stan'),seed=1,model_name=modelnm,data=standata,
+  linmodelfile <- 'src/Stan/degmodel_simple_linear.stan'
+  linmodelsamplefile<-paste0('stansamples/',basename(tdir),'_',basename(linmodelfile),'_modsamples')
+
+  realstanfit_lin <- rstan::stan(file=file.path(root,linmodelfile),seed=1,model_name=modelnm,data=standata,
                              control=list(adapt_delta=0.95,max_treedepth=20),sample_file='tmpstansamples.txt',
                              chains=4,iter=1000,cores=4,verbose=F,
                               pars=pars%>%setdiff(c('deg','ldeg')),
+                              linmodelsamplefile,
                              # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
                             )
 
@@ -311,22 +319,28 @@ dir.create(paste0('stanfits/'),showWarnings=F)
 # message( paste0('stanfits/','Satb2','nonh_vs_lin.stanfit.rds'))
 # modob$result$genes
 
-
-# source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R')
-
-# stop()
-
-# #Use do par to write the inidividual model fits to disc
-# parrun<-foreach(g=genes2fit) %dopar%{
-#   suppressMessages({modob<-safely(getstanfits)(g,genelengths,exprdata,lengthnorm=FALSE)})
-#   saveRDS(modob, paste0('stanfits/',g,'nonh_vs_lin.stanfit.rds'))
-#   message(paste0(which(genes2fit==g), '/',length(genes2fit)))
-# }
-
-
-
 #Now fit all models together
-allstanfitssim <- safely(getstanfits)(genes2fit,genelengths,exprdata,lengthnorm=TRUE,pars=c('lrTE','ldeg'))
+allstanfitssim <- safely(getstanfits)(genes2fit,genelengths,exprdata,lengthnorm=TRUE,)
+
+#Use do par to write the inidividual model fits to disc
+parrun<-foreach(g=genes2fit) %dopar%{
+  suppressMessages({modob<-safely(getstanfits)(g,genelengths,exprdata,lengthnorm=TRUE)})
+  saveRDS(modob, paste0('stanfits/',g,'nonh_vs_lin.stanfit.rds'))
+  message(paste0(which(genes2fit==g), '/',length(genes2fit)))
+}
+
+
+source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R')
+
+stop()
+
+allstanfitssim[[1]]$kinetic%>%
+  summary%>%
+  .$summary%>%
+  as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppar=parse_stan_pars(par))%>%unnest%>%filter(is.na(time),is.na(gene))%>%
+  mutate(parameter,time,gene,mean,`2.5%`,`97.5%`)
 
 stop()
 
@@ -370,7 +384,6 @@ allstanfitsumm%>%saveRDS('../data/allstanfitsumm.rds')
 allstanfitsumm<-readRDS('../data/allstanfitsumm.rds')
 
 # stopifnot(allstanfitsumm%>%map_lgl(is,'matrix')%>%all)
-allstanfitsumm
 
 allsummary <- allstanfitsumm%>%
   map(as.data.frame)%>%
@@ -385,6 +398,15 @@ allsummarysim <- allstanfitssim$result[[1]]%>%summary%>%.[[1]]%>%as.data.frame%>
   mutate(ppars=parse_stan_pars(par))%>%
   unnest%>%
   mutate(gene_name=genes2fit[gene])
+
+
+hallsummary <- allstanfitssim$result$kinetic%>%
+  summary%>%.[[1]]%>%as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  mutate(gene_name=allstanfitssim$result$genes[gene])
+
 
 
 #Plot distributipon of rTEs
@@ -569,4 +591,13 @@ pairs(funnel_reparam, pars = c("y", "x[1]", "lp__"), las = 1) # below the diagon
 #' 
 #' Now to try the blunt prior on rTE - 
 #' Programming this is a nightmare, as it turns out. Getting initialization to work ont he stan object was hard, but getting it to actually recompile teh model whenever I run was harder... still haven't.
+#'
+#' Now the hierarchical model, which... seems to fit faster than the all the independent ones??? 
+#' Okay so the model object fits at least.....
+#'
+#' Need to compare the hierarch and non-hierarch models
+#' So need to be able to run the hierarch models 
 #' 
+#' It would be good if I could compare the RNA and the Riboseq based model - particularly for TE based cases
+#' 
+#' Also look at our top stalling candidates.

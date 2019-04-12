@@ -30,6 +30,28 @@ dev.off()
 message(normalizePath('../plots/modelling/indiv_rTEs_linerange.pdf'))
 
 
+
+hmu_lrTE <- hallsummary%>%filter(parameter%in%c('hmu_lrTE'))%>%.$mean
+hsig_lrTE <- hallsummary%>%filter(parameter%in%c('hsig_lrTE'))%>%.$mean%>%exp
+groupparamdata <- tibble(mean=hmu_lrTE,`2.5%`=hmu_lrTE-(2*hsig_lrTE),`97.5%`=hmu_lrTE+(2*hsig_lrTE),gene_name='Group')
+#Now on the joint model
+pdf('../plots/modelling/hierarch_rTEs_linerange.pdf');
+plot<-
+hallsummary%>%
+  filter(parameter%in%c('lrTE'))%>%
+  # mutate(nondet_rTE=sd>2.5)%>%
+  # arrange(nondet_rTE)%>%
+  qplot(data=.,x=mean,xmin=`2.5%`,xmax=`97.5%`,y=as.numeric(as_factor(gene_name)),geom='blank')+
+    ggstance::geom_linerangeh()+
+    ggstance::geom_linerangeh(data=groupparamdata)+
+    scale_x_continuous(name='Log rTE')+
+    scale_y_continuous(name='Gene')+
+    facet_grid(scale='free',ifelse(gene_name=='Group','Group','Indiv') ~ . )+
+    theme_bw()
+print(plot)
+dev.off()
+message(normalizePath('../plots/modelling/hierarch_rTEs_linerange.pdf'))
+
 library(ggExtra)
 
 pdf('../plots/modelling/indiv_rTEs_linerange_detonly.pdf',h=12);
@@ -64,6 +86,36 @@ allsummary%>%filter(parameter=='ldeg')%>%
 print(plot)
 dev.off()
 message(normalizePath('../plots/modelling/indiv_ldeg_linerange.pdf'))
+
+##Now the hierarchical model of ldeg...
+hmu_ldeg <- hallsummary%>%filter(parameter%in%c('hmu_ldeg'))%>%.$mean
+hsig_ldeg <- hallsummary%>%filter(parameter%in%c('hsig_ldeg'))%>%.$mean%>%exp
+groupparamdata <- tibble(mean=hmu_ldeg,`2.5%`=hmu_ldeg-(2*hsig_ldeg),`97.5%`=hmu_ldeg+(2*hsig_ldeg),gene_name='Group')
+#Now on the joint model
+pdf('../plots/modelling/hierarch_degs_linerange.pdf');
+plot<-
+hallsummary%>%
+  filter(parameter%in%c('ldeg'))%>%
+  mutate(nondet_deg=sd>2.5)%>%
+  arrange(nondet_deg)%>%
+  qplot(data=.,x=mean,xmin=`2.5%`,xmax=`97.5%`,y=as.numeric(as_factor(gene_name)),geom='blank')+
+    ggstance::geom_linerangeh()+
+    ggstance::geom_linerangeh(data=groupparamdata)+
+    scale_x_continuous(name='Log deg')+
+    scale_y_continuous(name='Gene')+
+    facet_grid(scale='free',ifelse(gene_name=='Group','Group','Indiv') ~ . )+
+    theme_bw()
+print(plot)
+dev.off()
+message(normalizePath('../plots/modelling/hierarch_degs_linerange.pdf'))
+
+library(ggExtra)
+
+
+
+
+
+
 
 #Generally Genes have either a determined rTE or a determined degredation rate - not both.
 allsummary%>%
