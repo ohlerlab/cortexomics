@@ -18,6 +18,7 @@ plots
 *.md
 tmp*
 git
+ext_data*
 igv_session.xml
 read_length.txt
 exploration/plots*
@@ -53,3 +54,4 @@ cortexomics_bak
 tables
 plots
 _files
+.snakemake
