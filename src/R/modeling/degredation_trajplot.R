@@ -1,4 +1,31 @@
 
+library(purrr)
+library(ggExtra)
+library(ggpubr)
+library(tidyverse)
+library(Rcpp)
+library(doMC)
+library(rstan)
+#BiocManager::install('rstan')
+library(tidyverse)
+library(magrittr)
+library(data.table)
+library(stringr)
+library(magrittr)
+library(splines)
+library(parallel)
+
+source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/cortexomics_myfunctions.R')
+
+################################################################################
+########Create trajectory plots from stan fits
+################################################################################
+  
+testgeneset <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
+"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
+"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
+"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
+
 #plotting individual fits
 gene_ind=1 # legacy, indiv objects hould only have 1 index now
 # gnamei <-'Orc3'
@@ -8,17 +35,42 @@ gene_ind=1 # legacy, indiv objects hould only have 1 index now
 gnamei <- testgeneset%>%sample(1)
 fitfiles <- Sys.glob(paste0('stanfits/*nonh_vs_lin.stanfit.rds'))
 # for(gnamei in testgeneset){
-for(gnamei in 'Satb2'){
+
+
+
+################################################################################
+########reading stan csvs
+################################################################################
+  
+testhierarchfit<-readRDS('../data/testhierarchfit.rds')
+
+
+
+################################################################################
+########
+################################################################################
+  
+
+# for(gnamei in 'Satb2'){
+gnamei = 'Satb2'
+
   fitfile<-fitfiles%>%str_subset(paste0(gnamei,'non'))
 
   stopifnot(length(fitfile)==1)
   stopifnot(fitfile%>%file.exists)
 
   message('read in model fit')
+  fitstem <- here('pipeline/stansamples/*')
+  fitcsvs<-Sys.glob(paste0(  fitstem))%T>%{stopifnot(length(.)>0)}
+  fit <- %>%lapply()
+
+  ###MOdel fits from individual RDS files
   fit<-fitfile%>%readRDS
   realstanfit <- fit%>%.$result%>%.$kinetic
   realstanfit_lin <- fit%>%.$result%>%.$linear
   fitdata<-fit%>%.$result%>%.$data
+
+  realstanfit%>%summary
 
 
 
@@ -28,6 +80,10 @@ for(gnamei in 'Satb2'){
   parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
   parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=`50%`)
   parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=`50%`)
+
+
+  fread(cmd=paste("grep -ve '#' stansamples_RtmpbokGcP_degmodel_hierarch.stan_modsamples_4.csv"),sep=',', nrow=10)%>%apply(2,mean)
+  
   #function to pull out the mcmc samples for plotting 
   fit <- realstanfit
 
@@ -43,8 +99,19 @@ for(gnamei in 'Satb2'){
   # protsamples_lowrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`<0.01))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
   # protsamples_highrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`>0.1))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
   # 
+  assay2model <- c('ribo'='Riboseq Data','total'='RNAseq Data')
+  model2color <- c('Kinetic'='red','Linear'='blue','MS Data'='black','rTE: 0'='purple','Riboseq Data'='dark green','RNAseq Data'='purple')
+  seqdata <- preddf%>%filter(gene_name==gnamei,assay%in%c('total','ribo'),!is.na(predicted_signal_full))%>%mutate(signal=2^predicted_signal_full,model=assay2model[assay])
+
+  stopifnot(all(assay2model %in% seqdata$model))
+
+  stopifnot(is.charcter(gnamei) )
+  stopifnot(c('time','signal','model') %in% colnames(rdata2plot) )
+  stopifnot(c('time','signal','model') %in% colnames(rdata2plot) )
+
 
   message('Plot')
+
   #plot showing trajectories and fits with MCMC samples 
   trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+
     stat_summary(geom='line',fun.y=mean)+
@@ -55,12 +122,13 @@ for(gnamei in 'Satb2'){
     geom_line(alpha=I(0.005),data=protsamples,aes(group=sample))+
     scale_x_continuous(name='Stage',labels=tps)+
     scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
-    facet_grid(scale='free',ifelse(model%in%c('Riboseq Data','RNAseq Data'),'Seq Data','MS') ~ . )+
-    scale_color_manual(values = c('Kinetic'='red','Linear'='blue','MS Data'='black','rTE: 0'='purple','Riboseq Data'='dark green','RNAseq Data'='purple'))+
+    facet_grid(scale='free',ifelse(model%in%names(assay2model),'Seq Data','MS') ~ . )+
+    scale_color_manual(values = model2color)+
     theme_bw()+
-    geom_line(data=preddf%>%filter(gene_name==gnamei,assay=='ribo',!is.na(predicted_signal_full))%>%mutate(signal=2^predicted_signal_full,model='Riboseq Data'))+
-    geom_line(data=preddf%>%filter(gene_name==gnamei,assay=='total',!is.na(predicted_signal_full))%>%mutate(signal=2^predicted_signal_full,model='RNAseq Data'))+
-    ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
+    geom_line(data=seqdata)+
+    ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),
+      sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
+
     
   # trajectoryplot
   gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
@@ -69,15 +137,136 @@ for(gnamei in 'Satb2'){
 
   arrangedplot<-gridExtra::grid.arrange(
     trajectoryplot,
-      realstanfit%>%as.data.frame%>%.$`lrTE[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution log rTE\n${gnamei}'))+theme_bw(),
+    realstanfit%>%as.data.frame%>%.$`lrTE[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution log rTE\n${gnamei}'))+theme_bw(),
     realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - log(degredation / 1.5 days) ${gnamei}'))+theme_bw(),
     realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%exp%>%qplot(bins=50,main=str_interp('Posterior Distribution - degredation / 1.5 days ${gnamei}'))+theme_bw(),
   layout_matrix=gglayout)
 
+  # gnamei='Satb2'
   trjplotfile<-str_interp('../plots/modelling/stanmodelcomp_${gnamei}.pdf')
   ggsave(file=trjplotfile,arrangedplot,w=12,h=10)
   trjplotfile%>%normalizePath(.)%>%message
+# }
+  here('plots/modelling/stanmodelcomp_Satb2.pdf')
+
+
+  ################################################################################
+  ########Draw trajetory plot for saved csv files 
+  ################################################################################
+  
+standata<-allstandata
+igene='Satb2'
+
+  plotdata <- function(standata,igene){
+    allstandata$MS[,,igene]%>%as.data.frame%>%set_colnames(tps)%>%mutate(rep=1:3)%>%gather(time,signal,-rep)%>%select(time,signal)
+  }
+
+modelfiles <- Sys.glob('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/stansamples/allhierarch_*.csv')
+modelfileslin <- Sys.glob('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/stansamples/alllinear_*.csv')
+
+igenename = "Satb2"
+pars <- 'prot'
+
+
+
+get_genepars <- function(stanfiles,pars,igene){
+
+  #get the parameter names from the file
+  filepars <- fread(str_interp('head -n 100 ${stanfiles[1]} | grep -e "lp__,"   '))%>%colnames
+  #pars their indexes
+  pardf<-filepars%>%vparse_stan_pars
+  pardf$n <- 1:nrow(pardf)
+
+  #select the ones for our gene
+  pardf <- pardf%>%filter(replace_na(geneind%in%igene,TRUE))
+  #select the ones for our parameter
+  pardf <- pardf%>%filter(parameter %in% pars)
+
+  stopifnot(nrow(pardf)>0)
+  
+
+  #how much to skip
+  stanheadlength <- system(intern=T,str_interp("sed -n '0,/# Diagonal/p' ${stanfiles[1]} | wc -l"))%>%as.numeric%>%add(1)
+  # stanhead <- readLines(stanfile,stanheadlength)%>%str_extract('.{0,20}')
+  # stanfile<-stanfiles[1]
+
+  map(stanfiles,~fread(cmd=paste('grep -v "#"',.),select=pardf$n,header=T))%>%
+    bind_rows%>%
+    mutate(sample=1:nrow(.))%>%
+    gather(par,signal,-sample)%>%
+    inner_join(pardf,by='par')%>%
+    select(signal,time=timeind,par,sample)
 }
+
+
+plot_hiearachtraj<-function(igene){
+
+  igeneind = which(allstandata$MS%>%dimnames%>%.[[3]]%>%`==`(igene))
+
+  assay2model <- c('ribo'='Riboseq Data','total'='RNAseq Data')
+  model2color <- c('Kinetic'='red','Linear'='blue','MS Data'='black','rTE: 0'='purple','Riboseq Data'='dark green','RNAseq Data'='purple')
+    
+  #Mass spec actual data
+  msdata<-plotdata(standata,igene)
+  #estimates form the models
+  message('fetching protein estimates from model csvs')
+  protsamples <- get_genepars( modelfiles,'prot',igeneind)
+  message('fetching protein estimates from linear model csvs')
+  protsampleslin <- get_genepars(modelfileslin,'prot',igeneind)
+  #and the ocunt data
+  seqdata <- preddf%>%
+    filter(gene_name==igene,assay%in%c('total','ribo'),!is.na(predicted_signal_full))%>%
+    mutate(signal=2^predicted_signal_full,model=assay2model[assay])
+
+  #plot showing trajectories and fits with MCMC samples 
+  msdata%<>%mutate(model='MS Data')
+
+
+
+  trajectoryplot<-ggplot(
+        data=msdata,
+      aes(color=model,y=log2(signal),x=as.numeric(as_factor(time)))
+    )+
+    stat_summary(geom='line',fun.y=mean)+
+    geom_point()+
+    geom_line(size=I(1),data=protsamples%>%group_by(time)%>%summarise(signal=mean(signal))%>%mutate(model='Kinetic'),linetype=1)+
+    geom_line(size=I(1),data=protsampleslin%>%group_by(time)%>%summarise(signal=mean(signal))%>%mutate(model='Linear'),linetype=1)+
+    geom_line(alpha=I(0.005),data=protsampleslin%>%mutate(model='Linear'),aes(group=sample))+
+    geom_line(alpha=I(0.005),data=protsamples%>%mutate(model='Kinetic'),aes(group=sample))+
+    scale_x_continuous(name='Stage',labels=tps)+
+    scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
+    scale_color_manual(values = model2color)+
+    theme_bw()+
+    geom_line(data=seqdata)+
+    facet_grid(scale='free',ifelse(model %in% assay2model,'Seq Data','MS') ~ . )+
+    ggtitle(label = str_interp('Linear vs. Kinetic Model - ${igene}'),
+      sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
+    #
+    plotfile <- here(str_interp('plots/modelling/allhierarch/${igene}.pdf'))
+    plotfile%>%dirname%>%dir.create(rec=T)
+    ggsave(plot=trajectoryplot,file=plotfile)
+    message(plotfile)
+
+
+
+  # trajectoryplot
+  gglayout = c(1,1,2,3)%>%matrix(ncol=2)
+
+  arrangedplot<-gridExtra::grid.arrange(
+    trajectoryplot,
+    get_genepars( modelfiles,'lrTE',igeneind)%>%qplot(bins=50,main=str_interp('Posterior Distribution log rTE\n${gnamei}'))+theme_bw(),
+    get_genepars( modelfiles,'ldeg',igeneind)%>%qplot(bins=50,main=str_interp('Posterior Distribution - log(degredation / 1.5 days) ${gnamei}'))+theme_bw(),
+  layout_matrix=gglayout)
+
+  plotfile <- here(str_interp('plots/modelling/allhierarch/${igene}.pdf'))
+  plotfile%>%dirname%>%dir.create(rec=T)
+  ggsave(plot=arrangedplot,file=plotfile)
+  message(plotfile)
+
+}
+plot_hiearachtraj('Orc3')
+
+
 #' sab2 increasing, linear fit, kind of bimodal posterior now.
 #' Orc3 weird zig zag in the riboseq that the model fits by just completely disregarding it.... This may be an instance of the riboseq signal itself being weird, rnaseq is slightly better...
 #' being fucked up
