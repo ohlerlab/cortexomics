@@ -26,13 +26,13 @@ message('...done')
 ########for prediction and imputation
 ################################################################################
   
-root <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/'
 
 
 # message('temp commented out')
-
-transformdexprfile=file.path('exprdata/transformed_data.txt')
-designmatrixfile=file.path('exprdata/designmatrix.txt')
+source(here('src/R/cortexomics_myfunctions.R'))
+root <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/'
+transformdexprfile=here('pipeline/exprdata/transformed_data.txt')
+designmatrixfile=here('pipeline/exprdata/designmatrix.txt')
 
 
 
@@ -113,7 +113,6 @@ options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
 
 
-
 #sketch
 #we need a 
 library(zoo)
@@ -158,3 +157,75 @@ g2fit <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
 pars=NA
 g2fit<-exprdata$gene_name%>%unique
 # g2fit<-'Satb2'
+
+get_standata<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
+
+  MS_array <- exprdata%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay=='MS')%>%
+    arrange(match(gene_name,g2fit),time,rep)%>%
+    .$signal%>%
+    array(dim=c(3,5,length(g2fit)))%>%
+    aperm(c(1,2,3))%>%
+    {2^.}
+
+  riboarray<-preddf%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay==assay2get)%>%
+    arrange(match(gene_name,g2fit),time)%>%
+    .$predicted_signal_full%>%
+    {2^.}%>%
+    matrix(ncol=length(g2fit))
+
+  #Use gene lengths to get DENSITY - we care about this, not the total counts
+  if(lengthnorm) riboarray%<>%sweep(2,STATS=genelengths[g2fit],FUN='/')
+
+  #timepoint averaging - we'll leave in the first, unused timepoint...
+  riboarray_old<-riboarray
+  for(i in 2:nrow(riboarray)){
+    riboarray[i,] <- (riboarray_old[i,]+riboarray_old[i-1,])/2
+  }
+
+  standata <- list(
+     G=length(g2fit),T=length(tps),K=3,
+     # gene_name=gnamei,
+     MS=MS_array,
+     # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
+     ribo =riboarray 
+  )
+  dimnames(standata$MS)=list(paste0('rep',1:3),tps,unique(g2fit))
+  dimnames(standata$ribo)=list(tps,unique(g2fit))
+
+  standata
+}
+
+#model files
+hierarchstanfile <- file.path(root,'src/Stan/degmodel_hierarch.stan') %T>%{stopifnot(file.exists(.))}
+indivfitstanfile <- file.path(root,'src/Stan/degmodel_simple.stan') %T>%{stopifnot(file.exists(.))}
+linearstanfile <- file.path(root,'src/Stan/degmodel_simple_linear.stan')%T>%{stopifnot(file.exists(.))}
+
+
+genes2fit <- exprdata$gene_name%>%c('Satb2','Orc3')%>%unique%>%setNames(.,.)
+testgeneset <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
+"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
+"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
+"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
+genes2fit<-testgeneset
+which(genes2fit == 'Satb2')
+
+
+singlesetstandata<-get_standata(testgeneset[1],genelengths,exprdata,lengthnorm=T)
+testsetstandata<-get_standata(testgeneset,genelengths,exprdata,lengthnorm=T)
+allstandata<-get_standata(unique(exprdata$gene_name),genelengths,exprdata,lengthnorm=T)
+allstandata_rna<-get_standata(unique(exprdata$gene_name),genelengths,exprdata,lengthnorm=T,assay2get='total')
+dim(allstandata$MS)
+
+standata<-allstandata
+
+hierarchpars <- c('hmu_lrTE','hsig_lrTE','hmu_ldeg','hsig_ldeg')
+pars<-hierarchpars
+
+standata=allstandata
+stanfile=hierarchstanfile
+pars=hierarchpars
+modelsamplefile='allhierarch.csv'

@@ -5,7 +5,6 @@ data {
   int<lower=0> K;          //   replicates
   vector<lower=0>[G] MS[K,T];  // mass spec data
   vector<lower=0>[G] ribo[T]; // riboseq (synthesis) data
-
 }
 parameters {
   vector[G] ms0logratio;  // starting mass spec relative to rTE
@@ -31,7 +30,7 @@ transformed parameters {
   vector<lower=0>[G] tau;
 
   #rTE on log scale
-  rTE = exp(lrTE+19);
+  rTE = exp(lrTE+lrTEshift);
   
   #tau on log scale
   tau = exp(ltau);

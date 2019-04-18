@@ -1,5 +1,5 @@
 ################################################################################
-########fuzzy clustering with sirt fuzcluster
+########fuzzy clustering with sirt fuzcluster - example
 ################################################################################
 	
 #*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
@@ -38,6 +38,8 @@ dat_m <- rbind( dat_m, dat_m1 )
 dat_s <- rbind( dat_s, dat_s1 )
 colnames(dat_s) <- colnames(dat_m) <- paste0("I", 1:3 )
 
+dat_s[666,] = dat_s[666,] + 100
+dat_s[66,] = dat_s[666,] + 100
 
 BiocManager::install(c('sirt'))
 
@@ -45,9 +47,22 @@ BiocManager::install(c('sirt'))
 # estimation
 
 #*** Model 1: Clustering with 8 random starts
-res1 <- sirt::fuzcluster(K=2,dat_m, dat_s, nstarts=8, maxiter=25)
-summary(res1)
+res1 <- sirt::fuzcluster(K=2,dat_m, dat_s, nstarts=8, maxiter=25)#Verify that fuzz 
 
 
 
-#Verify that fuzz 
+###load and assemble the data
+#1 limma data estimate
+#2 estimates of the kinetic coordinates
+#3 estimates of the deviance from those.
+
+
+###Now, cluster at various cluster numbers.
+res1 <- sirt::fuzcluster(K=2,dat_m, dat_s, nstarts=8, maxiter=25)#Verify that fuzz 
+
+
+#Plot clusters at different numbers
+
+#Run GO-term analysis on different clusters
+
+#export clusters

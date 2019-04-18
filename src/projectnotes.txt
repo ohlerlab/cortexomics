@@ -1,37 +1,52 @@
-okay time to get out of the fog.
-
-Mappability calculations are time consuming as I"ve learned.
-So should be done right first time.
-
-Maybe should limit to transcriptome?
-
-But then we have to remap, to the transcriptome.
-
-which means we have to think about mappability when we do our read counts.
-
-Which means we should test the impact of our various counting methods
-
-Which means for fuck sake I need to look at these.
+###REMEMBER - 
+- When in doubt organize, overview, look at the paper plan, read, until you realize the urgency and import
+- Plenty of papers in the papers folder
 
 
-- Think about list of things that can go wron gin RNAseq
-- Get final expr levels down and put them in 
+Where am I?
+Ive been clustering with my hierarchical model?
+VBut does it work? How do I figure that out...
+I look at the weird cases, and see  how it's dealing with them.
 
-Do I want to do this by chromosome maybe?
 
-Okay so
-My bw such as it is is odd - consecture regions aren't getting collapsed, and the nn regions are missing.
-Actually maybe stuff not mapping is okay?
+
+
+After this i can do my fuzzy clustering and see if it makes a different
+
+Then also I can look at the coverage of the weird cases
+
 
 indexing is something I"ll need to be sure of. Are Bams 0 indexed???
 
-mappability pythons cript is giong slow
-
-
-
 #Envs
-conda create -n biocli ucsc-bedGraphToBigWig samtools bedtools bamtools cutadapt tophat star
+conda create -n biocli ucsc-bedGraphToBigWig samtools bedtools bamtools cutadapt tophat stara
 
 
 #apparently tophat and snakemake conflict
 #install snakemake broke bedgraphtobigwig
+
+#Something is borking R environment - R2 seems okay for now
+```installed.packages()%>%saveRDS('./envs/installed_rpackages.rds')```
+
+
+#Organization begins now, thatsublime text is fixed.
+
+
+#This file is currently doing a lot of work - creating the joint and the seperate models with degredation and synthesis.
+'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_rstan.R'
+'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R'
+
+#currently doing the 
+src/R/modeling/h_deg_trajplot.R
+
+#IDE setup wishlist
+Copy text easily back from terminal
+linting
+local copies of stuff.
+
+Snippets go here ~/Library/Application Support/Sublime Text 3/Packages/User/
+
+
+
+
+Good morning check: Is everything gitted?

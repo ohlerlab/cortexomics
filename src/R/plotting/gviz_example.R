@@ -1,5 +1,28 @@
+
+library(purrr)
+library(here)
+library(ggExtra)
+library(ggpubr)
+library(tidyverse)
+library(Rcpp)
+library(doMC)
+library(rstan)
+#BiocManager::install('rstan')
+library(tidyverse)
+library(magrittr)
+library(data.table)
+library(stringr)
+library(magrittr)
+library(splines)
+library(parallel)
+#!/usr/bin/env Rscript
+message('loading libraries')
+suppressMessages(library(assertthat))
+suppressMessages(library(limma))
+message('...done')
+
 #define an annotation gtf
-transcriptfile <- '~/projects/cortexomics/data/static_local/gencode.vM12.annotation.gtf'
+transcriptfile <- here('pipeline/my_gencode.vM12.annotation.gtf')
 #get the bame files
 # datafiles <- Sys.glob(here::here('data/mergedbigwigs/*/*/*'))%>%
 datafiles <- Sys.glob(here::here('data/bigwigs/*/*/*'))%>%
