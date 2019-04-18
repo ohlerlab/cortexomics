@@ -1,4 +1,5 @@
 library(purrr)
+library(here)
 library(ggExtra)
 library(ggpubr)
 library(tidyverse)
@@ -19,295 +20,102 @@ suppressMessages(library(assertthat))
 suppressMessages(library(limma))
 message('...done')
 
+setwd(here())
 
-root <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/'
-
-get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
-  filter(parameter=='prot')%>%select(time,value,sample,gene)
-
-parse_stan_pars<-function(stanpars,indnames=c()){
-  parsedpars<-stanpars%>%str_match('([^\\[]+)\\[?(\\d*),?(\\d*)\\]?')%>%as.data.frame%>%
-    .[,-1]
-  n_inds <- length(colnames(parsedpars))-1
-
-    parsedpars[,-1]%>%.[,]%>%apply(1,function(x){k = keep(x,~ . !='');c(rep(NA,n_inds-length(k)),k)})%>%t%>%
-            set_colnames(c('time','gene'))%>%
-            as.data.frame%>%
-            map_df(.,as.integer)%>%
-          mutate(parameter=parsedpars[,1])%>%
-      select(parameter,time,gene)%>%
-      split(.,seq_len(nrow(.)))
-
-}
-#get maximim likelihood (kinda) and mean values from our two models, with these functions
-get_ml_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
-get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest
-
-get_limmafit_predvals <- function(limmafit,designmatrix){
-  (limmafit$coefficients %*% t(limmafit$design))%>%
-    set_colnames(designmatrix$dataset)%>%
-    as.data.frame%>%
-    rownames_to_column('gene_name')%>%
-    gather(dataset,predicted_signal,-gene_name)%>%
-    left_join(designmatrix)%>%
-    distinct(gene_name,time,assay,.keep_all = TRUE)
-}
-
-
-get_limmafit_stdevs <- function(limmafit,designmatrix){
-  (((limmafit$stdev.unscaled)^2) %*% t(limmafit$design))%>%
-    set_colnames(designmatrix$dataset)%>%
-    as.data.frame%>%
-    rownames_to_column('gene_name')%>%
-    gather(dataset,var_signal,-gene_name)%>%
-    mutate(sd_signal = sqrt(var_signal))%>%
-    left_join(designmatrix)%>%
-    distinct(gene_name,time,assay,.keep_all = TRUE)
-}
-
-getlimmapredictions <- function(modfit,modname,designmatrix){
-  predictedvals <- get_limmafit_predvals(modfit,designmatrix)
-  predictedstdevs <- get_limmafit_stdevs(modfit,designmatrix)
-  predictedvals%<>%left_join(predictedstdevs)
-  predictedvals%<>%select(-matches('var_'))
-  predictedvals%<>%filter(rep==1)
-  predictedvals%<>%select(-rep)
-  colnames(predictedvals) %<>%str_replace('predicted_signal',paste0('predicted_signal_',modname))
-  colnames(predictedvals) %<>%str_replace('sd_signal',paste0('sd_signal_',modname))
-  predictedvals
-}
+source(here('src/R/cortexomics_myfunctions.R'))
 
 # message('temp commented out')
 
-transformdexprfile=file.path('exprdata/transformed_data.txt')
-designmatrixfile=file.path('exprdata/designmatrix.txt')
+transformdexprfile=here('pipeline/exprdata/transformed_data.txt')
+designmatrixfile=here('pipeline/exprdata/designmatrix.txt')
+registerDoMC(32)
 
 
-
-# save.image();stop('imagesaved')
-
-#and export
-dir.create('exprdata',showWarnings = FALSE)
-exprtbl <- read_tsv(transformdexprfile) 
-exprtbl %<>% select(gene_name, everything())
-assert_that(map_chr(exprtbl,class)[1] == 'character')
-assert_that(all(map_chr(exprtbl,class)[-1] == 'numeric'))
-
-exprmatrix <- exprtbl  %>% { set_rownames(as.matrix(.[,-1]),.[[1]]) }
+#get the data
+source('src/R/modeling/stan_predict_impute.R')
 
 
-designmatrix <- read_tsv(designmatrixfile)
-
-levels(designmatrix$assay) <- c('total','ribo','MS')
-
-
-########Now, let's compare models of different complexity levels
-designmatrix$ribo <- designmatrix$assay %in% c('ribo','MS')
-designmatrix$MS <- designmatrix$assay %in% c('MS')
-
-design = model.matrix( ~ time + assay + time:assay , designmatrix, xlev = list(assay = c('total','ribo','MS')) )
-
-exprdata <- exprmatrix%>%
-  set_colnames(designmatrix$dataset)%>%
-  as.data.frame%>%
-  rownames_to_column('gene_name')%>%
-  gather(dataset,signal,-gene_name)%>%
-  left_join(designmatrix)
-
-increasinggenes <- exprdata%>%
-  group_by(gene_name)%>%filter(assay=='MS')%>%
-  mutate(increasingMS = (mean(signal[time=='P0']) - mean(signal[time=='E13'])) > 2 )%>%
-  filter(increasingMS)%>%.$gene_name
-
-decreasinggenes <- exprdata%>%
-  group_by(gene_name)%>%filter(assay=='MS')%>%
-  mutate(decreasingMS = (mean(signal[time=='P0']) - mean(signal[time=='E13'])) < -2 )%>%
-  filter(decreasingMS)%>%.$gene_name
-
-
-#Check we aren't using hte wrongly scaled data.
-stopifnot(exprdata%>%filter(gene_name=='Satb2',assay=='ribo',time=='E13')%>%.$signal%>%`<`(10))
-
-limmafits <- list()
-designmatrix$time %<>% as_factor
-
-#fit the full model
-limmafits[['full']] = limma::lmFit(exprmatrix,
-                                   design=model.matrix( ~ time*(ribo+MS), designmatrix)
-)
-
-#with 4 splines
-limmafits[['spline_4']] = limma::lmFit(exprmatrix,
-                                        design=model.matrix( ~ ns(as.numeric(time),4)*(ribo+MS), designmatrix)
-)
-
-#with fewer splines
-limmafits[['spline_3']] = limma::lmFit(exprmatrix,
-                                       design=model.matrix( ~ ns(as.numeric(time),3)*(ribo+MS), designmatrix)
-)
-
-preddf <- exprdata %>%select(gene_name,dataset,signal)%>%
-  left_join(getlimmapredictions(limmafits[['full']],'full',designmatrix)) %>%
-  left_join(getlimmapredictions(limmafits[['spline_4']],'spline_4',designmatrix))%>%
-  left_join(getlimmapredictions(limmafits[['spline_3']],'spline_3',designmatrix))
-
-
-####Quick and dirty imputation with splines
-exprdata%<>%left_join(preddf%>%select(gene_name,time,assay,predicted_signal_spline_3))%>%
-  mutate(signal = ifelse(is.na(signal),predicted_signal_spline_3,signal))%>%
-  select(-predicted_signal_spline_3)
-
-options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
-
-
-
-
-
-
-#sketch
-#we need a 
-library(zoo)
-# 
-tps <- c('E13','E145','E16','E175','P0')
-#
-gnamei <- 'Satb2'
-#
-#increasing genes
-gnamesi <- c('Satb2')
-#decreasing genes
-'Isoc1'
-# gnamesi <- c('Satb2')
-gnamesi <- c('Isoc1')
-#
-gnamesi <- exprdata%>%.$gene_name%>%sample(7)
-#
-gnamesi <- 'Satb2'
-g2fit <- gnamesi
-
-
-
-#named vector containg gene legnths
-genelengths <- fread('feature_counts/data/E13_ribo_1/feature_counts')%>%
-  select(Geneid,Length)%>%
-  left_join(fread('ids.txt'),by=c(Geneid='gene_id'))%>%
-  arrange(sample(1:n()))%>%
-  group_by(gene_name)%>%
-  slice(1)%>%
-  {setNames(.$Length,.$gene_name)}
-
-
-max_cores <- 32
-g2fit<-exprdata$gene_name%>%unique%>%head(3)
-lengthnorm=TRUE
-
-
-
-g2fit <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
-"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
-"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
-"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
-pars=NA
-g2fit<-exprdata$gene_name%>%unique
-# g2fit<-'Satb2'
 
 #Funciton to fit linear and nonlinear model with stan
-getstanfits <- function(g2fit,genelengths,exprdata,pars=NA,lengthnorm=TRUE,...){
+get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
+  require(tools)
 
-  MS_array <- exprdata%>%
-    filter(gene_name%in%g2fit)%>%
-    filter(assay=='MS')%>%
-    arrange(match(gene_name,g2fit),time,rep)%>%
-    .$signal%>%
-    array(dim=c(3,5,length(g2fit)))%>%
-    aperm(c(1,2,3))%>%
-    {2^.}
-
-  riboarray<-preddf%>%
-    filter(gene_name%in%g2fit)%>%
-    filter(assay=='ribo')%>%
-    arrange(match(gene_name,g2fit),time)%>%
-    .$predicted_signal_full%>%
-    {2^.}%>%
-    matrix(ncol=length(g2fit))
-
-  #Use gene lengths to get DENSITY - we care about this, not the total counts
-  if(lengthnorm) riboarray%<>%sweep(2,STATS=genelengths[g2fit],FUN='/')
-
-  #timepoint averaging - we'll leave in the first, unused timepoint...
-  riboarray_old<-riboarray
-  for(i in 2:nrow(riboarray)){
-    riboarray[i,] <- (riboarray_old[i,]+riboarray_old[i-1,])/2
-  }
-
-  standata <- list(
-     G=length(g2fit),T=length(tps),K=3,
-     # gene_name=gnamei,
-     MS=MS_array,
-     # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
-     ribo =riboarray 
-  )
-
-
-  #Fit non-hierarchical model 
-  modelnm=paste0(g2fit[1],'_',length(g2fit))
-  file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
-  # origmodelfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
-  origmodelfile<-file.path(root,'src/Stan/degmodel_hierarch.stan')
+  ##First copy the model file to a new folder
+  tmpdir <- tempdir() 
+  stopifnot(file.exists(stanfile))
+  #delete the rds file
+  stanfile%>%str_replace('.stan','.rds')%>%{suppressWarnings(file.remove(.))}
+  # stanfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
   tdir <-   tempdir()
   dir.create(tdir)
-  file.exists(origmodelfile)
-  file.copy(origmodelfile,tdir)
-  modelcopy=file.path(tdir,basename(origmodelfile))
+  file.copy(stanfile,tdir)
+  modelcopy=file.path(tdir,basename(stanfile))
   stopifnot(file.exists(modelcopy))
   modelcopy
-  message(paste0('fitting model ',basename(origmodelfile),' on ',length(g2fit),' genes'))
-  modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(origmodelfile),'_modsamples')
 
+
+  # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tdir))
+
+  message(paste0('fitting model ',basename(tdir),' on ',standata$G,' genes'))
+  # modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(stanfile),'_modsamples')
   #
   n_chains <- 4
-  realstanfit <- rstan::stan(file=modelcopy,
+
+  setwd(sampledir)
+
+  stanfit <- rstan::stan(file=modelcopy,
           model_name=basename(tdir),seed=1,
           # model_name=modelnm,seed=1,
           data=standata,
               control=list(adapt_delta=0.95,max_treedepth=15),save_dso=FALSE,
-              pars=pars,
+              pars=c(pars,'lrTE'),
               # init = lapply(seq_len(n_chains),function(id)list('lrTE'=array(rep(20,length(g2fit))))),
               chains=n_chains,iter=1e3,cores=n_chains,verbose=TRUE,save_warmup=FALSE,
               sample_file=modelsamplefile,
               # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
             )
 
-  #now fit linear model
-  modelnm=paste0(g2fit[1],'_linear_',length(g2fit))
-  file.path(root,'src/Stan/degmodel_nonhierach.stan')%>%str_replace('.stan','.rds')%>%file.remove
- 
-  linmodelfile <- 'src/Stan/degmodel_simple_linear.stan'
-  linmodelsamplefile<-paste0('stansamples/',basename(tdir),'_',basename(linmodelfile),'_modsamples')
+    
+  chainfiles <- Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
+  stopifnot(length(chainfiles)==n_chains)
+  
 
-  realstanfit_lin <- rstan::stan(file=file.path(root,linmodelfile),seed=1,model_name=modelnm,data=standata,
-                             control=list(adapt_delta=0.95,max_treedepth=20),sample_file='tmpstansamples.txt',
-                             chains=4,iter=1000,cores=4,verbose=F,
-                              pars=pars%>%setdiff(c('deg','ldeg')),
-                              linmodelsamplefile,
-                             # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-                            )
-
-  list(kinetic=realstanfit,linear=realstanfit_lin,data=standata,genes=g2fit)
+  list(fit=stanfit,chainfiles= chainfiles)
 
 }
 
-genes2fit <- exprdata$gene_name%>%c('Satb2','Orc3')%>%unique%>%setNames(.,.)
-testgeneset <- c("Acadvl", "Ak1", "Asna1", "Cald1", "Cst3", "Ctnnd2", "Cul2",
-"Dclk1", "Dpysl3", "Epb41l1", "Flna", "Hspa12a", "Igsf21", "Nos1",
-"Orc3", "Phactr4", "Rap1b", "Rasa3", "Rps6ka5", "Satb2", "Srcin1",
-"Stx1b", "Tbc1d24", "Trmt1l", "Zc2hc1a", "Zmym3")
-genes2fit<-testgeneset
-which(genes2fit == 'Satb2')
+
+# stop()
+
+
+# allhierarchfit <- get_stanfit(allstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch.csv',sampledir=here('pipeline/stansamples'))
+# allhierarchfit%>%saveRDS(here('data/allhierarchfit.rds'))
+
+# alllinfit <- get_stanfit(allstandata,linearstanfile,pars='lp__',modelsamplefile='alllinear.csv',sampledir=here('pipeline/stansamples'))
+# alllinfit%>%saveRDS(here('data/alllinfit.rds'))
+
+allhierarchfit_rna <- get_stanfit(allstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
+allhierarchfit_rna%>%saveRDS(here('data/allhierarchfit_rna.rds'))
+
+alllinfit_rna <- get_stanfit(allstandata_rna,linearstanfile,pars='lp__',modelsamplefile='alllinear_rna.csv',sampledir=here('pipeline/stansamples'))
+alllinfit_rna%>%saveRDS(here('data/alllinfit_rna.rds'))
+
+
+# testhierarchfit <- get_stanfit(singlesetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
+testhierarchfit <- get_stanfit(testsetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
+testhierarchfit%>%saveRDS('../data/testhierarchfit.rds')
+testhierarchfit<-readRDS('../data/testhierarchfit.rds')
+
+testlinfit <- get_stanfit(testsetstandata,linearstanfile,pars=NULL,modelsamplefile='stansamples/testlin.csv',sampledir=here('pipeline/stansamples'))
+testlinfit%>%saveRDS(here('data/testlinfit.rds'))
+
+
+
+
+
 
 # allstanfits <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=FALSE)
 
-registerDoMC(32)
 
 dir.create(paste0('stanfits/'),showWarnings=F)
 
