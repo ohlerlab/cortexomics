@@ -8,8 +8,8 @@ message('...done')
 
 #load arguments
 argv <- c(
-	geneids = 'ids.txt',
-	outputfile = 'gene_set_enrichment/allgenesets.gmt'
+	geneids = here('pipeline/','ids.txt'),
+	outputfile = here('pipeline/','gene_set_enrichment/allgenesets.gmt')
 )
 argv <- commandArgs(trailingOnly=TRUE)[1:length(argv)]%>%setNames(names(argv))
 for(i in names(argv)) assign(i,argv[i])
@@ -34,13 +34,13 @@ add_to_gmt<-function(catname,catdescription,catgenes,gmt=outputfile){
 
 
 ####Molyneux cell specificity data
-molyneuxfile<-'../ext_data/molyneux_etal_2015_tS3.xlsx'
+molyneuxfile<-here('ext_data/molyneux_etal_2015_tS3.xlsx')
 molyneuxdata <- readxl::read_excel(molyneuxfile,sheet=1,skip=1)
 molyneuxdata[1,]%>%t
 
 #lots of data in this table, fold changes an pvalues and some clusteirng I can't remember
 #the point of. 
-neurites <- '../ext_data/neurites_zappulo_etal_2017.csv'
+neurites <- here('ext_data/neurites_zappulo_etal_2017.csv')
 neurites%<>%fread(skip=2)
 
 
@@ -80,7 +80,7 @@ file.info(outputfile)
 
 
 #p-bodies
-p_bodies_prot_tab<-'../ext_data/p_bodies_hubstenberger_etal_2017/prot_enrich.csv'%>%
+p_bodies_prot_tab<-here('ext_data/p_bodies_hubstenberger_etal_2017/prot_enrich.csv')%>%
 	fread%>%
 	set_colnames(c("gene_name", "UniProtKB entry", "log2fc", 
 "pval", 
@@ -102,7 +102,7 @@ add_to_gmt('P_body_proteins_Hubstenberger_etal_2017',
 	p_bodies_prot_tab$gene_id
 )
 
-p_bodies_rna_tab<-'../ext_data/p_bodies_hubstenberger_etal_2017/RNA_enrich.csv'%>%
+p_bodies_rna_tab<-here('ext_data/p_bodies_hubstenberger_etal_2017/RNA_enrich.csv')%>%
 	fread%>%
 	set_colnames(
 		c("Ensembl Gene ID", "gene_name", "log2fc", "pval", "padj", 
@@ -135,7 +135,7 @@ add_to_gmt('P_body_RNAs_Hubstenberger_etal_2017',
 
 
 #Let's look at poly a genes
-altpagenes <- fread('../ext_data/ctag_paperclip_hwang_et_al_2017.csv')
+altpagenes <- fread(here('ext_data/ctag_paperclip_hwang_et_al_2017.csv'))
 altpagenes%<>%left_join(ids)
 
 add_to_gmt('The few genes identified as having alternative polyadenylation in hwang et al 2017',
@@ -143,7 +143,7 @@ add_to_gmt('The few genes identified as having alternative polyadenylation in hw
 	altpagenes$gene_id
 )
 
-molyneuxdata<-readxl::read_xlsx('../ext_data/molyneux_etal_2015_tS3.xlsx',skip=1)%>%
+molyneuxdata<-readxl::read_xlsx(here('ext_data/molyneux_etal_2015_tS3.xlsx'),skip=1)%>%
 	mutate(tissue=
 		case_when(
 				cluster%in%c(5,0,15,10) ~ 'CPN', 

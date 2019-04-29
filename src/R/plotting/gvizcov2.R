@@ -6,214 +6,22 @@ options(ucscChromosomeNames=FALSE)
 select<-dplyr::select
 
 
-displayPars(orftrack) <- list(height=6)
-displayPars(peptide_track) <- list(height=6)
 
+make_gtrack<-function(annotationgr){
+	nctrs <- annotationgr$transcript_type%>%split(annotationgr$transcript_id)%>%map(unique)%>%keep(Negate(identical),'protein_coding')%>%names
+    
+    annotationgr$feature = annotationgr$type %>% as.character
+    annotationgr<-annotationgr[ (annotationgr$feature %in% c("CDS","UTR")) | annotationgr$transcript_id %in% 	nctrs]
 
-mypdfdev <- function(filename,...){
-	if(tools::file_ext(filename)!='pdf'){
-		filename <- paste0(filename,'.pdf')
-	}
-	dir.create(dirname(filename),showWarnings=FALSE)
-	message(normalizePath(filename))
-	pdf(filename,...)
-}
-mysvglitedev <- function(filename,...){
-	if(tools::file_ext(filename)!='svg'){
-		filename <- paste0(filename,'.svg')
-	}
-	dir.create(dirname(filename),showWarnings=FALSE)
-	message(normalizePath(filename))
-	svglite(filename,...)
-}
-
-
-
-get_riboproftrack<- function(exons_tr,bigwigpair,rangename){
-
-	stopifnot(c('+','-') %in% names(bigwigpair))
-
-	# for(i in ls()) assign(i,get(i),envir=.GlobalEnv)
-	profilegrange <- 
-		suppressWarnings(lapply(bigwigpair,import,which = unlist(exons_tr)))%>%
-		# suppressWarnings(lapply(bigwigpair,import,which = unlist(testwindow)))
-		{for(strandi in names(.)) strand(.[[strandi]]) <- strandi;.}%>%
-		{suppressWarnings(Reduce(f=c,.))}%>%
-		# subsetByOverlaps(testwindow)%>%
-		subset(score>0)
-	# profilegrange<<-profilegrange
-	#now map our prifle data to the exons space
-	gr <- suppressWarnings(mapToTranscripts(profilegrange,exons_tr))
-
-	# (mapToTranscripts(testwindow,exons_tr))
-	if(length(gr)==1) gr <- c(gr,gr)
-	gr$score<-profilegrange$score[gr$xHits];
-	# gr%>%subset(score>30)
-	# profilegrange%>%subset(score>30)
-
-	datname = bigwigpair%>%extract_id%>%.[[1]]
-	
-	scoremat <- rep(0,length(gr)*3)%>%matrix(ncol=3)
-	scoremat[matrix( c(1:length(gr),(start(gr)%%3)+1 ) ,ncol=2 ) ] <- gr$score
-	mcols(gr) = scoremat
-	rgbvect <- c('red','green','blue')%>%sort
-
-	if(length(gr)==0) {groupvect <- NULL}else{
-		# groupvect <- groupvect[(start(gr)%%3)+1]
-		groupvect <- paste0('frame ',1:3)
-	} 
-	DataTrack(gr,name=	datname,chr=rangename,groups=groupvect,col = rgbvect, fill=rgbvect, cex.title=0.3,legend=FALSE,genome='transcript')
-
-}
-
-
-transcript_orfplot <- function(trname,trcellname,
-	exons,
-	orftrack, # made with the orf dt
-	peptide_track,
-	bigwigs2plot #list of pairs (strands) of wigs in genome space
-	){
-	range = exons[[trname]]
-
-
-	trname%<>%str_replace_all('[\\[\\]]','')
-
-	plottitle <- str_interp("Riboseq Read Profile for:\n${trname} = ${range}\n")		
-
-	
-	#construct track showing our exons
-	exontrack<-
-		GRanges(trname,IRanges(c(1,cumsum(width(range))[-length(range)]+1),cumsum(width(range))))%>%
-		{AnnotationTrack(.,name='exons',col='black',fill='yellow',strand='*',genome=genome,id=paste0('exon_',seq_along(.)),
-			showFeatureId=F,
-			chr=trname)}
-
-
-	#name the plot file
-	transprofplotfile <- str_interp('./plots/loci_riboprofiles/${trname}_${trcellname}_prof')
-#		transprofplotfile%<>%str_replace_all('[^a-zA-z0-9_\\./]+','')
-
-	orfs <- orftrack@range%>%subset(seqnames%in%trname)%>%GR2DT
-	
-	#calculate plot borders
-	plotstart <- orfs$start%>%min
-	plotend <- orfs$end%>%max
-	orfswidth <- plotend-plotstart
-	plotstart = max(0,plotstart - (orfswidth))
-	rangelength = sum(width(range))
-	plotend = min(rangelength,plotend + (orfswidth))
-	plotgenomewindow <- GRanges(trname,IRanges(plotstart,plotend))%>%split(.,seqnames(.))
-
-	#get the profile track in transcript space
-	ribotracks <- bigwigs2plot%>%
-		map(~get_riboproftrack(setNames(GRangesList(range),trname),.,trname))
-
-	max_y <- ribotracks%>%map(~.@data[,overlapsAny(.@range,orftrack@range,ign=TRUE)]%>%max)%>%unlist%>%max%>%divide_by(10)%>%ceiling%>%multiply_by(10)
-	max_y=log2(max_y)
-
-	for(i in seq_along(ribotracks)){
-		displayPars(ribotracks[[i]])$ylim <- c(0,max_y)
-
-	}
-	displayPars(peptide_track)$col.id <- 'black'
-	# add_legendtrack <- function(ribotracks){
-	# 	l<-length(ribotracks)
-
-	# 	for(i in seq_along(ribotracks))displayPars(ribotracks[[i]]) <- list(height=1)
-	# 	displayPars(ribotracks[[l]]) <- list(height=1.2)
-	# 	displayPars(ribotracks[[l]]) <- list(legend=TRUE,lineheight.legend=0.2)
-
-	# 	ribotracks
-	# }
-	# ribotracks %<>% add_legendtrack
-	chromosome(orftrack)<-trname
-	chromosome(peptide_track)<-trname
-	
-	#open pdf file	
-	mypdfdev(transprofplotfile)
-	
-	plotTracks(main=plottitle,cex.main=0.3,
-		from=plotstart,to=plotend,#zoomed in on the orf in question
-		c(
-			ribotracks, # plot the riboseq signal
-			rnaseqtracks,
-			exontrack,
-			GenomeAxisTrack(range=GRanges(trname,IRanges(0,rangelength)),id=trname)
-		),
-		type='hist',
-		col.labels='black',
-		chr=seqnames(range),
-		transformation = function(x) {log2(x+1)}
-	)
-	dev.off()
-
-}
-
-#seqinfo object for orftrack
-transcript_seqinfo <- exons[unique(peptide_hits_df$transcript_id)]%>%
-	width%>%sum%>%{Seqinfo(seqnames=names(.),seqlength=.)}
-
-#track with the orf's in transcript space
-orftrack<- peptide_hits_df%>%
-	select(seqnames=transcript_id,start=orfstart,end=orfend,ORF_id_tr)%>%
-	mutate(strand='+')%>%
-	makeGRangesFromDataFrame(keep=T)%>%
-#	{x=makeGRangesFromDataFrame(.);mcols(x)<-cbind(mcols(x),select(.,-seqnames,-start,-end));x}%>%
-	{seqinfo(.)<-transcript_seqinfo[seqlevels(.)];.}%>%
-	unique%>%
-	# {mcols(.)$contains_peptide <- ifelse(.$contains_peptide,'Peptide+','-');.} %>%
-	{Gviz::AnnotationTrack(
-		name='ORFs',.,
-		feature=sort(c('red','green','blue'))[(start(.)%%3)+1],red='red',green='green',blue='blue',
-		id=.$ORF_id_tr,showFeatureId=TRUE,cex=0.3,fontcolor.item="black")}
-
-#track with the orf's in transcript space
-peptide_track<- peptide_hits_df%>%
-	select(seqnames=transcript_id,start=start,end=end,peptide)%>%
-	mutate(strand='+')%>%
-	makeGRangesFromDataFrame(keep=T)%>%
-#	{x=makeGRangesFromDataFrame(.);mcols(x)<-cbind(mcols(x),select(.,-seqnames,-start,-end));x}%>%
-	{seqinfo(.)<-transcript_seqinfo[seqlevels(.)];.}%>%
-	# {mcols(.)$contains_peptide <- ifelse(.$contains_peptide,'Peptide+','-');.} %>%
-	unique%>%
-	{Gviz::AnnotationTrack(
-		name='Peptide',.,
-#		feature=sort(c('red','green','blue'))[(start(.)%%3)+1],red='red',green='green',blue='blue',
-		id=.$peptide,showFeatureId=TRUE,cex=0.3,fontcolor.item="black")}
-
-
-
-peptide_trs <- peptide_hits_df$transcript_id%>%unique
-
-# for (trname in addtr){
-for (trname in peptide_trs){
-	trcellnames <- peptide_hits_df%>%
-		filter(transcript_id==trname)%>%.$sample%>%
-		extract_oneof(cellnames)%>%unique
-
-	trcellnames%<>%str_subset('OD5P')
-	
-	for(trcellname in trcellnames){
-		#select which tracks to show
-
-		bigwigs2plot <- bigwigpairlist%>%.[names(.)%>%str_detect(trcellname)]
-
-		transcript_orfplot(trname,trcellname,exons,orftrack,peptide_track,bigwigs2plot)
-	}
-}
-
-
-make_gtrack<-function(transcripts){
-    # transcripts$feature = transcripts$type %>% as.character
-    # transcripts<-transcripts[ transcripts$feature %in% c("CDS","UTR")]
-    # transcripts$exon = transcripts$exon_id
-    # transcripts$gene = transcripts$gene_name
-    # transcripts$gene = transcripts$transcript_name
-    # transcripts$symbol = transcripts$transcript_name
-    # transcripts$feature = transcripts$feature %>% as.character
-    # transcripts$transcript= transcripts$transcript_id
-    # transcripts$group = transcripts$transcript_id 
-     Gviz::GeneRegionTrack(transcripts,thinBoxFeature=c("UTR"),showId=TRUE,geneSymbol=TRUE)
+    annotationgr$exon = annotationgr$exon_id
+    annotationgr$gene = annotationgr$gene_name
+    annotationgr$gene = annotationgr$transcript_name
+    annotationgr$symbol = annotationgr$transcript_name
+    annotationgr$feature = annotationgr$feature %>% as.character
+    annotationgr$transcript= annotationgr$transcript_id
+    annotationgr$group = annotationgr$transcript_id 
+    nccolor<-ifelse(annotationgr$transcript_id %in% 	nctrs,'blue','orange')
+     Gviz::GeneRegionTrack(annotationgr,thinBoxFeature=c("UTR"),showId=TRUE,geneSymbol=TRUE,fill=nccolor)
 }
 gtrack =transcripts%>%subsetByOverlaps(vgene)%>%make_gtrack
 
@@ -224,28 +32,55 @@ gtrack =transcripts%>%subsetByOverlaps(vgene)%>%make_gtrack
 library(GenomicFeatures)
 
 
-allanno<-here('pipeline/my_gencode.vM12.annotation.gtf')%>%import
+if(!exists('allanno')) allanno<-here('pipeline/my_gencode.vM12.annotation.gtf')%>%import
 bams <- Sys.glob(here('pipeline/star/data/*/*.bam'))%>%str_subset(neg=T,'transcript|mappability|accepted|unmapped')
 
 
 bamname<-'foo'
 bamfile=bams%>%str_subset('E13_ribo_1')
-genegr=vgene
+genegr=vexonsred
+genegr%>%width%>%sum
+genegr%>%width
 
-#rapidly gets a covergae profile using bamsignals
-get_Profile_gr<-function(genegr,bamfile,signame=NULL,rangename=NULL,nolift = FALSE, score_negative=FALSE){
+#so pa2g4 is 
+#rapidly gets a covergae profile using bamsignals. 
+get_Profile_gr<-function(genegr,bamfile,signame=NULL,rangename=NULL,nolift = FALSE, score_negative=FALSE,invstrand=FALSE,logtrans=TRUE){
 	require(bamsignals)
 	require(tools)
-	
+
 	# if(is.null(names(genegr))) rangename = ''
 	if(is.null(signame)) signame = bamfile%>%file_path_sans_ext%>%basename
 
-	signal <- Rle(bamsignals::bamProfile(bamfile,genegr,ss=TRUE)[1][1,])
+	stopifnot(genegr ==sort(genegr))
+	stopifnot(genegr ==reduce(genegr))
+	stopifnot(n_distinct(unique(seqnames(genegr)))==1)
+	stopifnot(n_distinct(unique(strand(genegr)))==1)
+	
+	# strand(genegr) <-'-'
+	if(invstrand) genegr <- invertStrand(genegr)
+
+	isneg <- '-' %in% strand(genegr)
+	
+
+
+	# signal <-  bamsignals::bamProfile(bamfile,genegr%>%tail(2)%>%head(1)%>%resize(4,'start'),ss=TRUE)%>%as.list%>%{if(isneg) rev(.) else . }%>%Reduce(f=cbind)%>%.['sense',]%>%Rle
+	signal <-  bamsignals::bamProfile(bamfile,genegr,ss=TRUE)%>%
+		as.list%>%
+		{if(isneg) rev(.) else . }%>%
+		Reduce(f=cbind)%>%
+		.['sense',]%>%
+		Rle
+
+	if(invstrand) signal = rev(signal)
+
 	nzsig <- which(signal!=0)
 	genomecoords<-GRanges(rangename,IRanges(nzsig,w=1),score=signal[nzsig])
 
+	if(logtrans) genomecoords$score = sign(genomecoords$score) * log2(abs(genomecoords$score))
 	if(score_negative) genomecoords$score = genomecoords$score * -1
 
+	# if(logtrans) genomecoords$score = log2(abs(genomecoords$score)+1)
+		# browser()
 	if(nolift) return(DataTrack(genomecoords,name=signame))
 
 	genomecoords <- mapFromTranscripts(genomecoords,GRangesList(genegr)%>%setNames(rangename))
@@ -253,27 +88,24 @@ get_Profile_gr<-function(genegr,bamfile,signame=NULL,rangename=NULL,nolift = FAL
 	stopifnot(genomecoords$xHits == seq_along(nzsig))
 	mcols(genomecoords) <- DataFrame(score=signal[nzsig])
 
-	genomecoords
-
 	DataTrack(genomecoords,name=signame)
 
 }
 
-vgene <- allanno%>%subset(gene_name=='Pa2g4')%>%subset(type=='gene')
-gname <- vgene$gene_name
+# gname <- vgene$gene_name
+gname <- 'Orc3'
+
+vgene <- allanno%>%subset(gene_name==gname)%>%subset(type=='gene')
 
 
-import(con=pipe(,format='gff3')
-
-#Get all overlapping. annoation for our gene
-stop()
 
 
 #Get the annoation track lifted over
 
-subanno<-subsetByOverlaps(allanno,vgene)
+subanno<-subsetByOverlaps(allanno,vgene,ignore.strand=T)
 vexonsred <-subanno%>%subset(gene_name==gname)%>%subset(type=='exon')%>%reduce
 liftanno <- GenomicFeatures::mapToTranscripts(subanno,GRangesList(list(vexonsred))%>%setNames(gname))
+strand(liftanno)<-'+'
 stopifnot(liftanno$xHits == 1:length(liftanno))
 mcols(liftanno) <- mcols(subanno)[liftanno$xHits,]
 gtrack <- liftanno%>%
@@ -281,23 +113,108 @@ gtrack <- liftanno%>%
 	make_gtrack
 
 
-ribotracks <- map(bams[7:8],get_Profile_gr,genegr=vexonsred,nolift=-TRUE,rangename=gname)
-tracks <- c(ribotracks,gtrack)
 
-gtrack@range
-ribotracks[[1]]@range
 
-pfile <- here('plots','coverage','tmp.pdf')
-pdf(pfile)
-plotTracks(main='foo',cex.main=1,
+
+# subsetByOverlaps(liftanno,GRanges(gname,500))
+
+#  liftanno%>%
+# 	subset(!type%in%c('gene','transcript'))%>%
+# 	subsetByOverlaps(GRanges(gname,500))
+
+
+
+testanno<-gtrack@range%>%
+	subsetByOverlaps(GRanges(gname,3750))
+testanno
+liftanno%>%subset(transcript_id%in%testanno$transcript)
+subanno%>%subset(transcript_id%in%testanno$transcript)
+
+# subanno%>%subset(type=='exon')%>%gaps%>%width
+
+
+bamdf<-fread(here('pipeline','sample_parameter.csv'))%>%
+	filter(!fraction %in% 'input')%>%
+	filter(!time%in%c('E145','E175'))%>%
+	filter(!str_detect(group,'test'))%>%
+	arrange(time,-is.na(fraction),str_extract(sample_id,'_\\d'),assay=='total')
+
+bamlist<-bamdf$sample_id%>%setNames(.,.)%>%
+	map_chr(~paste0('pipeline/star/data/',.,'/',.,'.bam' ))%T>%
+	{stopifnot(file.exists(.))}
+
+bamtracks <- bamlist%>%imap(function(x,nm) {
+
+	if(bamdf$assay[bamdf$sample_id==nm]=='total'){
+		get_Profile_gr(x,genegr=vexonsred,nolift=TRUE,rangename=gname,logtrans=T,score_negative=TRUE,invstrand=TRUE)
+	}else{
+		get_Profile_gr(x,genegr=vexonsred,nolift=TRUE,rangename=gname,logtrans=T)
+
+	}
+})
+
+tracks<-bamtracks
+
+normalize_tracks<-function(tracks,sizefacts){
+	for(i in seq_along(tracks)){
+		tracks[[i]]@data%<>%divide_by(sizefacts[[i]])
+	}
+	tracks
+}
+
+transform_abs_vals<-function(tracks){
+	for(i in seq_along(tracks)){
+		tracks[[i]]@data%<>%{sign(.) * log2(abs(.))}
+	}
+	tracks
+}
+
+
+
+equal_y_axes<-function(tracks){
+	datarange <- tracks%>%map(~.@data%>%range)
+
+	max_y <- datarange%>%unlist%>%abs%>%max%>%divide_by(10)%>%ceiling%>%multiply_by(10)
+	stopifnot(max_y>0)
+	
+	datarange_has_zero <- datarange%>%map_lgl(~ 0 %in% .)
+	stopifnot(datarange_has_zero)
+	isnegtrack <- datarange%>%map_lgl(~ min(.) < 0)
+	
+	for(i in seq_along(tracks)){
+		if(isnegtrack[i]){
+			displayPars(tracks[[i]])$ylim <- c(-max_y,0)
+		}else{
+			displayPars(tracks[[i]])$ylim <- c(0,max_y)
+		}
+	}
+	tracks
+}
+
+sizefactors <- read_tsv(here('pipeline','sizefactors.tsv'))
+sizefactors <- sizefactors$sizefactor%>%setNames(sizefactors$sample_id)
+
+# bamtracks <- normalize_tracks(bamtracks,sizefacts=sizefactors[names(bamtracks)])
+# bamtracks <- transform_abs_vals(bamtracks)
+bamtracks <- equal_y_axes(bamtracks)
+
+tracks <- c(bamtracks,gtrack,	GenomeAxisTrack(GRanges(gname,IRanges(1,width(vgene)))))
+
+
+
+# pfile <- here('plots','coverage','tmp.pdf')
+pfile <- here('plots','coverage',paste0(gname,'.pdf'))
+pdf(pfile,w=14*2,h=14*2)
+plotTracks(main=gname,cex.main=1,
 	from=1,to=sum(width(vexonsred)),#zoomed in on the orf in question
 	tracks,
 	type='hist',
 	col.labels='black',
-	chr=gname,
-	transformation = function(x) {log2(x+1)}
+	chr=gname
+	# transformation = function(x) {log2(x+1)}
 )
 dev.off()
 message(normalizePath(pfile))
-
+'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/plots/coverage/tmp.pdf'
+'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/plots/coverage/Orc3.pdf'
 
