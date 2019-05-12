@@ -1,6 +1,7 @@
 # the qc step at the moment assumes that the data is single ended
 import csv
 import glob
+from  pathlib import Path
 shell.executable("bash")
 shell.prefix("set -e  pipefail;")
 # user set parameter
@@ -123,6 +124,7 @@ riboqc_script =  '/fast/groups/ag_ohler/work/dharnet_m/satann_working/analysis_q
 
 
 ribosamples=list(filter(lambda s: ASSAY_DICT[s] == 'ribo',SAMPLES))
+ribosamples=list(filter(lambda s: not 'test' in s,ribosamples))
 totalsamples=list(filter(lambda s: ASSAY_DICT[s] == 'total',SAMPLES))
 riboms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
 ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
@@ -188,13 +190,14 @@ rule all:
     ('xtail/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
-    # expand("SaTAnn/{sample}/.done", sample = ribosamples+groupnames),
+    expand("SaTAnn/{sample}/.done", sample = ribosamples),
     # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('riboWaltz/{sample}/.done',sample=ribosamples),
-    expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS)
+    expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
+    expand('riboWaltz/data/{sample}/offsets.tsv', sample=filter(lambda x: not 'test' in x,ribosamples))
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -831,15 +834,12 @@ rule bigwigs:
         #  grep -Po "reads mapped:\s+\d+" | \
         #  grep -Po "\d+$" | awk '{{print {revyaxis}*1000000/$0}}' 
         #  )"
-        count=1
+        #count=1
         samtools view -H {bam} | grep "SQ" | sed -r 's/^@SQ\s+SN://' | sed -r "s/\s+LN:/\t/" > {chromsizes} 
 
         bedtools genomecov -ibam {bam} -bg -strand {strandsym} -split -scale $count > {bedgraph}
         bedSort {bedgraph} {bedgraph}
-        bedGraphToBigWig {bedgraph} {chromsizes} {bw}
-
-
-       
+        bedGraphToBigWig {bedgraph} {chromsizes} {bw} 
         """)
 
 
@@ -1470,87 +1470,11 @@ rule aggregate_feature_counts:
     
       """)
 
-rule make_riboqc_anno:
-  input : GFF
-  output: touch('riboqc/annot.done')
-  run:
-    shell(r"""
-      mkdir -p riboqc
-      Rscript {satan_annot_script} {GTF} riboqc/{ANNOBASE}.riboqc.db riboqc/{ANNOBASE}.annoout
-""")
-
-
-rule run_riboqc:
-  input : 'riboqc/annot.done','star/data/{sample}/.done',REF
-  output: touch('riboqc/data/{sample}/.done')
-  run:
-    bamfile = 'star/data/'+wildcards['sample']+'/'+wildcards['sample']+'.bam' 
-    shell(r""" 
-            mkdir -p riboqc/data/{wildcards.sample}/
-            Rscript {riboqc_script} {REF} riboqc/{ANNOBASE}.annoout {bamfile} riboqc/data/{wildcards.sample}/
-
-  """)
-
-SaTAnn_script = '/fast/groups/ag_ohler/work/dharnet_m/satann_working/Satan_working_hg38_genc25_May8.R'
-
-rule make_chrnamefile:
- input: GTF
- output: 'chrnames.txt'
- shell:r""" cut -d$'\t' -f1 {input} | uniq | sort | uniq | grep -v '#' > {input}"""
-
-rule run_satann_group:
-  input :
-    lambda wc: 
-      ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ]
-  output: touch('SaTAnn/{groupname}/.done')
-  threads: 10
-  run:
-    sinputs = [i.replace('.done','_to_SaTAnn') for i in list(input[:])]
-    sinputs = ','.join(sinputs)
-    shell(r"""
-    mkdir -p $( dirname {output} )
-
-  
-      Rscript {SaTAnn_script} \
-        {REF} \
-        riboqc/{ANNOBASE}.annoout \
-        {threads} \
-        {sinputs} \
-        $(dirname {output})/SaTAnn
-
-      """)
-
-
-ribqc_report='/fast/groups/ag_ohler/work/dharnet_m/satann_working/riboseqc.Rmd'
-rule knit_riboqc:
-  input: 
-    riboqcoutput=lambda wc:
-      ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ],
-    ribqc_report=ribqc_report
-  output: 'riboqc/reports/{groupname}/riboqcreport.html'
-  run:
-    #knitr's file path fuckery means we need to cd and hand it absolute paths, god knows where it's working directory ends up.
-    indata = [i.replace('.done','_results_all_toknit') for i in list(input['riboqcoutput'])]
-    indata = [os.path.abspath(r) for r in indata]
-    indata = ','.join(indata)
-    sinputs = ','.join(samplegroups[wildcards['groupname']])
-    figpath = os.path.abspath(output[0]).replace('.html','')+'_fig'
-    outpath = os.path.abspath(output[0])
-    shell(r"""
-    cd $(dirname {output})
-    R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{sinputs}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
-""")
-
-ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
-ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
-
-
 rule riboWaltz:
   input: 
     stardone='star/data/{sample}/.done',
-    gtf='my_gencode.vM12.annotation.gtf'
-  output:
-    touch('riboWaltz/{sample}/.done')
+    gtf=GTF_orig
+  output:'riboWaltz/data/{sample}/offsets.tsv'
  # conda: '~/miniconda3/newr'
   run:
     transcriptbam = glob.glob(os.path.dirname(input['stardone'])+'/*star_transcript.bam')
@@ -1561,9 +1485,87 @@ rule riboWaltz:
         Rscript ../src/R/riboWaltz.R \
           {transcriptbam} \
           {input.gtf} \
-          {outfolder}
+          {output}
 
       """)
+
+riboqcanno='riboqc/'+Path(GTF).name.replace('.gtf','.matchchrs.gtf')+'_Rannot'
+
+rule make_riboqc_anno:
+   input : GTF,REF,REF+'.fai'
+   output: touch('riboqc/annot.done'),riboqcanno
+   params:
+    speciesname = lambda wc,input: Path(input[1]).name.replace('.fa','') + '.foo',
+    annobase = lambda wc,input: input[0].replace('.gtf',''),
+    outdir = lambda wc,output: output[0].replace('annot.done',''),
+    twobitfile = lambda wc,input: input[1].replace('.fa','.twobit'),
+    gtfmatchchrs = lambda wc,input: input[0].replace('.gtf','.matchchrs.gtf')
+   shell:r"""
+         set -x`
+     #faToTwoBit {REF} {params.twobitfile}
+
+     samtools faidx {REF}
+
+    awk -vOFS="\t" '{{print $1,0,$2}}'  {REF}.fai | bedtools intersect -b -  -a {GTF} > {params.gtfmatchchrs}
+
+     mkdir -p riboqc
+     R -e ' library(RiboseQC); prepare_annotation_files("{params.outdir}","{params.twobitfile}","{params.gtfmatchchrs}","{params.speciesname}","{params.annobase}",forge_BS=FALSE,genome_seq=FaFile("{REF}")) '
+ """
+
+
+
+rule make_chrnamefile:
+ input: GTF
+ output: 'chrnames.txt'
+ shell:r""" cut -d$'\t' -f1 {input} | uniq | sort | uniq | grep -v '#' > {input}"""
+
+
+rule run_riboqc:
+   input: 'riboqc/annot.done','star/data/{sample}/.done',REF,GTF,riboqcanno,'riboWaltz/data/{sample}/offsets.tsv'
+   output: touch('riboqc/data/{sample}/.done'),'riboqc/data/{sample}/_for_SaTAnn','riboqc/reports/{sample}/riboqcreport.html'
+   # conda: '../envs/riboseqc'
+   params:    
+     annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot')),
+     bamfile = lambda wc: 'star/data/'+wc['sample']+'/'+wc['sample']+'.bam',
+     outname = lambda wc,output: output[0].replace('.done',''),
+     report_file = lambda wc: 'riboqc/reports/'+wc['sample']+'/'+'riboqcreport.html',
+     ribowaltztsv = lambda wc: 'riboWaltz/data/'+wc['sample']+'/offsets.tsv'
+   shell:r"""
+         set -x
+         mkdir -p {params.outname}
+         mkdir -p riboqc/reports/{wildcards.sample}
+         R -e 'library(RiboseQC);RiboseQC::RiboseQC_analysis("{params.annofile}", bam="{params.bamfile}",offsets_df=readr::read_tsv("{params.ribowaltztsv}"),dest_names="{params.outname}", genome_seq = "{REF}", report_file="{params.report_file}")'
+     
+     """
+
+
+rule run_satann:
+  input : 'riboqc/data/{sample}/.done','riboqc/annot.done',REF
+  output: touch('SaTAnn/{sample}/.done')
+  # input: lambda wc: 
+      # ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ]
+  output: touch('SaTAnn/{groupname}/.done')
+  params: 
+    for_satannfile = lambda wc, input: input[0].replace('.done','_for_SaTAnn'),
+     annofile = lambda wc,input: input[1].replace('annot.done',Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot')),
+     outputdir = lambda wc,output: output[0].replace('.done','')
+  threads: 10
+  shell:r"""
+    set -ex
+      mkdir -p {params.outputdir}
+
+      R -e 'devtools::load_all("~/work/Applications/SaTann");run_SaTAnn(for_SaTAnn_file = "{params.for_satannfile}",annotation_file = "{params.annofile}",genome_seq = "{REF}", n_cores = {threads} ,  prefix = "{params.outputdir}") '
+      #R -e 'try({{library(SaTAnn);if(file.exists(paste0("{params.for_satannfile}","_final_SaTAnn_results"))){{plot_SaTAnn_results(for_SaTAnn_file = {params.for_satannfile},SaTAnn_output_file = paste0("{params.for_satannfile}","_final_SaTAnn_results"),annotation_file = "{params.annofile}") }}}})'
+        
+#      mv {params.for_satannfile}_* /
+
+      """
+
+
+ms_total_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'
+ms_spec_file='/fast/groups/cubi/projects/2017-10-10_cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'
+
+
 
 
 rule make_id_table:
@@ -1582,14 +1584,14 @@ rule run_ribodiff:
   input: 'feature_counts/all_feature_counts'
   # conda: '../envs/ribodiff_filt'
   output: touch('ribodiff/.done')
-  shell: r"""source activate ribodiff ; Rscript ../src/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
+  shell: r"""source activate ribodiff ; Rscript ../src/R/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
 
 DISPDIFF = 0
 
 rule run_xtail:
   input: 'feature_counts/all_feature_counts','SaTAnn/uORFs.feature_counts'
   output: touch('xtail/.done')
-  shell: r"""Rscript ../src/pipeline/run_xtail.R {input} $(dirname {output})"""
+  shell: r"""Rscript ../src/R/pipeline/run_xtail.R {input} $(dirname {output})"""
 
 MS_MEASURE_TO_USE = 'LFQ'
 mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'

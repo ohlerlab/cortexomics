@@ -37,6 +37,7 @@ transcripts <- transcriptfile%>% {rtracklayer::import(.)}
 transcripts = transcriptfile %>% import
 
 message('getting target gene')
+
 vgene = transcripts%>%subset(gene_name%>%str_detect('Pa2g4') & (type=='gene'))
 gchr = vgene%>%seqnames
 gstart = (vgene%>%start)

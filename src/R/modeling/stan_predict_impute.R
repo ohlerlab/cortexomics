@@ -12,6 +12,7 @@ library(data.table)
 library(stringr)
 library(magrittr)
 library(splines)
+library(here)
 library(parallel)
 #!/usr/bin/env Rscript
 message('loading libraries')
@@ -216,6 +217,7 @@ which(genes2fit == 'Satb2')
 
 singlesetstandata<-get_standata(testgeneset[1],genelengths,exprdata,lengthnorm=T)
 testsetstandata<-get_standata(testgeneset,genelengths,exprdata,lengthnorm=T)
+testsetstandata_rna<-get_standata(testgeneset,genelengths,exprdata,lengthnorm=T,assay2get='total')
 allstandata<-get_standata(unique(exprdata$gene_name),genelengths,exprdata,lengthnorm=T)
 allstandata_rna<-get_standata(unique(exprdata$gene_name),genelengths,exprdata,lengthnorm=T,assay2get='total')
 dim(allstandata$MS)
@@ -229,3 +231,7 @@ standata=allstandata
 stanfile=hierarchstanfile
 pars=hierarchpars
 modelsamplefile='allhierarch.csv'
+
+
+
+
