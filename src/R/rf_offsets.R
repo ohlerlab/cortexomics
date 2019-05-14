@@ -42,7 +42,7 @@ bam <- here('pipeline/star/data/E13_ribo_1/E13_ribo_1.bam')%T>%{stopifnot(file.e
 
 readlistcolnames <- c("transcript", "end5", "end3", "length", "cds_start", "cds_stop")
 
-if(!exists('cds'))cds <-  gtf%>%import%>%subset(type=='CDS')
+if(!is(cds,"GRanges"))cds <-  gtf%>%import%>%subset(type=='CDS')
 if(!exists('startcods'))startcods <- gtf%>%import%>%subset(type=='start_codon')
 
 if(!exists('startreadsob')) startreadsob <- bam%>%BamFile(yieldSize=NA)%>%readGAlignments(param=ScanBamParam(which=startcods))
@@ -191,13 +191,13 @@ rf_fit$importance%>%as.data.frame%>%rownames_to_column('variable')%>%mutate(imp=
 
 importancedf%>%filter(variable%in%impvars)
 
-imprf_fit <- randomForest(formula= augdist ~ . ,
-	x = datalist$train%>%select(one_of(impvars)), 
-	xtest=datalist$test%>%select(one_of(impvars)),
-	y = datalist$train$augdist%>%as_factor, 
-	ytest=datalist$test$augdist%>%as_factor,
-	keep.forest=TRUE
-)
+# imprf_fit <- randomForest(formula= augdist ~ . ,
+# 	x = datalist$train%>%select(one_of(impvars)), 
+# 	xtest=datalist$test%>%select(one_of(impvars)),
+# 	y = datalist$train$augdist%>%as_factor, 
+# 	ytest=datalist$test$augdist%>%as_factor,
+# 	keep.forest=TRUE
+# )
 
 imprf_fit <- ranger::ranger(formula= augdist ~ . ,
 	data=datalist$train%>%select(augdist,predvars),
@@ -231,15 +231,13 @@ lengthoffsetdf<-lens%>%mutate(offset=as.numeric(as.character(pred$prediction)))
 
 #Now, we know that we have reasonable length offsets, what if we now try to predict phase with the random forrest?
 phasetraindata <- traindata%>%left_join(lengthoffsetdf)
-phasetraindata%<>%mutate(phase = ((augdist - offset)%%3))
-phasetraindata$phase[phasetraindata$phase==2]<- -1
+phasetraindata%<>%mutate(phase = ((offset - augdist)%%3))
+#phasetraindata$phase[phasetraindata$phase==2]<- -1
 #look to make sure this is right
 phasetraindata%>%select(length,augdist,offset,phase)%>%sample_n(5)
 #this looks right I think?
-phasetraindata%>%select(length,augdist,offset,phase)%>%mutate(augdist - offset - phase)%>%sample_n(5)
-
-
-
+phasetraindata%>%select(length,augdist,offset,phase)%>%mutate((offset - phase)  - augdist )%>%sample_n(5)
+#The 'phase' must be SUBTRACTED From the offset, in order to get the offset that puts you in phase again.
 
 #Now try to predict phase
 phasepredvars<-predvars
@@ -250,22 +248,14 @@ upreddata<-traindata%>%select(predvars)%>%unique
 upreddata$predicted_augdist <- predict(phasepred,data=upreddata,type='response',)$prediction
 
 
-
-
 ################################################################################
 ########Testing how well it worked with a selection of top CDS
 ################################################################################
 	
 
-cdsstren<-bamsignals::bamCount(bam,cds)
-cds$count<-cdsstren
-
-trcounts<-cds$count%>%split(cds$transcript_id)%>%map_dbl(sum)
-
-
-
 
 string2onehot<-function(scol) vapply(c('A','C','T','G'),function(lev)as.numeric(scol==lev),rep(1,length(scol)))
+
 dnaseq2onehot <- function(mat,pre){
 	mat<-as.matrix(mat);
 	lapply(1:ncol(mat),function(n) string2onehot(mat[,n])%>%set_colnames(paste0(pre,n,'.',colnames(.))))%>%purrr::reduce(cbind)
@@ -295,6 +285,8 @@ offset_reads_rf <- function(reads,lengthoffsetdf,phasepred,REF='pipeline/my_GRCm
 
 		ureads$offsets = ldf%>%left_join(lengthoffsetdf)%>%.$offset
 
+		if(phasepred=NULL)
+
 		ureads$phase <- predict(phasepred,data=cbind(ldf,dnaseq2onehot(fpseq,'fp'),dnaseq2onehot(tpseq,'tp')))$prediction%>%as.character%>%as.numeric
 
 		#get the shifts for our reads
@@ -308,53 +300,119 @@ offset_reads_rf <- function(reads,lengthoffsetdf,phasepred,REF='pipeline/my_GRCm
 }
 
 
-if(!exists('exons')) exons <- gtf%>%import%>%subset(type=='exon')
+if(!is('exons','GRanges')) exons <- gtf%>%import%>%subset(type=='exon')
+
+cdsstren<-bamsignals::bamCount(bam,cds)
+cds$count<-cdsstren
+
+trcounts<-cds$count%>%split(cds$transcript_id)%>%map_dbl(sum)
+
+
 
 
 #gene tr relationshiop df
 gtrdf<-exons%>%mcols%>%.[,c('gene_id','transcript_id')]%>%as.data.frame%>%distinct
 
-#get the tr with the highest signal per gene
-toptrs <- gtrdf%>%
-	left_join(enframe(trcounts,'transcript_id','count'))%>%
-	group_by(gene_id)%>%
-	slice(which.max(count))%>%
-	arrange(desc(count))%>%
-	.$transcript_id
 
 startcodcount <- startcods%>%.$transcript_id%>%table
 
-#now take the top trs with only 1 start codon
-topcds <- cds%>%
-	subset(transcript_id %in% trs)%>%
-	subset(startcodcount[transcript_id]==1)
+#get the tr with the highest signal per gene
+toptrs <- gtrdf%>%
+	left_join(enframe(trcounts,'transcript_id','count'))%>%
+	filter(startcodcount[transcript_id]==1)%>%
+	group_by(gene_id)%>%
+	slice(which.max(count))%>%
+	arrange(desc(count))%>%
+	.$transcript_id%>%
 	head(1e3)
 
+
+#now take the top trs with only 1 start codon
+topcds <- cds%>%
+	subset(transcript_id %in% toptrs)%>%
+	identity
+	# head(1e3)
+
+topstartcods<-startcods[match(topcds%>%.$transcript_id%>%unique,startcods$transcript_id)]
+
 #get the exons for these
-topcdsexons <- exons%>%subset(transcript_id %in% trs)
+topcdsexons <- exons%>%subset(transcript_id %in% toptrs)
 
 #get reads over them
 topcdsreads <- bam%>%BamFile(yieldSize=NA)%>%readGAlignments(param=ScanBamParam(which=topcds))
+
 #reads as a gr
 topcdsreadsgr<-topcdsreads%>%as("GRanges")
 
 #get the shifts and store in hte gr
+topcdsreadsgr$length<-qwidth(topcdsreads)
+
+
+
+#Now calculate the read shifts
 topcdsreadsgr$shifts<-offset_reads_rf(topcdsreads,lengthoffsetdf,phasepred)
 
 #now map these to transcript space
 cdsread_trmap<-topcdsreadsgr%>%mapToTranscripts(topcdsexons%>%split(.$transcript_id))
-cdsread_trmap$shift<-shifts[cdsread_trmap$xHits]
+cdsread_trmap$shift<-topcdsreadsgr$shifts[cdsread_trmap$xHits]
+cdsread_trmap$length<-topcdsreadsgr$length[cdsread_trmap$xHits]
 
 #eliminate those without a shift (wrong read length)
 cdsread_trmap%<>%.[!is.na(.$shift)]
 
-#use shift to get the psites
+#use shift to get the psites/
 topcdsreadsgrmap_psites<- cdsread_trmap%>%shift(.$shift)%>%resize(1,'start')
 
-#assess entropy of the phase - should 
-topcdsreadsgrmap_psites%>%start%>%`%%`(3)%>%table%>%{./sum(.)}%>%{-sum(.*log(.))}
-cdsread_trmap%>%start%>%`%%`(3)%>%table%>%{./sum(.)}%>%{-sum(.*log(.))}
+#Now get frame of psites
+topstartcodsmapped<-topstartcods%>%pmapToTranscripts(topcdsexons%>%split(.,.$transcript_id)%>%.[topstartcods$transcript_id])
+#
+topstartcodphases<-topstartcodsmapped%>%start%>%`%%`(3)%>%setNames(seqnames(topstartcodsmapped))
 
+#assess entropy of the phase - should 
+
+
+get_frame_entropy<-function(gr,topstartcodphases){
+	stopifnot(all(seqnames(gr) %in% names(topstartcodphases)))
+	adjstart <- start(gr) - topstartcodphases[as.character(gr@seqnames)]
+	ptable<-adjstart %>% `%%`(3)%>%table
+	list(ptable%>%{./sum(.)}%>%{-sum(.*log(.))},ptable/sum(ptable))
+}
+
+stopifnot(topstartcodsmapped%>%get_frame_entropy(topstartcodphases)%>%.[[1]]%>%identical(0))
+
+cdsread_trmap%>%get_frame_entropy(topstartcodphases)
+topcdsreadsgrmap_psites%>%get_frame_entropy(topstartcodphases)
+topcdsreadsgrmap_psites%>%shift(sample(0:2,size=length(.),rep=T))%>%get_frame_entropy(topstartcodphases)
+
+
+topcdsmap<-topcds%>%pmapToTranscripts(topcdsexons%>%split(.,.$transcript_id)%>%.[topcds$transcript_id])%>%reduce
+
+
+
+library(txtplot)
+
+overalloffsets<-6:28%>%setNames(.,.)
+readsizes <- 25:31%>%setNames(.,.)
+
+cdscontent<-lapply(overalloffsets,function(offset){
+	lapply(readsizes,function(readsize){
+		if((readsize - 6 - offset) < 0) return(NA)
+		message(offset)
+		message(readsize)
+		cdsread_trmap%>%subset(length==readsize)%>%resize(1,'start',ignore.strand=T)%>%shift(offset)%>%countOverlaps(topcdsmap)%>%`>`(0)%>%sum
+	})
+})
+
+
+cdscontent%>%map('25')%>%unlist%>%txtplot
+cdscontent%>%map('26')%>%unlist%>%txtplot
+cdscontent%>%map('27')%>%unlist%>%txtplot
+cdscontent%>%map('28')%>%unlist%>%txtplot
+
+cdscontent[[1]]%>%names
+
+
+topcdsreadsgr
 
 
 
@@ -515,6 +573,9 @@ topcdsexons <- exons%>%subset(transcript_id %in% trs)
 
 #get reads over them
 topcdsreads <- bam%>%BamFile(yieldSize=NA)%>%readGAlignments(param=ScanBamParam(which=topcds))
+
+
+
 #reads as a gr
 topcdsreadsgr<-topcdsreads%>%as("GRanges")
 
@@ -536,6 +597,12 @@ topcdsreadsgrmap_psites%>%start%>%`%%`(3)%>%table%>%{./sum(.)}%>%{-sum(.*log(.))
 cdsread_trmap%>%start%>%`%%`(3)%>%table%>%{./sum(.)}%>%{-sum(.*log(.))}
 
 
+plot_metagene_hm_rmd(res_all, "profiles_fivepr", names(rdata_list)[i], paste0(output_fig_path, "rds/"))
+
+
+
+
+stop()
 
 
 
@@ -607,3 +674,12 @@ stop()
 
 
 #I should try this with one hot encoding, I think.
+library(VennDiagram)
+pdf('tmp.pdf')
+grid.newpage()
+draw.pairwise.venn(area1=267+11969,cross.area= 11969,area2= 3006+11969, category = c("Uniprot Peptides", "OD5P Riboseq-based Canonical Peptides"), lty = rep("blank", 
+    2), fill = c("grey", "red"), alpha = rep(0.5, 2), cat.pos = c(0, 
+    0), cat.dist = rep(0.025, 2),cex=2,label.cex=2)
+dev.off()
+normalizePath('tmp.pdf')
+
