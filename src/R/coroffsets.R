@@ -29,7 +29,6 @@ annofile <- 'my_gencode.vM12.annotation.gtf'
 txdb <- makeTxDbFromGFF(annofile)
 generegiontrack <- GeneRegionTrack(txdb,geneSymbol=TRUE)
 
-anno <- rtracklayer::import(annofile,which)
 
 genes<-rtracklayer::readGFF(annofile, tags=c('gene_name','gene_id'), filter=list(type='gene'))%>%
 	makeGRangesFromDataFrame( keep.extra.columns=TRUE)
@@ -49,7 +48,7 @@ polybams <- 'star/data/RPI8_PolyE16_*/RPI8_PolyE16_*.bam'%>%Sys.glob%>%{stopifno
 
 testbam<-'star/data/RPI8_PolyE16_2/RPI8_PolyE16_2.bam'
 testbam<-'star/data/E13_total_1/E13_total_1.bam'
-testbam <- '../../Ribo_Lausanne/pipeline/star/data/OD5P_ctrl_1/OD5P_ctrl_1.bam'
+# testbam <- '../../Ribo_Lausanne/pipeline/star/data/OD5P_ctrl_1/OD5P_ctrl_1.bam'
 
 subexons <- exons%>%subset(strand=='+')%>%subset(seqnames%in%c('chr1','chr2'))
 testreadsnu <- readGAlignments(testbam,param=ScanBamParam(which=subexons))
@@ -85,8 +84,6 @@ readstarts <- testreads %>% as("GenomicRanges")%>%resize(1,'start')
 readstarts$readlength <- width(testreads)
 
 
-
-
 readstartstr <- mapToTranscripts(readstarts,exons%>%split(.,.$transcript_id))
 readstartstr$readlength <- readstarts$readlength[readstartstr$xHits]
 
@@ -98,36 +95,45 @@ subcovvect <- readstartstr%>%subset(readlength==29)%>%coverage
 trstouse<- readstartstr@seqnames%>%table%>%sort%>%tail(1000)%>%names
 
 
-vlen<-length(allexprvect)
 
-offsetcors <- lapply(-20:20,function(i){
-	cor(
-		log(allexprvect+1)%>%.[100:(vlen-100)],
-		log(subexprvect+1)%>%.[(100+i):((vlen-100)+i)]
-)
-})
 
-offsetcors%>%unlist%>%txtplot
-offsetcors%>%setNames(-20:20)%>%unlist%>%sort%>%round(2)
-sum(maincovvect)%>%{names(.[.>10])}
+
+# vlen<-length(allexprvect)
+
+# offsetcors <- lapply(-20:20,function(i){
+# 	cor(
+# 		log(allexprvect+1)%>%.[100:(vlen-100)],
+# 		log(subexprvect+1)%>%.[(100+i):((vlen-100)+i)]
+# )
+# })
+
+# offsetcors%>%unlist%>%txtplot
+# offsetcors%>%setNames(-20:20)%>%unlist%>%sort%>%round(2)
+# sum(maincovvect)%>%{names(.[.>10])}
 #now create coverage vectors for the biggest read lengths.
 
 #now, create a big 
 splitinds <- sample(1:1000)%>%split(.,ceiling(./(1000/40)))
 
-offsetcors <- (-10:2) %>% setNames(.,.)%>% lapply(function(i){
+offsets = -6:6
+
+
+i= -6
+splitind=splitinds[[1]]
+
+offsetcors <- (offsets) %>% setNames(.,.)%>% lapply(function(i){
 	lapply(splitinds,function(splitind){
 		allexprvect <- maincovvect[trstouse[splitind]]%>%unlist
 		subexprvect <- subcovvect[trstouse[splitind]]%>%unlist
 		vlen = length(allexprvect)
 		cor(
 			log(allexprvect+1)%>%.[100:(vlen-100)],
-			log(subexprvect+1)%>%.[i(100+i):((vlen-100)+i)]
+			log(subexprvect+1)%>%.[(100+i):((vlen-100)+i)]
 		)
 	})
 })
 
-offsetcordf <-offsetcors%>%map(unlist)%>%setNames(-10:10)%>%enframe%>%unnest
+offsetcordf <-offsetcors%>%map(unlist)%>%setNames(offsets)%>%enframe%>%unnest
 
 offsetcordf%>%group_by(name)%>%summarise(mean=mean(value),lc=quantile(value,0.25),hc=quantile(value,0.75))%>%arrange(desc(mean))
 

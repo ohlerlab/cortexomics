@@ -19,10 +19,9 @@ modelfileslin_rna <- Sys.glob('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/
 igenename = "Satb2"
 pars <- 'prot'
 
-stanfiles<-modelfiles
-geneind=3016
 
-get_genepars <- function(stanfiles,pars,geneind){
+
+get_genepars <- function(stanfiles,pars,igene){
 
   #get the parameter names from the file
   filepars <- fread(str_interp('head -n 100 ${stanfiles[1]} | grep -e "lp__,"   '))%>%colnames
@@ -31,7 +30,7 @@ get_genepars <- function(stanfiles,pars,geneind){
   pardf$n <- 1:nrow(pardf)
 
   #select the ones for our gene
-  pardf <- pardf%>%filter(replace_na(geneind%in%geneind,TRUE))
+  pardf <- pardf%>%filter(replace_na(geneind%in%igene,TRUE))
   #select the ones for our parameter
   pardf <- pardf%>%filter(parameter %in% pars)
 
@@ -43,18 +42,14 @@ get_genepars <- function(stanfiles,pars,geneind){
   # stanhead <- readLines(stanfile,stanheadlength)%>%str_extract('.{0,20}')
   # stanfile<-stanfiles[1]
 
-  out <- map(stanfiles,~fread(cmd=paste('grep -v "#"',.),select=pardf$n,header=T))%>%
+  map(stanfiles,~fread(cmd=paste('grep -v "#"',.),select=pardf$n,header=T))%>%
     bind_rows%>%
     mutate(sample=1:nrow(.))%>%
     gather(par,signal,-sample)%>%
     inner_join(pardf,by='par')%>%
-    select(signal,time=timeind,parameter,sample)
-  
-  out%>%head
-
+    select(signal,time=timeind,par,sample)
 }
 
-igene='Orc3'
 plot_hiearachtraj<-function(igene){
 
   igeneind = which(allstandata$MS%>%dimnames%>%.[[3]]%>%`==`(igene))
@@ -125,12 +120,9 @@ plot_hiearachtraj<-function(igene){
   ggsave(plot=arrangedplot,file=plotfile,w=7*1.5,h=7)
   message(plotfile)
 
+
+
 }
-
-out<-get_genepars(modelfiles,'prot',3016)
-get_genepars(modelfiles,'prot',3016)
-
-
 # plot_hiearachtraj('Satb2')
 # plot_hiearachtraj('Rasa3')
 # plot_hiearachtraj('Ewsr1')

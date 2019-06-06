@@ -1,3 +1,4 @@
+library(here)
 library(assertthat)
 simpleCap <- function(x) {
   s <- strsplit(x, " ")[[1]]
@@ -51,7 +52,7 @@ ms_tall%<>%group_by(time,fraction,replicate)%>%mutate(signal = signal / median(s
 #define our catagories
 message('looking up protein ID annotations')
 #'get info on the ribosomal subu,nts from mats table
-rids <- read_tsv('./ext_data/riboprotids.tsv')
+rids <- read_tsv(here('./ext_data/riboprotids.tsv'))
 lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 #get info on proteins so we can catagorize them

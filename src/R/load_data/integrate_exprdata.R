@@ -71,9 +71,12 @@ ribcols<-countsmatrix%>%colnames%>%str_subset('ribo')
 
 
 
+countsmatrix <- countsmatrix %>% {sweep(.,2,STATS = sizefactors[colnames(countsmatrix)],FUN='/')}
+
+countsmatrix_snorm %>%{cbind(gene_name=rownames(.),as_data_frame(.))} %>% write_tsv(normcountstable)
 
 #and then transform the counts
-countsmatrix<-cbind(
+countsmatrix_snorm<-cbind(
   DESeq2::vst(countsmatrix[,ribcols]),
   DESeq2::vst(countsmatrix[,totcols])
 )
@@ -84,12 +87,10 @@ sizefactors<-DESeq2::estimateSizeFactorsForMatrix(countsmatrixall)
 write_tsv(enframe(sizefactors,'sample_id','sizefactor'),here('pipeline','sizefactors.tsv'))
 
 
-countsmatrix_snorm <- countsmatrix %>% {sweep(.,2,STATS = sizefactors[colnames(countsmatrix)],FUN='/')}
 
 
 
-countsmatrix_snorm %>%{cbind(gene_name=rownames(.),as_data_frame(.))} %>% write_tsv(normcountstable)
-
+stop()
 getwd()
 mstable=data.table::fread(msfile)
 #some formatting differences
@@ -111,9 +112,6 @@ n_filtered_gidids <- n_distinct(mstable$gene_name) - n_distinct(mstable_comp$gen
 
 message(str_interp('filtered out ${n_filtered_protids} protein groups\
 for ${n_filtered_gidids} genes which leaves us with ${n_distinct(mstable_comp$gene_name)} gene ids'))
-
-
-mstable_comp
 
 
 
@@ -262,8 +260,8 @@ exprmatrix2<-cbind(
     log2(msmatrix[intnames,])
   )
 
-exprmatrix2%>%as.data.frame%>%rownames_to_column('gene_name')%>%write_tsv('./exprdata/transformed_data.txt')
-
+exprmatrix2%>%as.data.frame%>%rownames_to_column('gene_name')%>%write_tsv(here('pipeline/exprdata/transformed_data.txt'))
+stop()
 #exprmatrix2%<>%{sweep(.,2,STATS = meanlogdeviance(.),FUN='-')}
 
 #exprmatrix2 <- DESeq2::vst(exprmatrix2%>%replace_na(0))
@@ -381,8 +379,8 @@ gc_protiddf%>%filter(is.na(tr_gene_name))
 
 allpid_tr_df<-bind_rows(
   gc_protiddf%>%select(uniprot_id,transcript_id,gene_name=tr_gene_name,source),
-  bioc_protiddf%>%select(uniprot_id,transcript_id,gene_name,source)
-  bm_protiddf%>%select(uniprot_id,transcript_id,gene_name,source),
+  bioc_protiddf%>%select(uniprot_id,transcript_id,gene_name,source),
+  bm_protiddf%>%select(uniprot_id,transcript_id,gene_name,source)
 )
 
 

@@ -55,8 +55,6 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
 
 
   # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tdir))
-  chainfilesregex <- paste0(file_path_sans_ext(basename(modelsamplefile)),'_[0-9]+')
-  Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(chainfilesregex)%>%file.remove
 
   message(paste0('fitting model ',basename(tdir),' on ',standata$G,' genes'))
   # modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(stanfile),'_modsamples')
@@ -77,8 +75,8 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
               # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
             )
 
-
-  chainfiles <- Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(chainfilesregex)
+    
+  chainfiles <- Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
   stopifnot(length(chainfiles)==n_chains)
   
 
@@ -87,132 +85,39 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
 }
 
 
-
-dir.create(paste0('stanfits/'),showWarnings=F)
-
 # stop()
-################################################################################
-########with sample data
-################################################################################
 
 
- 
+# allhierarchfit <- get_stanfit(allstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch.csv',sampledir=here('pipeline/stansamples'))
+# allhierarchfit%>%saveRDS(here('data/allhierarchfit.rds'))
 
-# if(countdata2model=='total'){
-#   if(model=='hierarch'){
-#     testhierarchfit_rna <- get_stanfit(testsetstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='testhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
-#     testhierarchfit_rna%>%saveRDS(here('data/testhierarchfit_rna.rds'))
-#   }
-#   if(model=='lin'){
-#     testlinfit_rna <- get_stanfit(testsetstandata_rna,linearstanfile,pars='lp__',modelsamplefile='testlinear_rna.csv',sampledir=here('pipeline/stansamples'))
-#     testlinfit_rna%>%saveRDS(here('data/testlinfit_rna.rds'))
-#   }
-# }
-# testhierarchfit <- get_stanfit(testsetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='testhierarch.csv',sampledir=here('pipeline/stansamples'))
-# testhierarchfit%>%saveRDS(here('data/testhierarchfit.rds'))
+# alllinfit <- get_stanfit(allstandata,linearstanfile,pars='lp__',modelsamplefile='alllinear.csv',sampledir=here('pipeline/stansamples'))
+# alllinfit%>%saveRDS(here('data/alllinfit.rds'))
 
-# testlinfit <- get_stanfit(testsetstandata,linearstanfile,pars='lp__',modelsamplefile='testlin.csv',sampledir=here('pipeline/stansamples'))
-# testlinfit%>%saveRDS(here('data/testlinfit.rds'))
+allhierarchfit_rna <- get_stanfit(allstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
+allhierarchfit_rna%>%saveRDS(here('data/allhierarchfit_rna.rds'))
+
+alllinfit_rna <- get_stanfit(allstandata_rna,linearstanfile,pars='lp__',modelsamplefile='alllinear_rna.csv',sampledir=here('pipeline/stansamples'))
+alllinfit_rna%>%saveRDS(here('data/alllinfit_rna.rds'))
 
 
-# stopifnot(testlinfit_rna$chainfiles%>%file.exists)
-# stopifnot(testlinfit$chainfiles%>%file.exists)
+# testhierarchfit <- get_stanfit(singlesetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
+testhierarchfit <- get_stanfit(testsetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
+testhierarchfit%>%saveRDS('../data/testhierarchfit.rds')
+testhierarchfit<-readRDS('../data/testhierarchfit.rds')
 
-
-
-################################################################################
-########Now for each
-################################################################################
-
-
-
-# if(countdata2model=='total'){
-#   if(model=='hierarch'){
-#     allhierarchfit_rna <- get_stanfit(allstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
-#     allhierarchfit_rna%>%saveRDS(here('data/allhierarchfit_rna.rds'))
-#   }
-#   if(model=='lin'){
-#     alllinfit_rna <- get_stanfit(allstandata_rna,linearstanfile,pars='lp__',modelsamplefile='alllinear_rna.csv',sampledir=here('pipeline/stansamples'))
-#     alllinfit_rna%>%saveRDS(here('data/alllinfit_rna.rds'))
-#     }
-#   }
-# }
-
-# if(countdata2model=='ribo'){
-#   if(model=='hierarch'){
-#   # testhierarchfit <- get_stanfit(singlesetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
-#     allhierarchfit <- get_stanfit(allstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch.csv',sampledir=here('pipeline/stansamples'))
-#     allhierarchfit%>%saveRDS(here('data/allhierarchfit.rds'))
-#   }
-#   if(model=='lin'){
-#     alllinfit <- get_stanfit(allstandata,linearstanfile,pars='lp__',modelsamplefile='alllin.csv',sampledir=here('pipeline/stansamples'))
-#     alllinfit%>%saveRDS(here('data/alllinfit.rds'))
-#   }
-# }
-
-datasets <- list(
-  test=list(
-    ribo = testsetstandata,rna = testsetstandata_rna
-    ),
-  all=list(
-     ribo = allstandata,rna = allstandata_rna
-  )
-)
-
-modelcodefiles <- list(hierarchical=hierarchstanfile,linear=linearstanfile)
-modelcodepars <- list(hierarchical=hierarchpars,linear='lp__')
-  
-
-stanfits<-imap(datasets[1], function(dsets,inputsetnm){
-  imap(dsets[1],  function(modeldata,rnadatanm){
-    imap(modelcodefiles, function(modelcodefile,modeltypenm){
-      # browser()
-      modelcodepar = modelcodepars[[modeltypenm]]
-      if(inputsetnm=='test') modelcodepar=NA
-      fitrdsfile <- here(paste0('data/',inputsetnm,'_',rnadatanm,'_',modeltypenm,'.rds'))
-      modelsampfile <- paste0(inputsetnm,'_',rnadatanm,'_',modeltypenm,'.csv')
-      
-      stanfit <- get_stanfit(modeldata,
-        modelcodefile,
-        pars=modelcodepar,
-        modelsamplefile=modelsampfile,
-        sampledir=here('pipeline/stansamples')
-      )
-
-      message(fitrdsfile)
-      message('done')
-
-      stanfit%>%saveRDS(fitrdsfile)
-      stanfit
-  })
-})
-})
-
-stanfits[['test']][['ribo']][['hierarchical']][['fit']]%>%summary%>%.[['summary']]%>%as.data.frame%>%select(Rhat)%>%rownames_to_column('par')%>%sample_n(10)
+testlinfit <- get_stanfit(testsetstandata,linearstanfile,pars=NULL,modelsamplefile='stansamples/testlin.csv',sampledir=here('pipeline/stansamples'))
+testlinfit%>%saveRDS(here('data/testlinfit.rds'))
 
 
 
 
 
-stop()
-
-# for(inputsetnm in c('test','all')){
-# for(rnadatanm in c('rna','ribo')){
-# for(modeltypenm = c('hierarchical','linear')){
-#   modeldata = datasets[[inputsetnm]][[rnadatanm]]
- 
-
-
-
-alllinfit%>%saveRDS()
-
-
-
-
-
-stop('done modeling')
 
 # allstanfits <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=FALSE)
+
+
+dir.create(paste0('stanfits/'),showWarnings=F)
 
 
 # message('testing fit')

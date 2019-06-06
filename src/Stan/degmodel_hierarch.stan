@@ -30,7 +30,7 @@ transformed parameters {
   vector<lower=0>[G] tau;
 
   #rTE on log scale
-  rTE = exp(lrTE+19);
+  rTE = exp(lrTE+lrTEshift);
   
   #tau on log scale
   tau = exp(ltau);

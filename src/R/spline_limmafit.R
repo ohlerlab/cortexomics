@@ -428,14 +428,63 @@ goenrichmentscc<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
 
 #get all go terms
 allterms <- goenrichmentsbp%>%map('Term')%>%unlist%>%unique
+
 #now get the similiarity matrix in go terms
 
 
+library(gridExtra)
+
+#Crete image table with top3 GO terms
+top3clustergos<-goenrichmentsbp%>%map(~arrange(.,elimFisher))%>%map(head,5)%>%map(~select(.,Term,elimFisher))
+
+library(here)
+
+ont='BP'
+clustnum=13
+gonum=3
+method='CLUTO'
+topgo3plot<-here('plots/clustering/topgoterms/',paste0(ont,clustnum,method,gonum,'.topgos.pdf'))
+
+topgo3plot%>%dirname%>%dir.create(rec=T)
 
 
-distgodistmatrix[1:10,1:10]
+texttheme <- gridExtra::ttheme_default(
+    core = list(fg_params=list(cex = 0.5)),
+    colhead = list(fg_params=list(cex = 0.5)),
+    rowhead = list(fg_params=list(cex = 0.5)))
+#
+pdf(topgo3plot,w=16,h=12)
+# --- Graph 1 : If you want ONLY the table in your image :
+# First I create an empty graph with absolutely nothing :
+plist<-lapply(1:clustnum, function(n){
+  qplot(1:10, 1:10, geom = "blank",main=paste0(method,' cluster number: ',n)) + 
+  theme_bw() + theme(line = element_blank(), text = element_blank()) +
+# Then I add my table :
+  annotation_custom(grob = tableGrob(top3clustergos[[n]],rows=NULL,theme=texttheme))
+})
+ggpubr::annotate_figure(ggpubr::ggarrange(plotlist=plist),top=paste0('Top GO ',ont,' catagories ',method,' clusters '))
+dev.off()
 
-lapply(goenrichmentsbp,function(x) allterms %in% x)
+
+##Now look at enrichment fo rTE genes
+alltegenes <- Sys.glob(here('pipeline/xtail/xtail_*.txt'))%>%map(.%>%
+  fread%>%filter(adj_p_value<0.05)%>%left_join(fread('pipeline/ids.txt'),by=c(feature_id='gene_id'))%>%.$gene_name
+)%>%unlist
+clusttenumplot<-here('plots/clustering/topgoterms/',paste0(ont,clustnum,method,gonum,'.TEprops.pdf'))
+#
+pdf(clusttenumplot,w=16,h=12)
+# --- Graph 1 : If you want ONLY the table in your image :
+# First I create an empty graph with absolutely nothing :
+n=1
+plist<-lapply(1:clustnum, function(n){
+  clutoclustlist_filt[[13]]$cluster%>%keep(.==n)%>%names %>% is_in(alltegenes)%>%table%>%.[order(names(.))]%>%as.numeric%>%tibble(n=.)%>%mutate(set=c('static TE','changing TE'))%>%
+    qplot(data=.,fill=set,y=n,x='')+geom_bar(stat='identity')+theme_bw()+coord_polar("y", start=0)+
+    ggtitle('Numbers of TE changing genes')
+})
+plotlabels=LETTERS[(1:13)+1]
+ggpubr::annotate_figure(ggpubr::ggarrange(plotlist=plist,labels=plotlabels),top=paste0('TE proportions ',method,' clusters '))
+dev.off()
+normalizePath(clusttenumplot)
 
 
 

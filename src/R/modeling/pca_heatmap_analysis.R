@@ -35,7 +35,7 @@ plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:
 dev.off()
 getwd()%>%message
 
-svg(h=5,w=8,'../plots/limmafc_pca_loadings.svg'%T>%{normalizePath(.)%>%message})
+pdf(h=5,w=8,'../plots/limmafc_pca_loadings.pdf'%T>%{normalizePath(.)%>%message})
 ggpubr::ggarrange(ncol=2,
 pcafit$loading[,1]%>%enframe('dimension','loading')%>%
   arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
@@ -51,9 +51,8 @@ pcafit$loading[,2]%>%enframe('dimension','loading')%>%
   ggplot(aes(x=dimension,y=loading))+stat_identity(geom='bar')+
   theme_minimal()+
   theme(axis.text.x=element_text(angle=45,size=8,vjust=0.5))+
-  ggtitle('Developmental Fold Changes \n PCA2')
+  ggtitle('Developmental Fold Changes \n PCA3')
 )
-
 dev.off()
 
 # svdfit <- svd(t(allcoefftbl[,-1]))

@@ -18,9 +18,9 @@ suppressMessages({library(magrittr)})
 
 #load arguments
 argv <- c(
-	transcriptbam = here('pipeline/star/data/E16_ribo_2/E16_ribo_2.star_transcript.bam'),
+	transcriptbam = here('pipeline/star/data/E13_ribo_1/E13_ribo_1.star_transcript.bam'),
 	gtf=here('annotation/gencode.vM12.annotation.gtf'),
-	outputtsv='riboWaltz/data/E16_ribo_2/offsets.tsv'
+	outputtsv='riboWaltz/data/E13_ribo_1/offsets.tsv'
 )
 argv <- commandArgs(trailingOnly=TRUE)[1:length(argv)]%>%setNames(names(argv))
 for(i in names(argv)) assign(i,argv[i])

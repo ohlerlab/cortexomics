@@ -1,3 +1,155 @@
+library(memoise)
+library(assertthat)
+library(stringr)
+
+###memoise
+project_cache=here::here('R_cache')
+message(system(str_interp('du -h ${project_cache}'),intern=T))
+mycache=memoise::cache_filesystem(project_cache)
+
+
+mymemoise <- function(f){
+
+  # #first insert a 
+  # fname = enquo(f)
+
+  # bod <- body(f)
+  # if (trimws(as.character(bod[[1]])) == "{"){
+  #     body(f)[[2]] <- quote(message(paste0('recalculating ',fname,' ...')))
+  #     if (length(bod) > 1) body(f)[3:(1+length(bod))] <- bod[-1]
+  # } else {
+  #     body(f)[[1]] <- as.name('{')
+  #     body(f)[[2]] <- quote(message(paste0('recalculating ',fname,' ...')))
+  #     body(f)[[3]] <- bod
+  # }
+
+  if(!is.memoised(f)){
+    memoise(f,cache=mycache)
+    } else{ 
+      f
+  }
+}
+
+# #
+# foo<-function(x){message('foooooobar called')}
+# myf <- mymemoise(foo)
+# myf(2)
+
+# Q
+#  2 %>% mymemoise(function(x,.foo=foo){.foo();message('foooo'); x +1})(.)
+# # e <- as.call(c(as.name("{"),quote(message('foo_ins')),body(foo)[-1]))
+# body(foo) <- e
+
+# foo
+
+# mymemoise(function(x,.foo=foo)
+
+#' safe_left_join
+#' @description left join that fails if a row in x is either duplicated or
+#'   unmatched.
+#' @param x table to join
+#' @param y table to join
+#' @param by a character vector of column names to join by.
+#' @param verbose Default is TRUE.
+#' @export
+
+
+safe_left_join = function (x, y, by = NULL, verbose = TRUE) {
+  rows_start = nrow(x)
+
+  if (is.null(by)) {
+    by = intersect(names(x), names(y))
+  } else {
+    by = as.character(by)
+  }
+
+  y[["..1.."]] = 1
+  x = left_join(x, y, by)
+
+  if (nrow(x) > rows_start) {
+    stop("Rows have been duplicated in 'safe' left join")
+  }
+
+  if (any(ind <- is.na(x[["..1.."]]))) {
+    sample = sample(which(ind), min(10, sum(ind)))
+    examples = distinct(x[sample, by, drop = FALSE])
+    if (verbose) print(examples)
+    stop(sprintf("Failed to match %d rows in x.", sum(ind)))
+  }
+
+  x[["..1.."]] = NULL
+
+  x
+
+}
+
+is_offchr<-function(gr,si){
+  seqinfo(gr)<-si
+  end(gr) > seqlengths(gr)[as.character(seqnames(gr))]
+}
+is_out_of_bounds <- function(gr,si = seqinfo(gr)){
+  start(gr)<1 | is_offchr(gr,si) 
+}
+
+get_all_obsizes <- function(){.GlobalEnv%>%names%>%discard(~is.function(get(.)))%>%setNames(.,.)%>%map(~object_size(get(.)))}
+
+# obsizes <- get_all_obsizes()
+
+# obsizes%>%enframe('object','size')%>%mutate(size=as.numeric(size)/1e6)%>%arrange(desc(size))
+
+
+purely <- function(fun,throw_error=TRUE,allow_functions=FALSE){
+  
+  funname <- rlang::quo_text(enquo(fun))
+
+  globalobs <- .GlobalEnv%>%names
+
+  globalobs <-   discard(globalobs,~is.function(get(.,envir=.GlobalEnv)) && (!identical(environment(get(.,envir=.GlobalEnv)),.GlobalEnv )))
+
+  if(!allow_functions){
+    globalobs <-   discard(globalobs,~is.function(get(.,envir=.GlobalEnv)) )
+  }
+ 
+
+  keep(globalobs,~is.function(get(.,envir=.GlobalEnv)) && (!identical(environment(get(.,envir=.GlobalEnv)),.GlobalEnv )))
+
+  assert_that(! '%>%' %in% globalobs)
+
+  funargs <- names(formals(fun))
+
+  environment(fun) <- new.env()
+
+  if(throw_error) messagefun = stop else messagefun = warning
+
+  for(obnm in globalobs) {
+
+    warnenv<-new.env()
+    warnenv[['obnm']]<-obnm
+    warnenv[['val']]<- force(get(obnm,envir=.GlobalEnv))
+    delayedAssign(obnm,
+      {
+        messagefun(force(paste0('Object: ',obnm,' is being evaluated, but is not a formal argument of ',funname)));
+        val
+      },
+      eval.env=warnenv,
+      assign.env=environment(fun))
+  }
+  
+  return(fun)
+}
+
+# myfun<-function(a){ a+1+b}
+
+# a<-1
+# b<-10
+# myfun(a)
+# pf<-purely(myfun)
+
+# purely(myfun)(1)
+
+# environment(pf)$get_frame_entropy
+
+
 
 read_compressed_gfile <- function(annofile,annotype,fformat='gtf'){
   f=tempfile();
