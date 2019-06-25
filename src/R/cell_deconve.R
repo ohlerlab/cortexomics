@@ -113,7 +113,7 @@ ggpubr::ggarrange(plotdecon(plotdf_te)+ggtitle('TE Changing Genes'),plotdecon(pl
 
 exprdata[gnamestbl%>%filter(gene_name=='Aif1')%>%pluck('gene_id'),]
 
-f
+
 
 ## Please refer our demo
 source("DeconRNASeq.R")
@@ -133,6 +133,8 @@ gnamestbl%>%filter(gene_name=='iba1')
 
 exprdata[]
 
+
+exprdata
 
 #' Initial tests with count data vs LFQs form Scharma, on log scale, are weird - mostly neurons, but this prop goes down in favor of oligodendrocytes, mainly
 

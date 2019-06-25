@@ -5,6 +5,7 @@ library(tidyverse)
 library(Rcpp)
 library(doMC)
 library(rstan)
+library(here)
 #BiocManager::install('rstan')
 library(assertthat)
 library(magrittr)
@@ -159,7 +160,7 @@ g2fit<-exprdata$gene_name%>%unique
 # g2fit<-'Satb2'
 
 get_standata<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
-
+  
   MS_array <- exprdata%>%
     filter(gene_name%in%g2fit)%>%
     filter(assay=='MS')%>%

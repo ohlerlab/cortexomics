@@ -1539,6 +1539,17 @@ rule run_riboqc:
      """
 
 
+rule get_rf_offset:
+  input:
+    bam = 'pipeline/star/data/{sample}/{sample}.bam',
+    gtf = GTF,
+    REF = REF
+  output:
+        outfolder = 'seqshift_reads/data/E13_ribo_2/'
+
+
+
+
 rule run_satann:
   input : 'riboqc/data/{sample}/.done','riboqc/annot.done',REF
   output: touch('SaTAnn/{sample}/.done')

@@ -3,9 +3,12 @@ library(assertthat)
 library(stringr)
 
 ###memoise
-project_cache=here::here('R_cache')
+# project_cache=here::here('R_cache')
+if(!exists('project_cache'))project_cache=tempdir()
 message(system(str_interp('du -h ${project_cache}'),intern=T))
 mycache=memoise::cache_filesystem(project_cache)
+
+myclearcache=function() system(str_interp('rm -rf ${project_cache}'))
 
 
 mymemoise <- function(f){
@@ -54,7 +57,7 @@ mymemoise <- function(f){
 #' @export
 
 
-safe_left_join = function (x, y, by = NULL, verbose = TRUE) {
+safe_left_join = function (x, y, by = NULL, verbose = TRUE,allow_missing=FALSE,allow_dups=FALSE) {
   rows_start = nrow(x)
 
   if (is.null(by)) {
@@ -66,15 +69,18 @@ safe_left_join = function (x, y, by = NULL, verbose = TRUE) {
   y[["..1.."]] = 1
   x = left_join(x, y, by)
 
-  if (nrow(x) > rows_start) {
-    stop("Rows have been duplicated in 'safe' left join")
+  if(!allow_dups){
+    if (nrow(x) > rows_start) {
+      stop("Rows have been duplicated in 'safe' left join")
+    }
   }
-
-  if (any(ind <- is.na(x[["..1.."]]))) {
-    sample = sample(which(ind), min(10, sum(ind)))
-    examples = distinct(x[sample, by, drop = FALSE])
-    if (verbose) print(examples)
-    stop(sprintf("Failed to match %d rows in x.", sum(ind)))
+  if(!allow_missing){
+    if (any(ind <- is.na(x[["..1.."]]))) {
+      sample = sample(which(ind), min(10, sum(ind)))
+      examples = distinct(x[sample, by, drop = FALSE])
+      if (verbose) print(examples)
+      stop(sprintf("Failed to match %d rows in x.", sum(ind)))
+    }
   }
 
   x[["..1.."]] = NULL

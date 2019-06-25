@@ -35,6 +35,11 @@ suppressMessages({library(bamsignals)})
 suppressMessages({library(memoise)})
 suppressMessages({library(here)})
 
+source(here('src/R/Rprofile.R'))
+
+STOPWINDOWSTART = -2
+STOPWINDOWEND = 2
+
 reduce <- GenomicRanges::reduce
 
 MAPQTHRESH <- 50
@@ -61,7 +66,6 @@ strandshift<-function(gr,shift)shift(gr , ifelse(strand(gr)=='-',- shift,shift))
 
 for(fname in lsf.str('package:dplyr')) assign(fname,get(fname,'package:dplyr'))
 
-source(here('src/R/Rprofile.R'))
 
 
 myf <- 2 %>% mymemoise(function(x){message('foo'); x +1})(.)
@@ -278,8 +282,6 @@ cdsread_trmap$stop<-cdsread_trmap%>%resize(1,'start')%>%shift(.$cdsshift)%>%{str
 #get the distance to the 1 site of the prestop
 cdsread_trmap$stopdist<-start(cdsread_trmap) + cdsread_trmap$cdsshift- start(prestops[seqnames(cdsread_trmap)])
 
-oldenv$stoppsites
-newenv$stoppsites
 
 
 
@@ -308,8 +310,6 @@ cdsread_trmap$startdist<-start(cdsread_trmap) - start(prestarts[seqnames(cdsread
 ################################################################################
 ########Train model for sequence shifting
 ################################################################################
-oldenv$stoppsites
-newenv$stoppsites
 
 stoppsites<-cdsread_trmap%>%subset(between(stopdist,STOPWINDOWSTART,STOPWINDOWEND))
 
@@ -364,7 +364,6 @@ get_seqforrest_traindata <- function(stoppsites,exonseq){
 }
 
 readseqdata <- get_seqforrest_traindata(stoppsites,topExonseq)
-identical( get_seqforrest_traindata(oldenv$stoppsites,topExonseq),get_seqforrest_traindata(newenv$stoppsites,topExonseq))
 
 #' - Then, taking the reads whose psites now fall within +-2bp of a STOP codon, use a random forrest classifier a. la. the scikit ribo paper
 #' to try to learn offsets, such that we maximize the number of Psites landing exactly on stop codons, and with the length, phase, and
@@ -400,7 +399,6 @@ readseqdata<-seqmat%>%cbind(length=cdsread_trmap$length)%>%as.data.frame
 predictedshifts<-predict(shiftforrestfit,data=readseqdata)$prediction%>%as.character%>%as.numeric
 
 #it's the model thats actually sure
-cdsread_trmap_inbound$seqshift <-  get_predictedshifts(shiftforrestfit,data4readshift)
 
 cdsread_trmap$seqshift <- predictedshifts
 
@@ -460,6 +458,9 @@ seqshift_periodicities<- seqnames(cdsread_trmap)%>%
 seqshift_periodicities%<>%bind_rows
 
 
+seqshift_periodicities%>%unlist%>%txtplot
+
+
 #+ spectral_coefficient_strip_plot, fig.width =4,fig.height=4,out.width=400,out.height=450,dev='pdf',include=TRUE,eval=TRUE
 {
 	seqshift_periodicities%>%bind_rows%>%gather(set,spectral_coefficient)%>%qplot(data=.,x=set,color=set,y=spectral_coefficient,geom=c('point'))+theme_bw()
@@ -467,6 +468,7 @@ seqshift_periodicities%<>%bind_rows
 
 stop()
 
+saveRDS(.GlobalEnv,'workingenv.rds')
 
 # #Get riboqc_cutoffs
 # sample = bam%>%dirname%>%basename 
