@@ -599,11 +599,29 @@ nomatchgenenames <- allprotidsmatch%>%filter(!matches)%>%.$gene_name
 
 nomatchtrids<-allanno%>%subset(gene_name%in%nomatchgenenames)%>%.$transcript_id%>%unique
 
+
+
+
+
+
+###Choosing transcripts...
+
+
 #The counts I'm getting with bamsignals is quite different form those I get with feature_counts....
 
-#So let's 
+#
+trs_redundant_cds <- cds%>%as.data.frame%>%subset(type=='CDS')%>%group_by(gene_id,transcript_id)%>%select(start,end)%>%nest%>%group_by(gene_id)%>% filter(n_distinct(data)<n_distinct(transcript_id))
+assert_that(nrow(trs_redundant_cds)==0)
 
-
+trs_redundant_cds_width<- cds%>%
+  as.data.frame%>%
+  subset(type=='CDS')%>%
+  group_by(gene_id,transcript_id)%>%
+  select(width)%>%
+  summarise(width=sum(width))%>%
+  group_by(gene_id)%>%
+  filter(n_distinct(width)<n_distinct(transcript_id))%>%
+  group_by(gene_id,width)%>%filter(n()==2)
 
 #HOw can the ids have a match in teh gene names and NOT in the swissprot metadata???
 #Let's look at an example, a gene which has  a gee

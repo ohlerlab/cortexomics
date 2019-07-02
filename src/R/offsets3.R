@@ -21,7 +21,6 @@ suppressMessages({library(data.table)})
 suppressMessages({library(assertthat)})
 suppressMessages({library(parallel)})
 suppressMessages({library(dplyr)})
-# suppressMessages({library(riboWaltz)})
 suppressMessages({library(purrr)})
 suppressMessages({library(here)})
 suppressMessages({library(magrittr)})
@@ -43,6 +42,7 @@ source(here('src/R/Rprofile.R'))
 
 
 
+for(fname in lsf.str('package:GenomicRanges')) assign(fname,get(fname,'package:GenomicRanges'))
 for(fname in lsf.str('package:dplyr')) assign(fname,get(fname,'package:dplyr'))
 
 source(here('src/R/Rprofile.R'))
@@ -51,7 +51,7 @@ argv <- c(
 	bam = here('pipeline/star/data/E13_ribo_2/E13_ribo_2.bam')%T>%{stopifnot(file.exists(.))},
 	gtf = here('pipeline/my_gencode.vM12.annotation.gtf'),
 	REF = here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'),
-	outfolder = 'seqshift_reads/data/E13_ribo_2/'
+	outfolder = here('pipeline/seqshift_reads/data/E13_ribo_2/')
 )
 
 sample_params<-here::here('src/sample_parameter.csv')%>%fread%>%filter(assay=='ribo')%>%.$sample_id
@@ -80,10 +80,11 @@ setpos<- .%>%{strand(.)<-'+';.}
 
 
 
-string2onehot<-function(scol) vapply(c('A','C','T','G'),function(lev)as.numeric(scol==lev),rep(1,length(scol)))
+string2onehot<-function(scol) vapply(c('A','C','T','G'),function(lev)as.numeric(scol==lev),rep(1,length(scol)))%>%matrix(ncol=4,dimnames=list(NULL,c('A','C','T','G')))
+
 dnaseq2onehot <- function(mat,pre){
 	mat<-as.matrix(mat);
-	lapply(1:ncol(mat),function(n) string2onehot(mat[,n])%>%set_colnames(paste0(pre,n,'.',colnames(.))))%>%purrr::reduce(cbind)
+	lapply(1:ncol(mat),function(n) string2onehot(mat[,n,drop=FALSE])%>%set_colnames(paste0(pre,n,'.',colnames(.))))%>%purrr::reduce(cbind)
 }
 
 
@@ -239,10 +240,11 @@ select_toplengths <- function(x) x %>%table%>%{./sum(.)}%>%keep(. > 0.05)%>%name
 
 
 apply_cds_offsets<- function(reads_tr,bestscores){
+
 	compartmentcol <- if('compartment'%in%colnames(bestscores)) 'compartment' else NULL
 	phasecol <- if('phase'%in%colnames(bestscores)) 'phase' else NULL
 	joincols <- c('length',compartmentcol,phasecol)
-	stopifnot(joincols %in% colnames(mcols(reads_tr)))
+	assert_that(has_name(mcols(reads_tr),joincols))
 
 	reads_tr%>%
 		mcols%>%
@@ -273,15 +275,22 @@ upstream_dist_till<-function(gr1,gr2){
 	(tp(gr2)[follow(gr1,gr2)] - fp(gr1)) * ( ifelse(strand(gr1)=='+',-1,1))
 }
 
-tpmost<-function(cds,groupvar='transcript_id'){
-	
-	ids<-data_frame(id=seq_along(cds),end=end(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(end*ifelse(strand=='-',-1,1)))%>%.$id
-	cds[ids]
+gr1<-map(1:8,GRanges('a',.,strand='+')
+gr2<-GRanges('a',5,strand='+')
+
+downstream_dist_till(gr1,gr2)
+0
+istpmost<-function(cds,groupvar='transcript_id'){	
+	ids <- seq_along(cds)
+	tpmostids<-data_frame(id=ids,end=end(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(end*ifelse(strand=='-',-1,1)))%>%.$id
+	ids %in% tpmostids
 }
-fpmost<-function(cds,groupvar='transcript_id'){
-	ids<-data_frame(id=seq_along(cds),start=start(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(start*ifelse(strand=='-',1,-1)))%>%.$id
-	cds[ids]
+isfpmost<-function(cds,groupvar='transcript_id'){
+	ids <- seq_along(cds)
+	fpmostids<-data_frame(id=ids,start=start(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(start*ifelse(strand=='-',1,-1)))%>%.$id
+	ids %in% fpmostids
 }
+
 
 
 clip_start <- function(x,n) resize(x,width(x)-n,fix='end')
@@ -296,6 +305,9 @@ testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr
 
 testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:+')),GRanges(c('chr1:11:+','chr1:6:+','chr1:40-51:+'))),4)
 testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr1:11:+','chr1:14:-','chr1:40-51:+'))),4)
+
+
+
 
 
 
@@ -350,109 +362,6 @@ get_stop_sites <- function(reads_tr,topcdsmap,STOPWINDOWSTART,STOPWINDOWEND){
 	c(startpsites,stoppsites)
 }
 
-#TODO - length+comaprtment not just length
-get_all_stop_sites <- function(bam,allcds,STOPWINDOWSTART,STOPWINDOWEND,bestscores){
-
-	message('getting stop sites for training seq model - all stop sites')
-
-	#work out start and stop codons from the cds
-
-
-	startcodons <- fpmost(allcds,'transcript_id')%>%resize(3,'start')
-
-	prestopcodons <- tpmost(allcds,'transcript_id')%>%resize(3,'end')
-
-
-	starts_ends<-c(startcodons,prestopcodons)
-	
-	# browser()
-
-	assert_that(startcodons%>%strandshift(0)%>%getSeq(FaFile(REF),.)%>%translate%>%`==`('M')%>%mean%T>%message%>%`>`(0.8))
-	assert_that(prestopcodons%>%strandshift(3)%>%getSeq(FaFile(REF),.)%>%str_subset(neg=TRUE,'N')%>%DNAStringSet%>%translate%>%`==`('*')%>%mean%T>%message%>%`>`(0.8))
-
-
-	reads_tr <- bam%>%BamFile(yieldSize=NA)%>%readGAlignments(param=ScanBamParam(which=starts_ends))
-	reads_tr <- GRanges(reads_tr,length=qwidth(reads_tr))
-
-# 	teststart<-GRanges(as.character(startcodons[1]))
-# #	teststart<-GRanges(as.character(startcodons[10]))
-# 	reads_tr %<>%subsetByOverlaps(teststart)
-# 	reads_tr%<>%shift(-start(teststart)+100)
-# 	teststart%<>%shift(-start(teststart)+100)
-
-
-
-	reads_tr$startdist <- - downstream_dist_till(fpend(reads_tr),fpend(startcodons))	
-
-	reads_tr$stopdist <- - downstream_dist_till(fpend(reads_tr),fpend(prestopcodons))	
-
-	reads_tr$phase <- ifelse(abs(reads_tr$startdist)<abs(reads_tr$stopdist),
-		(reads_tr$startdist) %%3,
-		(reads_tr$stopdist)  %%3
-	)
-
-
-	maxcdsshift <- bestscores$offset%>%max
-
-	reads_tr$stopdist[between(reads_tr$stopdist,-20,20)] %>% add(maxcdsshift)%>%table
-	reads_tr$stopdist[between(reads_tr$stopdist,-20,20)] %>% add(maxcdsshift)%>%table
-
-
-	reads_tr$compartment <- as(compartments,'List')[seqnames(reads_tr)]%>%unlist(use.names=F)
-
-	reads_tr$cdsshift <- reads_tr%>%apply_cds_offsets(bestscores)
-
-	table((reads_tr$startdist + reads_tr$cdsshift)%>%.[between(.,-20,20)])
-	table((reads_tr$stopdist + reads_tr$cdsshift)%>%.[between(.,-20,20)])
-
-
-	reads_tr$startdist <- reads_tr$startdist + reads_tr$cdsshift
-	reads_tr$stopdist <- reads_tr$stopdist + reads_tr$cdsshift
-
-
-
-
-
-	#So our cds shift is a negative factor
-	#above means that things landing just upstrema of starts (our errors to correct, will not yet be)
-	#negative enough - i.e. they will be positive
-	#and stops that are shifted outside the CDS will be too negative
-
-	# reads_tr$startdist%>%.[between(.,-20,20)]%>%na.omit%>%txtdensity
-	# reads_tr$stopdist%>%.[between(.,-20,20)]%>%na.omit%>%txtdensity
-
-
-	# reads_tr$startdist%>%.[order(abs(.))]%>%.[.!=0]%>%between(.,-STOPWINDOWSTART,0)%>%na.omit%>%any
-	# #all stop codons!
-	# # stopifnot(topExonseq[prestops%>%resize(3)%>%shift(3)]%>%translate%>%`==`('*'))
-
-	# #get the psites predicted to -+2 of the first nt of our pre-stop codons
-
-	# #get the distance to the 1 site of the prestop
-	# reads_tr$stopdist<-start(reads_tr)+reads_tr$cdsshift - start(prestops[seqnames(reads_tr)])
-	# reads_tr$startdist<-start(reads_tr)+reads_tr$cdsshift - start(starts[seqnames(reads_tr)])
-
-	# # reads_tr$stopdist<-start(reads_tr) - start(prestops[seqnames(reads_tr)])
-	# # reads_tr$startdist<-start(reads_tr) - start(starts[seqnames(reads_tr)])
-
-
-	startpsites<-reads_tr%>%subset(between(startdist,0,STOPWINDOWEND))%>%{.$dist<-.$startdist;.}
-	stoppsites<-reads_tr%>%subset(between(stopdist,STOPWINDOWSTART,0))%>%{.$dist<-.$stopdist;.}
- 	
-
-	startpsites$dist%>%table
-
-	reads_tr%>%subset(between(stopdist,STOPWINDOWSTART,0))%>%.$stopdist%>%table
-
-	out <- 	c(startpsites,stoppsites)
- 	
- 	stopifnot((STOPWINDOWSTART:STOPWINDOWEND)%in%out$dist)
-
- 	out$dist %<>% as.factor
-
-	c(out)
-
-}
 
 # get_stop_sites <- function(reads_tr,topcdsmap,STOPWINDOWSTART,STOPWINDOWEND){
 # 	message('getting stop sites for trainng')
@@ -491,34 +400,51 @@ setMethod('seqinfo','DNAStringSet',function(x){
 	x%>%{Seqinfo(names(.),nchar(.))}
 })
 
-get_seqforrest_traindata <- function(reads,seq,nbp=2){
+trainreads<-stoppsites
+seq<-FaFile(REF)
+
+get_seqforrest_traindata <- function(trainreads,seq,topcdsmap=NULL,nbp=2,trim=TRUE){
+
+	stopifnot('length' %in% colnames(mcols(trainreads)))
+	stopifnot(all(seqnames(trainreads)%in%seqinfo(seq)@seqnames))
 
 
-	stopifnot('length' %in% colnames(mcols(reads)))
-	stopifnot(all(seqnames(reads)%in%seqinfo(seq)@seqnames))
-
-
-	suppressWarnings({fp<-reads[TRUE]%>%resize(nbp,'start')%>%resize(nbp*2,'end')})
+	fp<-trainreads[TRUE]%>%resize(nbp,'start')%>%resize(nbp*2,'end')
 	fp_inbounds <- !is_out_of_bounds(fp,seqinfo(seq))
 
-	suppressWarnings({tp <- reads%>%resize(nbp,'end')%>%resize(nbp*2,'start')})
+	tp <- trainreads%>%resize(nbp,'end')%>%resize(nbp*2,'start')
 	tp_inbounds <- !is_out_of_bounds(tp,seqinfo(seq))
-
-	inbounds <- fp_inbounds & tp_inbounds
-
-	fp<-fp[inbounds]
-	tp<-tp[inbounds]
 	
+	inbounds <- fp_inbounds & tp_inbounds
+	inbounds%>%table
+	
+	if(trim){
+		fp<-fp[inbounds]
+		tp<-tp[inbounds]
+	}else{
+		assert_that(all(fp_inbounds))
+		assert_that(all(tp_inbounds))
+	}
 	startseq <- getSeq(seq,fp)
 	endseq <- getSeq(seq,tp)
 
+
 	seqmat <- cbind( dnaseq2onehot(startseq,'fp.'),dnaseq2onehot(endseq,'tp.'))
 
-	seqmat%<>%cbind(length=reads$length[inbounds])%>%as.data.frame
+	seqmat%<>%cbind(length=trainreads$length[inbounds])%>%as.data.frame
 
-	if(has_name(mcols(reads),'dist')) seqmat %<>% cbind(dist=reads$dist[inbounds])
+	if(! is.null(topcdsmap)){
+		dist <- (start(trainreads) - start(topcdsmap[seqnames(trainreads)]))
+		seqmat$phase = as.factor(abs(-(dist%%3)))
+	}
 
-
+	if(has_name(mcols(trainreads),'dist')){
+		seqmat %<>% cbind(dist=trainreads$dist[inbounds])
+		#note that we need to negate the phase to get it from the 'dist', so e.g. -1 means the 2nd base of the stop,
+		#while 1 means the 3rd base of the one before AUG
+		seqmat$phase = as.factor(abs(-(as.numeric(as.character((seqmat)$dist))%%3)))
+	}
+	
 	seqmat
 
 }
@@ -538,14 +464,23 @@ get_seqoffset_model <-  function(data4readshift){
 
 }
 
-get_predictedshifts<-function(seqshiftmodel,data4readshift){
+get_predictedshifts<-function(seqshiftmodel,data4readshift,probcutoff=0.5){
+
 	outpred <- predict(seqshiftmodel,data=data4readshift)$prediction
+
+	if(is.matrix(outpred)){
+		maxcol <- max.col(outpred)
+		is_highprob <- outpred[matrix(c(1:nrow(outpred),maxcol),ncol=2)] > probcutoff
+		outpred=ifelse(is_highprob,colnames(outpred)[maxcol],0)
+
+	}
 
 	outpred <- outpred%>%as.character%>%as.numeric
 
 	assert_that(all((outpred %% 1)==0))
 
 	outpred
+
 }
 
 
@@ -609,8 +544,121 @@ get_top_trs<-function(bam,exons,cds,startcods){
 
 }
 
-get_seqoffset_model_elim <-  function(traindata4readshift){
+#TODO - length+comaprtment not just length
+get_offset_training_sites <- function(bam,allcds,STOPWINDOWSTART,STOPWINDOWEND,bestscores,stoponly=FALSE){
+	# browser()
+	message('getting stop sites for training seq model - all stop sites')
+
+	#work out start and stop codons from the cds
+
+
+	startcodons <- allcds[isfpmost(allcds,'transcript_id')]%>%resize(3,'start')
+
+	prestopcodons <- allcds[istpmost(allcds,'transcript_id')]%>%resize(3,'end')
+
+
+	starts_ends<-c(startcodons,prestopcodons)
+	
+	# browser()
+
+	assert_that(startcodons%>%strandshift(0)%>%getSeq(FaFile(REF),.)%>%translate%>%`==`('M')%>%mean%T>%message%>%`>`(0.8))
+	assert_that(prestopcodons%>%strandshift(3)%>%getSeq(FaFile(REF),.)%>%str_subset(neg=TRUE,'N')%>%DNAStringSet%>%translate%>%`==`('*')%>%mean%T>%message%>%`>`(0.8))
+
+
+	reads_tr <- bam%>%BamFile(yieldSize=NA)%>%readGAlignments(param=ScanBamParam(which=starts_ends))
+	reads_tr <- GRanges(reads_tr,length=qwidth(reads_tr))
+
+# 	teststart<-GRanges(as.character(startcodons[1]))
+# #	teststart<-GRanges(as.character(startcodons[10]))
+# 	reads_tr %<>%subsetByOverlaps(teststart)
+# 	reads_tr%<>%shift(-start(teststart)+100)
+# 	teststart%<>%shift(-start(teststart)+100)
+
+
+
+	reads_tr$startdist <- downstream_dist_till(fpend(reads_tr),fpend(startcodons))	
+
+	reads_tr$stopdist <- downstream_dist_till(fpend(reads_tr),fpend(prestopcodons))	
+
+	reads_tr$phase <- ifelse(abs(reads_tr$startdist)<abs(reads_tr$stopdist),
+		(reads_tr$startdist) %%3,
+		(reads_tr$stopdist)  %%3
+	)
+
+
+	# maxcdsshift <- bestscores$offset%>%max
+
+	# reads_tr$stopdist[between(reads_tr$stopdist,-20,20)] %>% add(maxcdsshift)%>%table
+	# reads_tr$stopdist[between(reads_tr$stopdist,-20,20)] %>% add(maxcdsshift)%>%table
+
+
+	reads_tr$compartment <- as(compartments,'List')[seqnames(reads_tr)]%>%unlist(use.names=F)
+
+	reads_tr$cdsshift <- reads_tr%>%apply_cds_offsets(bestscores)
+
+	table((reads_tr$startdist + reads_tr$cdsshift)%>%.[between(.,-20,20)])
+	table((reads_tr$stopdist + reads_tr$cdsshift)%>%.[between(.,-20,20)])
+
+
+	reads_tr$startdist <- reads_tr$startdist - reads_tr$cdsshift
+	reads_tr$stopdist <- reads_tr$stopdist - reads_tr$cdsshift
+
+
+
+
+
+	#So our cds shift is a negative factor
+	#above means that things landing just upstrema of starts (our errors to correct, will not yet be)
+	#negative enough - i.e. they will be positive
+	#and stops that are shifted outside the CDS will be too negative
+
+	# reads_tr$startdist%>%.[between(.,-20,20)]%>%na.omit%>%txtdensity
+	# reads_tr$stopdist%>%.[between(.,-20,20)]%>%na.omit%>%txtdensity
+
+
+	# reads_tr$startdist%>%.[order(abs(.))]%>%.[.!=0]%>%between(.,-STOPWINDOWSTART,0)%>%na.omit%>%any
+	# #all stop codons!
+	# # stopifnot(topExonseq[prestops%>%resize(3)%>%shift(3)]%>%translate%>%`==`('*'))
+
+	# #get the psites predicted to -+2 of the first nt of our pre-stop codons
+
+	# #get the distance to the 1 site of the prestop
+	# reads_tr$stopdist<-start(reads_tr)+reads_tr$cdsshift - start(prestops[seqnames(reads_tr)])
+	# reads_tr$startdist<-start(reads_tr)+reads_tr$cdsshift - start(starts[seqnames(reads_tr)])
+
+	# # reads_tr$stopdist<-start(reads_tr) - start(prestops[seqnames(reads_tr)])
+	# # reads_tr$startdist<-start(reads_tr) - start(starts[seqnames(reads_tr)])
+
+
+
+	if(stoponly){
+		out<-reads_tr%>%subset(between(stopdist(STOPWINDOWSTART,STOPWINDOWEND)))
+	}else{
+
+		startpsites<-reads_tr%>%subset(between(startdist,0,STOPWINDOWEND))%>%{.$dist<-.$startdist;.}
+		stoppsites<-reads_tr%>%subset(between(stopdist,STOPWINDOWSTART,0))%>%{.$dist<-.$stopdist;.}
+
+
+		out <- 	c(startpsites,stoppsites)
+
+	}
+
+
+ 	
+ 	stopifnot((STOPWINDOWSTART:STOPWINDOWEND)%in%out$dist)
+
+ 	out$dist %<>% as.factor
+
+	c(out)
+
+}
+
+
+get_seqoffset_model_elim <-  function(traindata4readshift,usephase=F,doelim=T){
+
+
 	require(ranger)
+
 	stopifnot((-2:2) %in% traindata4readshift$dist)
 
 
@@ -618,67 +666,93 @@ get_seqoffset_model_elim <-  function(traindata4readshift){
 
 	assert_that(has_name(traindata4readshift,c('length','fp.2.A','tp.2.A')))
 
+
+	if(usephase){
+		#note that we need to negate the phase to get it from the 'dist', so e.g. -1 means the 2nd base of the stop,
+		#while 1 means the 3rd base of the one before AUG
+		traindata4readshift$phase <- as.factor(abs(-(as.numeric(as.character((traindata4readshift)$dist))%%3)))
+	}else{
+		traindata4readshift$phase <- NULL
+	}
 	# stopifnot(traindata4readshift$dist %in% c(STOPWINDOWEND:STOPWINDOWSTART))
 
 	istestset = sample(((1:nrow(traindata4readshift)) %% 5) == 0)
 
-	trainset <- traindata4readshift[!istestset,]
-	testset <- traindata4readshift[istestset,]
-	trainset<-trainset[sample(1:nrow(trainset))%>%head(10e3),]
-	trainset%>%nrow
+	# trainset <- traindata4readshift[!istestset,]
+	# testset <- traindata4readshift[istestset,]
+	allset <- traindata4readshift
 	
 	tabs<-list()
-	varstouse = colnames(trainset)%>%str_subset(neg=TRUE,'length|dist')
+	varstouse = colnames(allset)%>%str_subset(neg=TRUE,'length|dist|phase')
 
-	# browser()
 	# exportenv
 	minerror <- NA
-	while(length(varstouse)>0){
-		seqshiftmodel <- ranger::holdoutRF(formula= dist ~ . ,
-			# data=	traindata4readshift[,c(varstouse,'length','dist')]
-			data=	trainset%>%select(one_of(varstouse),dist,length)
-		# importance='permutation'
+
+	if(doelim){while(length(varstouse)>0){
+
+		holdoutRF <- mymemoise(ranger::holdoutRF)
+
+		seqshiftmodel <- holdoutRF(formula= dist ~ . ,
+			data=	allset%>%select(one_of(varstouse),dist,length)
 		)
-		leastimportantvar <- seqshiftmodel$variable.importance%>%.[!names(.)%in%c('length','dist')]%>%abs%>%sort%>%head(1)%>%names
-		varstouse <- setdiff(varstouse,	leastimportantvar)
-		message('removed ');message(leastimportantvar)
+		#
+		leastimportantvar <- seqshiftmodel$variable.importance%>%.[!names(.)%in%c('length','dist','phase')]%>%abs%>%sort%>%head(1)%>%names
+
 		newerr <- seqshiftmodel$rf2$prediction.error
-		if(isTRUE( newerr> (minerror+0.1))) break
+		if(is.na(minerror)) minerror <- newerr#set it the first time
+
 		message(newerr)
+		if(isTRUE( newerr > (minerror*1.1))) break
 
 
+		varstouse <- setdiff(varstouse,	leastimportantvar)
 
+		message('removed ');message(leastimportantvar)
+		
+
+		oldseqshiftmodel<-seqshiftmodel
 		# tabs <- append(tabs,mean(testset$dist==predict(seqshiftmodel,testset)$prediction))
 		tabs <- append(tabs,setNames(seqshiftmodel$rf2$prediction.error,leastimportantvar))
-	}
+	}}
 
 	#So if we use 10k examples we can trim off the less important variables pretty easily.
 	# keepvars <- (tabs%>%unlist < (tabs%>%unlist%>%min)+0.05)%>%.[!.]%>%names
 
-
-	browser()
-
 	#use ones we didn't eliminate
-	keepvars <- colnames(trainset)%>%str_subset(neg=TRUE,'length|dist')%>%setdiff(names(tabs))
+	keepvars <- colnames(traindata4readshift)%>%str_subset(neg=TRUE,'length|dist|phase')%>%setdiff(names(tabs))
 
-	seqshiftmodel <- ranger::ranger(formula= dist ~ . ,
+	if(usephase) keepvars %<>% append('phase')
+
+	seqshiftmodel  <- ranger::ranger(formula= dist ~ . ,
 			# data=	traindata4readshift[,c(varstouse,'length','dist')]
-			data=	testset%>%select(one_of(keepvars),dist,length)
+			data=	allset%>%select(keepvars,dist,length),probability=TRUE,num.threads=20
 	)
+	
+	allseqvars <-  colnames(allset)%>%str_subset(neg=TRUE,'length|dist|phase')
 
 	seqshiftmodel_allvars <- ranger::ranger(formula= dist ~ . ,
 			# data=	traindata4readshift[,c(varstouse,'length','dist')]
-			data=	testset%>%select(everything())
+			data=	allset%>%select(everything(),dist,length),
+			probability=TRUE,num.threads=20
 	)
 
-	seqshiftmodel_len_only <- ranger::ranger(formula= dist ~ . ,
+	seqshiftmodel_allvars
+
+	seqshiftmodel_GAonly <- ranger::ranger(formula= dist ~ . ,
 			# data=	traindata4readshift[,c(varstouse,'length','dist')]
-			data=	testset%>%select(dist,length)
+			data=	allset%>%select(matches('[ft]p\\.\\d\\.[GA]'),dist,length),probability=TRUE,num.threads=20
 	)
 	
-	list(seqshiftmodel,seqshiftmodel_allvars,seqshiftmodel_len_only)
+	list(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly)
 
 }
+
+
+
+
+pred<-predict(seqshiftmodel_allvars,allset)$prediction
+pred%>%head(9)%>%t%>%`>`(0.5)
+
 fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
 strandshift<-function(gr,shift) shift(gr , ifelse( strand(gr)=='-',- shift,shift))
@@ -694,8 +768,9 @@ cdscov <- function(reads2use,cds2use){
 	out
 }
 
-get_periodicity_scores<-function(cdstosamp,cdsread_trmap){
+get_periodicity_scores<-function(cdstosamp,cdsread_trmap,seqshiftisneg=FALSE){
 	message('.')
+
 	assert_that(has_name(mcols(cdsread_trmap),c('seqshift','cdsshift')))
 	psites2use<-cdsread_trmap%>%
 		keepSeqlevels(cdstosamp,'coarse')%>%
@@ -710,7 +785,7 @@ get_periodicity_scores<-function(cdstosamp,cdsread_trmap){
 
 	data_frame(
 		no_seqshift = psites2use%>%cdscov(cds2use)%>%get3bpfrac,
-		with_seqshift = psites2use %>% shift(-.$seqshift)%>%cdscov(cds2use)%>%get3bpfrac
+		with_seqshift = psites2use %>% shift(ifelse(seqshiftisneg,-1,1) * .$seqshift)%>%cdscov(cds2use)%>%get3bpfrac
 	)
 }
 # get_periodicity_scores <- mymemoise(get_periodicity_scores)
@@ -858,6 +933,7 @@ if(!USEPHASE){
 }else{
 	bestscores<-allbestscores%>%filter(!is.na(phase))
 }
+
 if(USERIBOSEQC){
 	#Get riboqc_cutoffs
 	sample = bam%>%dirname%>%basename 
@@ -879,48 +955,56 @@ topstoppsites <- get_stop_sites(cdsread_trmap,topcdsmap,STOPWINDOWSTART,STOPWIND
 
 cds4train <- cds%>%filtercds4train
 
-allstoppsites <- mymemoise(get_all_stop_sites)(bam,cds4train,STOPWINDOWSTART,STOPWINDOWEND,bestscores)
+allstoppsites <- mymemoise(get_offset_training_sites)(bam,cds4train,STOPWINDOWSTART,STOPWINDOWEND,bestscores)
 
 stoppsites <- allstoppsites
-allstoppsites$disttable
-assert_that(allstoppsites%>%length%>%`==`(336076),msg='number of start/stop sites to train with change')
+# assert_that(allstoppsites%>%length%>%`-`(336076),msg='number of start/stop sites to train with change')
 
 topstoppsites$dist%>%table%>%txtplot
 allstoppsites$dist%>%table%>%txtplot
 stoppsites$dist%>%table%>%txtplot
 
-bestscores
-stoppsites<-topstoppsites
 
-(function(){
+# (function(){
+
+if('chr1' %in% seqnames(stoppsites)){
+ 	traindata4readshift <- get_seqforrest_traindata(stoppsites,FaFile(REF),nbp=2)
+
+}else{
+	#in case I go back to using the old sites...
+	traindata4readshift <- get_seqforrest_traindata(stoppsites,topExonseq,nbp=2)
+
+}
+
+#	seqshiftmodel <- mymemoise(get_seqoffset_model)(traindata4readshift)
+
+	#forget(get_seqoffset_model_elim)
+
+	get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim)
+	
+	c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly) %<-% get_seqoffset_model_elim(
+		traindata4readshift,
+		usephase=USEPHASE,
+		doelim=F)
 
 
-	if('chr1' %in% seqnames(stoppsites)){
-	 	traindata4readshift <- get_seqforrest_traindata(stoppsites,FaFile(REF),nbp=2)
-	}else{
-		traindata4readshift <- get_seqforrest_traindata(stoppsites,topExonseq,nbp=2)
-
-	}
-
-	seqshiftmodel <- mymemoise(get_seqoffset_model)(traindata4readshift)
-
-	c(seqshiftmodel,seqshiftmodel_allvars,seqshiftmodel_len_only) %<-% mymemoise(get_seqoffset_model_elim)(traindata4readshift)
 
 
 	#we can't get sequence if their flanks extend out of the genome/tr
-
 	cdsread_trmap_inbound <- cdsread_trmap[
 		cdsread_trmap%>%resize(width(.)+4,'center')%>%is_out_of_bounds(.)%>%not
 	]
 
-	data4readshift <- get_seqforrest_traindata(cdsread_trmap_inbound,topExonseq)
+	data4readshift <- get_seqforrest_traindata(cdsread_trmap_inbound,topExonseq,topcdsmap)
 
 	#it's the model thats actually sure
+	# cdsread_trmap_inbound$seqshift <-  get_predictedshifts(seqshiftmodel,data4readshift)
 
-	cdsread_trmap_inbound$seqshift <-  get_predictedshifts(seqshiftmodel,data4readshift)
+	# cdsread_trmap_inbound$seqshift <-  get_predictedshifts(seqshiftmodel_allvars,data4readshift,prob=0.25)
+	
+	cdsread_trmap_inbound$seqshift <-  get_predictedshifts(seqshiftmodel_GAonly,data4readshift,prob=0.25)
 
-
-
+	cdsread_trmap_inbound$seqshift%>%table%>%txtplot
 
 	#' ## Testing
 	#' 
@@ -931,17 +1015,17 @@ stoppsites<-topstoppsites
 	seqshift_periodicities<- seqnames(cdsread_trmap_inbound)%>%
 		unique%>%
 		sample%>%
-		# head(100)%>%
+		# head(300)%>%
 		as.character%>%
 		split(seq_along(.)%%5)%>%
-		mclapply(F=get_periodicity_scores,cdsread_trmap_inbound)%>%
+		mclapply(F=get_periodicity_scores,cdsread_trmap_inbound,seqshiftisneg=FALSE)%>%
 		bind_rows
 
 	seqshift_periodicities%>%unlist%>%txtplot
 
-})()
+# })()
 
-stop()
+# stop()
 
 
 #+ spectral_coefficient_strip_plot, fig.width =4,fig.height=4,out.width=400,out.height=450,dev='pdf',include=TRUE,eval=TRUE
@@ -1032,11 +1116,15 @@ plist=lapply(seqshiftfuncs,mymemoise(function(seqshiftfunc){
 	p
 }))
 
+maxn<-plist%>%map_dbl(~max(.$data$n))%>%max
+for(i in seq_along(plist)) plist[[i]] <- plist[[i]]+scale_y_continuous(limits=c(0,maxn/2))
+
 #+ riboshift_comparison plot, fig.width =12,fig.height=12,out.width=1200,out.height=1250,dev='pdf',include=TRUE,eval=TRUE
 
 if(isknitr) {
 	ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs))
 }else{
+	suppressWarnings(dir.create(outfolder,rec=TRUE))
 	shiftplotfile <- 'shift_methods_comp.pdf'
 	shiftplotfile <- file.path(outfolder,shiftplotfile)
 	pdf(shiftplotfile,w=14,h=10)
@@ -1048,19 +1136,206 @@ if(isknitr) {
 
 }
 
+
+
+
+
+
+
+#
+
+
+
+
+library(R6)
+
+#could include the lengths and variables it needs
+#could include a method for getting the data
+#and a method for shiftng a granges object
+
+Psite_model<-R6Class("Psite_model",
+	public = list(
+		offsets=NULL,
+		seqshiftmodel=NULL,
+		compartments=NULL,
+		initialize=function(bestscores,seqshiftmodel,compartments){
+
+			#checks - compartments has nrow
+			#seqshiftmodel is a ranger object,
+			#compartments is a vecotr with 'nucl' in it
+
+			self$offsets <- bestscores
+			self$seqshiftmodel <- seqshiftmodel	
+			self$compartments <- compartments		
+
+
+	})
+)
+
+psite_model <- Psite_model$new(bestscores,seqshiftmodel,compartments)
+
+psite_model <- Psite_model$new(bestscores,seqshiftmodel_allvars,compartments)
+
+
+psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))
+
+
+take_Fvals_spect<-function(x,n_tapers,time_bw,slepians_values){
+     if(length(x)<25){
+          remain<-50-length(x)
+          x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
+     }
+
+     if(length(x)<1024/2){padding<-1024}
+     if(length(x)>=1024/2){padding<-"default"}
+
+     resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
+     
+     resSpec2<-dropFreqs(resSpec1,0.29,0.39)
+     
+     closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
+     
+     freq_max_3nt<-resSpec1$freq[closestfreqind]
+     Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
+     spect_3nt<-resSpec1$spec[closestfreqind]
+     return(c(Fmax_3nt,spect_3nt))
+     
+}
+
+
+ftestvect<-function(psit,k=24,bw=12){
+	sl<-dpss(n=length(psit)%>%ifelse(.<25,50,.),k=k,nw=bw)
+	vals<-take_Fvals_spect(x = psit,n_tapers = k,time_bw = bw,slepians_values = sl)
+	pval <- pf(q=vals[1],df1=2,df2=(2*24)-2,lower.tail=F)
+	return(c(vals[2],pval))
+}
+
+
+
+
+data4readshift%>%as.data.frame%>%select(matches('^[ft]p'))%>%
+	apply(2,table)%>%.['1',TRUE]%>%
+	enframe%>%separate(name,into=c('end','pos','base'),sep='\\.')%>%
+	group_by(end,pos)%>%mutate(value = value/sum(value))%>%
+	spread(base,value)
+
+
+
+
+
+#Now let's check up/down stream of codons
+
+
+
+
+
+shiftplotfile <- 'shift_methods_comp.pdf'
+shiftplotfile <- file.path(outfolder,shiftplotfile)
+pdf(shiftplotfile,w=14,h=10)
+print(ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs)))
+dev.off()
+message(normalizePath(shiftplotfile))
+
+
+library(Biostrings)
+
+cdsseq <- topExonseq[topcdsmap]
+
+for(codon in names(GENETIC_CODE)){
+	codonlocs <- vmatchPattern(codon,cdsseq)
+	codonmatchgr<-unlist(codonlocs)%>%{GRanges(names(.),.)}%>%setNames(NULL)
+
+	tmp1<-codonmatchgr%>%resize(30,'end')%>%mapFromTranscripts(topcdsmap)%>%head
+	seqnames(tmp1)%in%names(topExonseq)
+	seqinfo(tmp1)
+	topExonseq[tmp1[,NULL]]
+
+	# vmatchPDict(names(GENETIC_CODE)[1:2],cdsseq[1:10])
+}
+
+
+makeTxDbFromGRanges(gtf_gr)
+
+	
+forget(readGAlignments)
+bam%>%file.exists
+bamfile<-BamFile(bam,yield=)
+
+
+
+##Let's make fake, positive control reads
+
+#for each of our 
+
+allstoppsites%>%head%>%as.data.frame
+
+
+
+#Simulate Riboseq reads
+#length distribution
+lengthdist <- c(`26` = 51599L, `27` = 82461L, `28` = 57037L, `29` = 43928L)%>%{./sum(.)}
+#initial_frame_dist 
+initial_frame_dist <- c(0.6,0.3,0.1)
+testexons <- topcdsexons[1:100]
+testcds <- topcdsmap[topcdsexons$transcript_id%>%unique]
+
+sample<-base::sample
+
+starts_ends <- testcds%>%head(2)%>%width%>%divide_by(3)%>%map(seq_len)%>%map(sample,1e3,replace=TRUE)%>%
+	map(~ .+ sample(c(0,1,2),p=initial_frame_dist,rep=TRUE,size=length(.)))%>%
+	map(~data_frame(start=.,end= . + as.numeric(names(lengthdist))[sample(seq_along(lengthdist),rep=TRUE,size=length(.))]))%>%
+
+
+####Look more modelishly at reads
+
+#Can look at codons
+
+prestops <- topcdsmap%>%resize(3,'end')%>%resize(1,'start')
+stopreads <- subsetByOverlaps(cdsread_trmap,prestops)
+leftseg <- fpend(stopreads)%>%downstream_dist_till(prestops)
+rightseg <- tpend(stopreads)%>%upstream_dist_till(prestops)
+
+table(stopreads$length)
+
+#so yeah very much left seg influence by right....
+table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))
+table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))%>%.[c(7,8,9),]
+
+
+
+
+
+#TODO - test this
+#' Why am I not getting great periodicity?
+#' What am I not getting 
+
+#length
+#total psite count
+#psite count at the edges
+
+
+
+
+
+
+#TODO - count just outside the CDS here - both to get our edge scores and to allow access to seqs
+
+#and in the middle
+
+#Now derive various states for our ORFs.
+
+
+
 #' .... All of which seems to indicate our procedure is doing a better job of recovering actual P-site positions. Note that it's p
 #' site positions are consistent between reads - no dramatic difference between 28 and the others - and manage to recover periodicity
 #' in specific read lengths where it was missing. 
 #' 
 #' Okay so the strand flip error in the stoppsites function is fixed now. We have consstent improvement, however the behavior of the cds shift function is somewhat erratic...
 #' 
-#' Okay so using the riboseq cutoffs does badly, the 
+#' Okay, found problem, frozen randomeness in the model training due to the caching... take NOTE!
+#' 
+#' Now I"m fucked again, can't figure out why, probability trees apparently hurt??
 
-if((!isknitr) & (interactive())) {
-	'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/offsets3.R'%>%
-	{rmarkdown::render(knitr::spin(knit=F,.),output_file=here('reports',basename(str_replace(.,'.R$','.html'))))}
-}
+ # if((!isknitr) & (interactive())) {'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/offsets3.R'%>% {rmarkdown::render(knitr::spin(knit=F,.),output_file=here('reports',basename(str_replace(.,'.R$','.html'))))} } 
 
-
-inenv<-new.env()
-testout<-load('pipeline/riboqc/data/RPI12_PolyP0_2/_for_SaTAnn')
+ # inenv<-new.env() testout<-load('pipeline/riboqc/data/RPI12_PolyP0_2/_for_SaTAnn')
