@@ -32,6 +32,8 @@ suppressMessages({library(GenomicFiles)})
 suppressMessages({library(bamsignals)})
 suppressMessages({library(zeallot)})
 suppressMessages({library(here)})
+suppressMessages({library(assertthat)})
+suppressMessages({library(multitaper)})
 
 reduce <- GenomicRanges::reduce
 
@@ -45,7 +47,6 @@ source(here('src/R/Rprofile.R'))
 for(fname in lsf.str('package:GenomicRanges')) assign(fname,get(fname,'package:GenomicRanges'))
 for(fname in lsf.str('package:dplyr')) assign(fname,get(fname,'package:dplyr'))
 
-source(here('src/R/Rprofile.R'))
 
 argv <- c(
 	bam = here('pipeline/star/data/E13_ribo_2/E13_ribo_2.bam')%T>%{stopifnot(file.exists(.))},
@@ -126,7 +127,7 @@ get_cdsread_trmap <- function(topcdsreads,topcdsexons,topcdsmap){
 		length(non3ttr)==0#all the cds should be multiples of 3
 	})
 
-	assert_that(has_name(mcols(cdsread_trmap),c('length','compartment','phase')))
+	assert_that(all(has_name(mcols(cdsread_trmap),c('length','compartment','phase'))))
 
 	cdsread_trmap
 
@@ -167,11 +168,6 @@ get_cdsread_trmap<-mymemoise(get_cdsread_trmap)
 
 # 	cdsread_trmap
 # }
-# oldenv$cdsread_trmap
-# newenv$cdsread_trmap
-
-# intersect(oldenv$cdsread_trmap,newenv$cdsread_trmap)
-# intersect(newenv$cdsread_trmap,oldenv$cdsread_trmap)
 
 #for now let's not consider base pairs with no strong pwm
 
@@ -244,7 +240,7 @@ apply_cds_offsets<- function(reads_tr,bestscores){
 	compartmentcol <- if('compartment'%in%colnames(bestscores)) 'compartment' else NULL
 	phasecol <- if('phase'%in%colnames(bestscores)) 'phase' else NULL
 	joincols <- c('length',compartmentcol,phasecol)
-	assert_that(has_name(mcols(reads_tr),joincols))
+	assert_that(all(has_name(mcols(reads_tr),joincols)))
 
 	reads_tr%>%
 		mcols%>%
@@ -264,8 +260,8 @@ tp<-function(gr) ifelse(strand(gr)=='-',start(gr),end(gr))
 fpend<-function(x)resize(x,1,'start')
 tpend<-function(x)resize(x,1,'end')
 
-gr1<-GRanges(c('chr1:5-6:+'))
-gr2<-GRanges(c('chr1:50-51:+','chr1:40-51:+'))
+# gr1<-GRanges(c('chr1:5-6:+'))
+# gr2<-GRanges(c('chr1:50-51:+','chr1:40-51:+'))
 
 downstream_dist_till<-function(gr1,gr2){
 	(fp(gr2)[precede(gr1,gr2)] - tp(gr1)) * ( ifelse(strand(gr1)=='+',1,-1))
@@ -275,11 +271,6 @@ upstream_dist_till<-function(gr1,gr2){
 	(tp(gr2)[follow(gr1,gr2)] - fp(gr1)) * ( ifelse(strand(gr1)=='+',-1,1))
 }
 
-gr1<-map(1:8,GRanges('a',.,strand='+')
-gr2<-GRanges('a',5,strand='+')
-
-downstream_dist_till(gr1,gr2)
-0
 istpmost<-function(cds,groupvar='transcript_id'){	
 	ids <- seq_along(cds)
 	tpmostids<-data_frame(id=ids,end=end(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(end*ifelse(strand=='-',-1,1)))%>%.$id
@@ -326,7 +317,7 @@ shorten_ranges<-function(gr){gr <- shift(gr,- min(start(gr))) ;gr}
 
 get_stop_sites <- function(reads_tr,topcdsmap,STOPWINDOWSTART,STOPWINDOWEND){
 	message('getting stop sites for trainng')
-	assert_that(mcols(reads_tr)%>%has_name('cdsshift'))
+	assert_that(all(mcols(reads_tr)%>%has_name('cdsshift')))
 	setpos<- .%>%{strand(.)<-'+';.}
 
 	prestops <- topcdsmap%>%setpos%>%resize(3,'end')%>%resize(1,'start')%>%setNames(seqnames(.))
@@ -400,8 +391,6 @@ setMethod('seqinfo','DNAStringSet',function(x){
 	x%>%{Seqinfo(names(.),nchar(.))}
 })
 
-trainreads<-stoppsites
-seq<-FaFile(REF)
 
 get_seqforrest_traindata <- function(trainreads,seq,topcdsmap=NULL,nbp=2,trim=TRUE){
 
@@ -451,7 +440,7 @@ get_seqforrest_traindata <- function(trainreads,seq,topcdsmap=NULL,nbp=2,trim=TR
 
 get_seqoffset_model <-  function(data4readshift){
 	require(ranger)
-	assert_that(has_name(data4readshift,c('length','fp.2.A','tp.2.A')))
+	assert_that(all(has_name(data4readshift,c('length','fp.2.A','tp.2.A'))))
 		
 	seqshiftmodel <- ranger::ranger(formula= dist ~ . ,
 		data=data4readshift,
@@ -632,7 +621,8 @@ get_offset_training_sites <- function(bam,allcds,STOPWINDOWSTART,STOPWINDOWEND,b
 
 
 	if(stoponly){
-		out<-reads_tr%>%subset(between(stopdist(STOPWINDOWSTART,STOPWINDOWEND)))
+		out<-reads_tr%>%subset(between(stopdist,STOPWINDOWSTART,STOPWINDOWEND))
+		out$dist <- out$stopdist
 	}else{
 
 		startpsites<-reads_tr%>%subset(between(startdist,0,STOPWINDOWEND))%>%{.$dist<-.$startdist;.}
@@ -643,8 +633,6 @@ get_offset_training_sites <- function(bam,allcds,STOPWINDOWSTART,STOPWINDOWEND,b
 
 	}
 
-
- 	
  	stopifnot((STOPWINDOWSTART:STOPWINDOWEND)%in%out$dist)
 
  	out$dist %<>% as.factor
@@ -664,7 +652,7 @@ get_seqoffset_model_elim <-  function(traindata4readshift,usephase=F,doelim=T){
 
 	assert_that(is.factor(traindata4readshift$dist))
 
-	assert_that(has_name(traindata4readshift,c('length','fp.2.A','tp.2.A')))
+	assert_that(all(has_name(traindata4readshift,c('length','fp.2.A','tp.2.A'))))
 
 
 	if(usephase){
@@ -750,8 +738,6 @@ get_seqoffset_model_elim <-  function(traindata4readshift,usephase=F,doelim=T){
 
 
 
-pred<-predict(seqshiftmodel_allvars,allset)$prediction
-pred%>%head(9)%>%t%>%`>`(0.5)
 
 fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
@@ -771,7 +757,7 @@ cdscov <- function(reads2use,cds2use){
 get_periodicity_scores<-function(cdstosamp,cdsread_trmap,seqshiftisneg=FALSE){
 	message('.')
 
-	assert_that(has_name(mcols(cdsread_trmap),c('seqshift','cdsshift')))
+	assert_that(all(has_name(mcols(cdsread_trmap),c('seqshift','cdsshift'))))
 	psites2use<-cdsread_trmap%>%
 		keepSeqlevels(cdstosamp,'coarse')%>%
 		resize(1,'start')%>%
@@ -805,6 +791,63 @@ get3bpfrac<-function(x) x %>%
 	`^`(2)%>%
 	{sum(get_frac_inds(.,0.3,0.36))/sum(.) }
 
+
+
+take_Fvals_spect<-function(x,n_tapers,time_bw,slepians_values){
+     if(length(x)<25){
+          remain<-50-length(x)
+          x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
+     }
+
+     if(length(x)<1024/2){padding<-1024}
+     if(length(x)>=1024/2){padding<-"default"}
+
+     resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
+     
+     resSpec2<-dropFreqs(resSpec1,0.29,0.39)
+     
+     closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
+     
+     freq_max_3nt<-resSpec1$freq[closestfreqind]
+     Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
+     spect_3nt<-resSpec1$spec[closestfreqind]
+     return(c(Fmax_3nt,spect_3nt))
+     
+}
+
+
+ftestvect<-function(psit,k=24,bw=12){
+	sl<-dpss(n=length(psit)%>%ifelse(.<25,50,.),k=k,nw=bw)
+	vals<-take_Fvals_spect(x = psit,n_tapers = k,time_bw = bw,slepians_values = sl)
+	pval <- pf(q=vals[1],df1=2,df2=(2*24)-2,lower.tail=F)
+	return(c(vals[2],pval))
+}
+
+
+library(R6)
+
+#could include the lengths and variables it needs
+#could include a method for getting the data
+#and a method for shiftng a granges object
+
+Psite_model<-R6Class("Psite_model",
+	public = list(
+		offsets=NULL,
+		seqshiftmodel=NULL,
+		compartments=NULL,
+		initialize=function(bestscores,seqshiftmodel,compartments){
+
+			#checks - compartments has nrow
+			#seqshiftmodel is a ranger object,
+			#compartments is a vecotr with 'nucl' in it
+
+			self$offsets <- bestscores
+			self$seqshiftmodel <- seqshiftmodel	
+			self$compartments <- compartments		
+
+
+	})
+)
 
 
 
@@ -898,6 +941,8 @@ library(GenomicAlignments)
 if(!exists('topcdsreadsbak'))topcdsreadsbak <- bam %>% readtopreads
 topcdsreads<-topcdsreadsbak
 
+qwidth(topcdsreadsbak)%>%table%>%sort%>%cumsum%>%{./last(.)}%>%`>`(0.05)
+0
 
 compartments <- get_compartments(cds,DEFAULT_CIRC_SEQS)
 
@@ -905,11 +950,11 @@ topcdsexons$compartment <- get_transcript_compartments(topcdsexons,compartments)
 
 # cdsread_trmap <- get_cdsread_trmap(topcdsreads,topcdsexons,startcods_trmap)
 
-cdsread_trmap <- get_cdsread_trmap(topcdsreads,topcdsexons,topcdsmap)
+cdsread_trmap <- mymemoise(get_cdsread_trmap)(topcdsreads,topcdsexons,topcdsmap)
 cdsread_trmap %<>% setpos
 
 
-topExonseq <- getSeq(x=FaFile(REF),topcdsexons)%>%
+topExonseq <- mymemoise(getSeq)(x=FaFile(REF),topcdsexons)%>%
 	split(topcdsexons$transcript_id)%>%
 	lapply(.%>%unlist)%>%DNAStringSet
 
@@ -924,9 +969,6 @@ c(allbestscores,offset_cds_scores) %<-% mymemoise(get_offsets)(cdsread_trmap,com
 
 outfolder%>%dir.create(showWarnings=F,rec=T)
 allbestscores%>%write_tsv(file.path(outfolder,'cdsmax_offsets.tsv'))
-
-
-
 
 if(!USEPHASE){
 	bestscores<-allbestscores%>%filter(is.na(phase))%>%ungroup%>%select(-phase)
@@ -985,7 +1027,7 @@ if('chr1' %in% seqnames(stoppsites)){
 	c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly) %<-% get_seqoffset_model_elim(
 		traindata4readshift,
 		usephase=USEPHASE,
-		doelim=F)
+		doelim=FALSE)
 
 
 
@@ -1006,301 +1048,562 @@ if('chr1' %in% seqnames(stoppsites)){
 
 	cdsread_trmap_inbound$seqshift%>%table%>%txtplot
 
-	#' ## Testing
-	#' 
-	#' We can see if our procedure worked by quickly looking at the fft (fast fourier transform) on the top1k genes
-	#' binned randomly into 5 groups, before and after the application of our sequence specific cutoffs (to ALL reads),
-	#' rather than just those around the stop codon
-
-	seqshift_periodicities<- seqnames(cdsread_trmap_inbound)%>%
-		unique%>%
-		sample%>%
-		# head(300)%>%
-		as.character%>%
-		split(seq_along(.)%%5)%>%
-		mclapply(F=get_periodicity_scores,cdsread_trmap_inbound,seqshiftisneg=FALSE)%>%
-		bind_rows
-
-	seqshift_periodicities%>%unlist%>%txtplot
-
-# })()
-
-# stop()
 
 
-#+ spectral_coefficient_strip_plot, fig.width =4,fig.height=4,out.width=400,out.height=450,dev='pdf',include=TRUE,eval=TRUE
-
-# {
-# 	seqshift_periodicities%>%
-# 		gather(set,spectral_coefficient)%>%
-# 		qplot(data=.,x=set,color=set,y=spectral_coefficient,geom=c('point'))+theme_bw()
-# }
-
-{
-
-setpos<- .%>%{strand(.)<-'+';.}
-prestops <- topcdsmap%>%setpos%>%resize(3,'end')%>%resize(1,'start')
-prestarts <- topcdsmap%>%setpos%>%resize(3,'start')%>%resize(1,'start')
-cdsread_trmap$startdist<-start(cdsread_trmap) - start(prestarts[seqnames(cdsread_trmap)])
-cdsread_trmap$stopdist<-start(cdsread_trmap) - start(prestops[seqnames(cdsread_trmap)])
-
-#Get riboqc_cutoffs
-sample = bam%>%dirname%>%basename 
-riboqccutoffs <- str_interp(here('pipeline/riboqc/data/${sample}/_P_sites_calcs'))%T>%{stopifnot(file.exists(.))}
-riboqcdf <- riboqccutoffs%>%fread%>%select(length=read_length,riboqc_shift=cutoff)
-
-starts <- topcdsmap%>%setpos%>%resize(1,'start')%>%setNames(seqnames(.))
-cdsread_trmap_inbound$startdist <- start(cdsread_trmap_inbound) - start(starts[cdsread_trmap_inbound@seqnames])
-
-stops <- topcdsmap%>%setpos%>%resize(3,'end')%>%fpend%>%setNames(seqnames(.))
-cdsread_trmap_inbound$stopdist <- start(cdsread_trmap_inbound) - start(stops[cdsread_trmap_inbound@seqnames])
-
-
-fcods=20
-lflank=(fcods*3)
-rflank=(fcods*3)+2
-mpoint=((fcods*2)+1)*3
-epoint=((fcods*4)+2)*3
-
-# cdsread_trmap%>%as.data.frame%>%mutate(d=startdist+stopdist)%>%.$d%>%hist
-# cdsread_trmap%>%as.data.frame%>%mutate(d=startdist+stopdist)%>%.$d%>%between(-lflank,rflank)%>%table
-metaplotlabs<-c(paste0('-',lflank/2),'AUG',lflank/2,paste0('mid -',lflank/2),'mid',paste0('mid +',lflank/2),paste0('end -',lflank/2),'stop',paste0('end +',lflank/2))
-metaplotbreaks<-c(-lflank/2,0,lflank/2,mpoint-lflank/2,mpoint,mpoint+lflank/2,epoint-(lflank/2),epoint,epoint+(lflank/2))
-#
-
-seqshiftfuncs <- list(
-	Riboqc = .%>% safe_left_join(riboqcdf,by=c('length'))%>% mutate(startdist=startdist+riboqc_shift,stopdist=stopdist+riboqc_shift),
-	CDSmax_shift = .%>% mutate(startdist=startdist+cdsshift,stopdist=stopdist+cdsshift),
-	seqshift = .%>% mutate(startdist=startdist+cdsshift,stopdist=stopdist+cdsshift)%>%mutate(startdist=startdist-seqshift,stopdist=stopdist-seqshift)
-)
-
-#
-
-#' We can also simply look at a metaplot of the frames, (comparing riboqc and cdsmax shift)
-plist=lapply(seqshiftfuncs,mymemoise(function(seqshiftfunc){
-	#
-	p=cdsread_trmap_inbound%>%
-		# sample(100e3)%>%
-		# shift(.$cdsshift)%>%
-		mcols()%>%as_tibble	%>%
-		select(startdist,stopdist,length,cdsshift,seqshift)%>%
-		# filter(between(abs(startdist-stopdist),-lflank,rflank))%>%
-		seqshiftfunc%>%
-		mutate(
-			mdist = startdist - ((floor(((startdist-stopdist+1)/3)/2))*3),
-			instart=between(startdist,-lflank,rflank),
-			inend=between(stopdist,-lflank,rflank),
-			inmiddle=between(mdist,-lflank,rflank)
-		)%>%
-		filter((instart|inend|inmiddle) & (!(instart&inend&inmiddle)))%>%
-		# filter(instart)%>%
-		mutate(x = NA,
-			x=ifelse(instart,startdist,x),
-			x=ifelse(inmiddle,mdist+mpoint,x),
-			x=ifelse(inend,stopdist+epoint,x) ) %>%
-		mutate(length=as.character(length))%>%
-		bind_rows(.,mutate(.,length='all'))%>%
-		group_by(x,length)%>%tally%>%
-		# filter(length=='all')%>%
-		mutate(phase = factor(x%%3))%>%
-		# arrange(desc(n))///
-		ggplot(aes(x=x,ymax=n,ymin=0,color=phase))+geom_linerange()+
-		facet_grid(scale='free',length~.)+
-		geom_vline(linetype=2,xintercept=c(0,epoint+2),alpha=I(0.3))+
-		scale_x_continuous(labels=metaplotlabs,breaks=metaplotbreaks)+
-		# scale_y_continuous(limits=c(0,300))+
-		# coord_cartesian(xlim=c(-lflank,rflank))+
-		geom_rect(aes(xmin=0,xmax=epoint,ymin=0,ymax=Inf,alpha=I(0.01)),fill='grey',color='white')+
-		scale_fill_discrete(guide=F)+
-		theme_minimal()	
-	p
-}))
-
-maxn<-plist%>%map_dbl(~max(.$data$n))%>%max
-for(i in seq_along(plist)) plist[[i]] <- plist[[i]]+scale_y_continuous(limits=c(0,maxn/2))
-
-#+ riboshift_comparison plot, fig.width =12,fig.height=12,out.width=1200,out.height=1250,dev='pdf',include=TRUE,eval=TRUE
-
-if(isknitr) {
-	ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs))
-}else{
-	suppressWarnings(dir.create(outfolder,rec=TRUE))
-	shiftplotfile <- 'shift_methods_comp.pdf'
-	shiftplotfile <- file.path(outfolder,shiftplotfile)
-	pdf(shiftplotfile,w=14,h=10)
-	print(ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs)))
-	dev.off()
-	message(normalizePath(shiftplotfile))
-}
-
-
-}
-
-
-
-
-
-
-
-#
-
-
-
-
-library(R6)
-
-#could include the lengths and variables it needs
-#could include a method for getting the data
-#and a method for shiftng a granges object
-
-Psite_model<-R6Class("Psite_model",
-	public = list(
-		offsets=NULL,
-		seqshiftmodel=NULL,
-		compartments=NULL,
-		initialize=function(bestscores,seqshiftmodel,compartments){
-
-			#checks - compartments has nrow
-			#seqshiftmodel is a ranger object,
-			#compartments is a vecotr with 'nucl' in it
-
-			self$offsets <- bestscores
-			self$seqshiftmodel <- seqshiftmodel	
-			self$compartments <- compartments		
-
-
-	})
-)
 
 psite_model <- Psite_model$new(bestscores,seqshiftmodel,compartments)
 
-psite_model <- Psite_model$new(bestscores,seqshiftmodel_allvars,compartments)
+psite_model <- Psite_model$new(bestscores,seqshiftmodel_GAonly,compartments)
 
 
 psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))
 
 
-take_Fvals_spect<-function(x,n_tapers,time_bw,slepians_values){
-     if(length(x)<25){
-          remain<-50-length(x)
-          x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
-     }
 
-     if(length(x)<1024/2){padding<-1024}
-     if(length(x)>=1024/2){padding<-"default"}
 
-     resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
-     
-     resSpec2<-dropFreqs(resSpec1,0.29,0.39)
-     
-     closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
-     
-     freq_max_3nt<-resSpec1$freq[closestfreqind]
-     Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
-     spect_3nt<-resSpec1$spec[closestfreqind]
-     return(c(Fmax_3nt,spect_3nt))
-     
+################################################################################
+########Apply the model
+################################################################################
+	
+
+
+
+segment_ribocount<-function(exonsubset,cdssubset,bam,psite_model,REF,
+	STARTCLIP = 15,
+	ENDCLIP = 5,
+	startflank = 9,
+	endflank = 9 ,
+	nbp=2,
+	do_seqshift=TRUE){
+	require(multitaper)
+
+	# browser()
+
+	assert_that(all(names(exonsubset)==names(cdssubset)))
+
+
+
+	require(GenomicFeatures)
+	require(GenomicAlignments)
+
+	#get only reads which actually overlap cds
+	riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=200,which=unlist(cdssubset))
+	reads <- readGAlignments(bam,param=riboparam)
+
+	#seperate out the junction reads
+	jreads<-reads[unlist(njunc(reads)>0)]
+
+	reads<-reads[njunc(reads)==0]
+
+
+
+	#expand the exons, so that we can always get the sequence for reads on the endge
+	exonsubset%<>%unlist
+	mcols(exonsubset)[['__namecol']] <- names(exonsubset)
+	names(exonsubset)<-NULL
+	maxrl<-psite_model$offsets$length%>%max
+	exonsubset[isfpmost(exonsubset,'__namecol')]%<>%resize(width(.)+startflank+maxrl+nbp,'end')
+	exonsubset[istpmost(exonsubset,'__namecol')]%<>%resize(width(.)+endflank+maxrl+nbp,'start')
+	exonsubset%<>%split(.,mcols(.)[['__namecol']])
+
+	#first carry out mappign of the spliced reads
+	#This is a bit convoluted - the more obvious approach with pmaptotrancripts
+	#was somehow creating a vector too big for memory, so we chunk the junction reads, unlist
+	#them intot heir start sites, map to transcripts, then resize them once mapped
+	jmapped <- jreads%>%split(.,ceiling(seq_along(.)/ 5e3))%>%as.list%>%lapply(function(jreads){
+
+		ov <- findOverlaps(jreads,exonsubset)
+		ovenc<-encodeOverlaps(as(jreads[queryHits(ov)],"GRangesList"),exonsubset[subjectHits(ov)])
+		ov<-ov[isCompatibleWithSplicing(ovenc)]
+		if(length(ov)==0) return(NULL)
+		jreads <- jreads[queryHits(ov)]
+		qwidths<-qwidth(jreads)
+			
+
+		jmapped <- jreads %>%narrow(start=1,width=1)  %>% as("GRanges")%>%pmapToTranscripts(exonsubset[subjectHits(ov)])
+		end(jmapped) <- end(jmapped)-1+unlist(qwidths)
+		jmapped
+	})
+
+	#anc 
+	suppressWarnings(jmapped%<>%Reduce(f=c))
+
+
+	exonsubset%>%width%>%cumsum
+	cdssubset%>%width
+
+	#now carry out mapping of unsliced reads
+	reads <- as(reads,'GRanges')
+	reads <- reads[overlapsAny(reads%>%resize(width(.)+nbp),exonsubset,type='within')]
+	mapped <- suppressWarnings({mapToTranscripts(reads,exonsubset)})
+
+	#and combine
+	mapped <- append(mapped,jmapped)
+
+	mapped$length <- width(mapped)
+
+	exonsubsetchrs<-seqnames(exonsubset)%>%runValue
+
+	chrs<-unlist(exonsubsetchrs[match(seqnames(mapped),names(exonsubset))])%>%as.vector
+	mapped$compartment<-psite_model$compartments[chrs]
+
+	mapped$cdsoffset <- mapped%>%apply_cds_offsets(psite_model$offsets)
+
+	mapped%<>%subset(!is.na(cdsoffset))
+
+	exonseq<-extractTranscriptSeqs(FaFile(REF),exonsubset)
+
+	suppressWarnings(
+		mapped <- mapped[!is_out_of_bounds(mapped,seqinfo(exonseq))]
+	)
+
+	# mapped%>%seqlevels
+	# seqinfo(exonseq)%>%seqlevels
+
+	# mapped%<>%head(5)
+
+
+
+	 # reads%>%resize(2,'start')%>%resize(4,'end')%>%head(5)%>%getSeq(x=FaFile(REF),.)
+
+	#this is necessary since our exonseqs are already reverse complemented for the negative strands
+	#and mapped reads are always positive.
+	strand(mapped)<-'+'
+
+	# reads%>%resize(2,'start')%>%resize(4,'end')%>%head(5)%>%getSeq(x=FaFile(REF),.)
+	
+	# get_seqforrest_traindata(mapped,exonseq,trim=FALSE)%>%head(5)
+
+
+
+	#turn the mapped reads into psites
+
+	mapped <- mapped[,c('length','cdsoffset')]%>%resize(1,'start')%>%shift(.$cdsoffset)
+	
+	if(do_seqshift){
+		mapped$seqoffset <- get_seqforrest_traindata(mapped,exonseq,trim=FALSE)%>%
+			get_predictedshifts(psite_model$seqshiftmodel,.)
+
+		mapped %<>%shift(.$seqoffset)
+	}
+
+	cdsmap <- cdssubset%>%unlist%>%pmapToTranscripts(exonsubset[names(.)])%>%reduce
+
+
+	assert_that(length(cdsmap)==length(exonsubset))
+
+	assert_that(all(table(seqnames(cdsmap))==1),msg='CDS shoudl be one unbroken stretch of the transcript')
+	assert_that(all(names(exonsubset) %in% seqlevels(cdsmap)),msg='CDS shoudl be one unbroken stretch of the transcript')
+
+	startclipbp<-(3*STARTCLIP) + startflank
+	stopclipbp<-(3*ENDCLIP) + endflank
+
+	covvects <- mapped%>%coverage
+
+	expcds<-cdsmap%>%resize(width(.)+startflank+endflank,'center')
+	
+	covvects <- covvects[expcds]
+	covvects <- lapply(covvects,as.vector)
+	#Get, periodicity scores
+	vectftests<-covvects%>%lapply(ftestvect)%>%simplify2array
+
+	cat('.')
+	data.frame(
+		spec_coef = vectftests[1,],
+		spec_pval = vectftests[2,],
+		length = covvects%>%map_dbl(length),
+		total = covvects%>%map_dbl(sum),
+		startcount = covvects%>%map_dbl(possibly(~sum(.[1:startclipbp]),NA)),
+		enddcount = covvects%>%map_dbl(possibly(~sum(.[(length(.)-stopclipbp+1):length(.)]),NA)),
+		centercount = covvects%>%map_dbl(possibly(~sum(.[(startclipbp+1):(length(.)-stopclipbp)]),NA))
+	)%>%rownames_to_column('id')
+
 }
 
+cds2use <- cds%>%split(.,.$protein_id)%>%sample(50)
+p2trdf<-with(cds,data_frame(protein_id,transcript_id))%>%distinct
+cdstrs<-data_frame(protein_id=names(cds2use))%>%safe_left_join(p2trdf)%>%.$transcript_id
+exons2use <- exons%>%split(.,.$transcript_id)%>%.[cdstrs]
+names(exons2use)<-names(cds2use)
 
-ftestvect<-function(psit,k=24,bw=12){
-	sl<-dpss(n=length(psit)%>%ifelse(.<25,50,.),k=k,nw=bw)
-	vals<-take_Fvals_spect(x = psit,n_tapers = k,time_bw = bw,slepians_values = sl)
-	pval <- pf(q=vals[1],df1=2,df2=(2*24)-2,lower.tail=F)
-	return(c(vals[2],pval))
-}
-
-
-
-
-data4readshift%>%as.data.frame%>%select(matches('^[ft]p'))%>%
-	apply(2,table)%>%.['1',TRUE]%>%
-	enframe%>%separate(name,into=c('end','pos','base'),sep='\\.')%>%
-	group_by(end,pos)%>%mutate(value = value/sum(value))%>%
-	spread(base,value)
+# test<-'ENSMUST00000000188'
+# exons2use%<>%.[test]
+# cds2use%<>%unlist(use.names=F)%>%subset(transcript_id==test)%>%split(.,.$transcript_id)
 
 
+splitids <- cds$protein_id%>%unique%>%split(floor((1:length(.))/100))
+
+message('producing read counts')
+
+ns_all_genes<-splitids%>%mclapply(safely(function(idchunk){
+
+	segment_ribocount(
+		exons2use,
+		cds2use,
+		bam,
+		psite_model,
+		REF,
+		STARTCLIP = 15,
+		ENDCLIP = 5,
+		startflank = 9,
+		endflank = 9 ,
+		do_seqshift=FALSE)
+}))
+
+
+thissamp<-bam%>%dirname%>%basename
+
+require(glue)
+
+rdsfile<-here(glue('pipeline/ribosegcount/{thissamp}/allgenes.rds'))
+rdsfile%>%dirname%>%dir.create(rec=TRUE,showWarn=FALSE,.)
+ns_all_genes%>%saveRDS(rdsfile)
+
+
+segcountdf<-ns_all_genes%>%map('result')%>%bind_rows%>%select(protein_id=id,everything())
+
+segcountdf%>%write_tsv(file.path(outfolder,'segment_counts_df.tsv'))
+
+
+# ################################################################################
+# ########Test the quality of the model
+# ################################################################################
+	
+
+
+# 	#' ## Testing
+# 	#' 
+# 	#' We can see if our procedure worked by quickly looking at the fft (fast fourier transform) on the top1k genes
+# 	#' binned randomly into 5 groups, before and after the application of our sequence specific cutoffs (to ALL reads),
+# 	#' rather than just those around the stop codon
+
+# 	seqshift_periodicities<- seqnames(cdsread_trmap_inbound)%>%
+# 		unique%>%
+# 		sample%>%
+# 		# head(300)%>%
+# 		as.character%>%
+# 		split(seq_along(.)%%5)%>%
+# 		mclapply(F=get_periodicity_scores,cdsread_trmap_inbound,seqshiftisneg=FALSE)%>%
+# 		bind_rows
+
+# 	seqshift_periodicities%>%unlist%>%txtplot
+
+# 	stop()
 
 
 
-#Now let's check up/down stream of codons
+
+
+
+
+# # })()
+
+# # stop()
+
+
+# #+ spectral_coefficient_strip_plot, fig.width =4,fig.height=4,out.width=400,out.height=450,dev='pdf',include=TRUE,eval=TRUE
+
+# # {
+# # 	seqshift_periodicities%>%
+# # 		gather(set,spectral_coefficient)%>%
+# # 		qplot(data=.,x=set,color=set,y=spectral_coefficient,geom=c('point'))+theme_bw()
+# # }
+
+# {
+
+# setpos<- .%>%{strand(.)<-'+';.}
+# prestops <- topcdsmap%>%setpos%>%resize(3,'end')%>%resize(1,'start')
+# prestarts <- topcdsmap%>%setpos%>%resize(3,'start')%>%resize(1,'start')
+# cdsread_trmap$startdist<-start(cdsread_trmap) - start(prestarts[seqnames(cdsread_trmap)])
+# cdsread_trmap$stopdist<-start(cdsread_trmap) - start(prestops[seqnames(cdsread_trmap)])
+
+# #Get riboqc_cutoffs
+# sample = bam%>%dirname%>%basename 
+# riboqccutoffs <- str_interp(here('pipeline/riboqc/data/${sample}/_P_sites_calcs'))%T>%{stopifnot(file.exists(.))}
+# riboqcdf <- riboqccutoffs%>%fread%>%select(length=read_length,riboqc_shift=cutoff)
+
+# starts <- topcdsmap%>%setpos%>%resize(1,'start')%>%setNames(seqnames(.))
+# cdsread_trmap_inbound$startdist <- start(cdsread_trmap_inbound) - start(starts[cdsread_trmap_inbound@seqnames])
+
+# stops <- topcdsmap%>%setpos%>%resize(3,'end')%>%fpend%>%setNames(seqnames(.))
+# cdsread_trmap_inbound$stopdist <- start(cdsread_trmap_inbound) - start(stops[cdsread_trmap_inbound@seqnames])
+
+
+# fcods=20
+# lflank=(fcods*3)
+# rflank=(fcods*3)+2
+# mpoint=((fcods*2)+1)*3
+# epoint=((fcods*4)+2)*3
+
+# # cdsread_trmap%>%as.data.frame%>%mutate(d=startdist+stopdist)%>%.$d%>%hist
+# # cdsread_trmap%>%as.data.frame%>%mutate(d=startdist+stopdist)%>%.$d%>%between(-lflank,rflank)%>%table
+# metaplotlabs<-c(paste0('-',lflank/2),'AUG',lflank/2,paste0('mid -',lflank/2),'mid',paste0('mid +',lflank/2),paste0('end -',lflank/2),'stop',paste0('end +',lflank/2))
+# metaplotbreaks<-c(-lflank/2,0,lflank/2,mpoint-lflank/2,mpoint,mpoint+lflank/2,epoint-(lflank/2),epoint,epoint+(lflank/2))
+# #
+
+# seqshiftfuncs <- list(
+# 	Riboqc = .%>% safe_left_join(riboqcdf,by=c('length'))%>% mutate(startdist=startdist+riboqc_shift,stopdist=stopdist+riboqc_shift),
+# 	CDSmax_shift = .%>% mutate(startdist=startdist+cdsshift,stopdist=stopdist+cdsshift),
+# 	seqshift = .%>% mutate(startdist=startdist+cdsshift,stopdist=stopdist+cdsshift)%>%mutate(startdist=startdist-seqshift,stopdist=stopdist-seqshift)
+# )
+
+# #
+
+# #' We can also simply look at a metaplot of the frames, (comparing riboqc and cdsmax shift)
+# plist=lapply(seqshiftfuncs,mymemoise(function(seqshiftfunc){
+# 	#
+# 	p=cdsread_trmap_inbound%>%
+# 		# sample(100e3)%>%
+# 		# shift(.$cdsshift)%>%
+# 		mcols()%>%as_tibble	%>%
+# 		select(startdist,stopdist,length,cdsshift,seqshift)%>%
+# 		# filter(between(abs(startdist-stopdist),-lflank,rflank))%>%
+# 		seqshiftfunc%>%
+# 		mutate(
+# 			mdist = startdist - ((floor(((startdist-stopdist+1)/3)/2))*3),
+# 			instart=between(startdist,-lflank,rflank),
+# 			inend=between(stopdist,-lflank,rflank),
+# 			inmiddle=between(mdist,-lflank,rflank)
+# 		)%>%
+# 		filter((instart|inend|inmiddle) & (!(instart&inend&inmiddle)))%>%
+# 		# filter(instart)%>%
+# 		mutate(x = NA,
+# 			x=ifelse(instart,startdist,x),
+# 			x=ifelse(inmiddle,mdist+mpoint,x),
+# 			x=ifelse(inend,stopdist+epoint,x) ) %>%
+# 		mutate(length=as.character(length))%>%
+# 		bind_rows(.,mutate(.,length='all'))%>%
+# 		group_by(x,length)%>%tally%>%
+# 		# filter(length=='all')%>%
+# 		mutate(phase = factor(x%%3))%>%
+# 		# arrange(desc(n))///
+# 		ggplot(aes(x=x,ymax=n,ymin=0,color=phase))+geom_linerange()+
+# 		facet_grid(scale='free',length~.)+
+# 		geom_vline(linetype=2,xintercept=c(0,epoint+2),alpha=I(0.3))+
+# 		scale_x_continuous(labels=metaplotlabs,breaks=metaplotbreaks)+
+# 		# scale_y_continuous(limits=c(0,300))+
+# 		# coord_cartesian(xlim=c(-lflank,rflank))+
+# 		geom_rect(aes(xmin=0,xmax=epoint,ymin=0,ymax=Inf,alpha=I(0.01)),fill='grey',color='white')+
+# 		scale_fill_discrete(guide=F)+
+# 		theme_minimal()	
+# 	p
+# }))
+
+# maxn<-plist%>%map_dbl(~max(.$data$n))%>%max
+# for(i in seq_along(plist)) plist[[i]] <- plist[[i]]+scale_y_continuous(limits=c(0,maxn/2))
+
+# #+ riboshift_comparison plot, fig.width =12,fig.height=12,out.width=1200,out.height=1250,dev='pdf',include=TRUE,eval=TRUE
+
+# if(isknitr) {
+# 	ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs))
+# }else{
+# 	suppressWarnings(dir.create(outfolder,rec=TRUE))
+# 	shiftplotfile <- 'shift_methods_comp.pdf'
+# 	shiftplotfile <- file.path(outfolder,shiftplotfile)
+# 	pdf(shiftplotfile,w=14,h=10)
+# 	print(ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs)))
+# 	dev.off()
+# 	message(normalizePath(shiftplotfile))
+# }
+
+
+# }
 
 
 
 
 
-shiftplotfile <- 'shift_methods_comp.pdf'
-shiftplotfile <- file.path(outfolder,shiftplotfile)
-pdf(shiftplotfile,w=14,h=10)
-print(ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs)))
-dev.off()
-message(normalizePath(shiftplotfile))
 
 
-library(Biostrings)
-
-cdsseq <- topExonseq[topcdsmap]
-
-for(codon in names(GENETIC_CODE)){
-	codonlocs <- vmatchPattern(codon,cdsseq)
-	codonmatchgr<-unlist(codonlocs)%>%{GRanges(names(.),.)}%>%setNames(NULL)
-
-	tmp1<-codonmatchgr%>%resize(30,'end')%>%mapFromTranscripts(topcdsmap)%>%head
-	seqnames(tmp1)%in%names(topExonseq)
-	seqinfo(tmp1)
-	topExonseq[tmp1[,NULL]]
-
-	# vmatchPDict(names(GENETIC_CODE)[1:2],cdsseq[1:10])
-}
+# #
 
 
-makeTxDbFromGRanges(gtf_gr)
+
+
+
+
+
+# data4readshift%>%as.data.frame%>%select(matches('^[ft]p'))%>%
+# 	apply(2,table)%>%.['1',TRUE]%>%
+# 	enframe%>%separate(name,into=c('end','pos','base'),sep='\\.')%>%
+# 	group_by(end,pos)%>%mutate(value = value/sum(value))%>%
+# 	spread(base,value)
+
+
+
+
+
+# #Now let's check up/down stream of codons
+
+
+
+
+
+# shiftplotfile <- 'shift_methods_comp.pdf'
+# shiftplotfile <- file.path(outfolder,shiftplotfile)
+# pdf(shiftplotfile,w=14,h=10)
+# print(ggpubr::ggarrange(ncol=3,plotlist=plist,labels=names(seqshiftfuncs)))
+# dev.off()
+# message(normalizePath(shiftplotfile))
+
+
+# library(Biostrings)
+
+# cdsseq <- topExonseq[topcdsmap]
+
+# for(codon in names(GENETIC_CODE)){
+# 	codonlocs <- vmatchPattern(codon,cdsseq)
+# 	codonmatchgr<-unlist(codonlocs)%>%{GRanges(names(.),.)}%>%setNames(NULL)
+
+# 	tmp1<-codonmatchgr%>%resize(30,'end')%>%mapFromTranscripts(topcdsmap)%>%head
+# 	seqnames(tmp1)%in%names(topExonseq)
+# 	seqinfo(tmp1)
+# 	topExonseq[tmp1[,NULL]]
+
+# 	# vmatchPDict(names(GENETIC_CODE)[1:2],cdsseq[1:10])
+# }
+
+# cdsread_trmap%>%.$length%>%table
+
+# makeTxDbFromGRanges(gtf_gr)
 
 	
-forget(readGAlignments)
-bam%>%file.exists
-bamfile<-BamFile(bam,yield=)
+# forget(readGAlignments)
+# bam%>%file.exists
+# bamfile<-BamFile(bam,yield=)
 
 
 
-##Let's make fake, positive control reads
+# ##Let's make fake, positive control reads
 
-#for each of our 
+# #for each of our 
 
-allstoppsites%>%head%>%as.data.frame
-
-
-
-#Simulate Riboseq reads
-#length distribution
-lengthdist <- c(`26` = 51599L, `27` = 82461L, `28` = 57037L, `29` = 43928L)%>%{./sum(.)}
-#initial_frame_dist 
-initial_frame_dist <- c(0.6,0.3,0.1)
-testexons <- topcdsexons[1:100]
-testcds <- topcdsmap[topcdsexons$transcript_id%>%unique]
-
-sample<-base::sample
-
-starts_ends <- testcds%>%head(2)%>%width%>%divide_by(3)%>%map(seq_len)%>%map(sample,1e3,replace=TRUE)%>%
-	map(~ .+ sample(c(0,1,2),p=initial_frame_dist,rep=TRUE,size=length(.)))%>%
-	map(~data_frame(start=.,end= . + as.numeric(names(lengthdist))[sample(seq_along(lengthdist),rep=TRUE,size=length(.))]))%>%
+# allstoppsites%>%head%>%as.data.frame
 
 
-####Look more modelishly at reads
 
-#Can look at codons
+# #Simulate Riboseq reads
+# #length distribution
+# lengthdist <- c(`26` = 51599L, `27` = 82461L, `28` = 57037L, `29` = 43928L)%>%{./sum(.)}
+# #initial_frame_dist 
+# initial_frame_dist <- c(0.6,0.3,0.1)
+# testexons <- topcdsexons[1:100]
+# testcds <- topcdsmap[topcdsexons$transcript_id%>%unique]
 
-prestops <- topcdsmap%>%resize(3,'end')%>%resize(1,'start')
-stopreads <- subsetByOverlaps(cdsread_trmap,prestops)
-leftseg <- fpend(stopreads)%>%downstream_dist_till(prestops)
-rightseg <- tpend(stopreads)%>%upstream_dist_till(prestops)
+# sample<-base::sample
 
-table(stopreads$length)
+# starts_ends <- testcds%>%head(2)%>%width%>%divide_by(3)%>%map(seq_len)%>%map(sample,1e3,replace=TRUE)%>%
+# 	map(~ .+ sample(c(0,1,2),p=initial_frame_dist,rep=TRUE,size=length(.)))%>%
+# 	map(~data_frame(start=.,end= . + as.numeric(names(lengthdist))[sample(seq_along(lengthdist),rep=TRUE,size=length(.))]))%>%
 
-#so yeah very much left seg influence by right....
-table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))
-table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))%>%.[c(7,8,9),]
 
+# ####Look more modelishly at reads
+
+# ################################################################################
+# ######### Distribution around codons
+# ################################################################################
+	
+
+# prestops <- topcdsmap%>%resize(3,'end')%>%resize(1,'start')
+# stopreads <- subsetByOverlaps(cdsread_trmap,prestops)
+# leftseg <- fpend(stopreads)%>%downstream_dist_till(prestops)
+# rightseg <- tpend(stopreads)%>%upstream_dist_till(prestops)
+
+# table(stopreads$length)
+
+# #so yeah very much left seg influence by right....
+# table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))
+# table(leftseg,rightseg)%>%apply(1,function(x) x / sum(x))%>%.[c(7,8,9),]
+
+
+# codons <- names(GENETIC_CODE)
+
+# codondisttabs<-lapply(codons,function(codon){
+
+# 	codonlocs <- topExonseq[topcdsmap%>%setpos]%>%
+# 		# vmatchPattern(codon,.)%>%
+# 		vmatchPattern(codon,.)%>%
+# 		unlist%>%
+# 		subset((end%%3)==0)%>%
+# 		GRanges(names(.),.)
+
+# 	codonlocs%<>%mapFromTranscripts(topcdsmap)
+
+	
+
+# 	lendisttab<-codonlocs%>%mergeByOverlaps(cdsread_trmap)%>%{tibble(dist=start(.$.)-start(.$cdsread_trmap),length=.$length)}
+
+# 	lendisttab
+# })
+
+# codondisttabs%<>%setNames(codons)
+# codondisttabs%<>%bind_rows(.id='codon')
+
+# codistplot <- here('plots/codondistplots/codondistbycodon.pdf')
+# codistplot%>%dirname%>%dir.create(showWarnings=FALSE)
+# pdf(codistplot)
+# codondisttabs%>%group_by(codon,dist,length)%>%tally%>%
+# 	filter(dist>5)%>%filter(dist<length-5)%>%
+# 	ungroup%>%
+# 	mutate(dist=floor(dist/3))%>%
+# 	group_by(codon,length,dist)%>%summarise(n=sum(n))%>%
+# 	group_by(codon,length)%>%
+# 	mutate(n=n/min(n))%>%
+# 	ggplot(aes(y=n,x=dist,color=codon))+facet_grid(scale='free',length~.)+geom_line()+
+# 	scale_x_continuous(breaks=1:20)+
+# 	scale_color_discrete(guide=FALSE)+
+# 	theme_bw()
+# dev.off()
+# normalizePath(codistplot)%>%message
+
+# codistplot <- here('plots/codondistplots/codondist.pdf')
+# pdf(codistplot)
+# codondisttabs%>%group_by(codon,dist,length)%>%tally%>%
+# 	filter(dist>5)%>%filter(dist<length-5)%>%
+# 	group_by(codon,length)%>%
+# 	mutate(n=n/min(n))%>%
+# 	ggplot(aes(y=n,x=dist,color=codon))+facet_grid(scale='free',length~.)+geom_line()+
+# 	scale_x_continuous(breaks=seq(1,30,3),minor_breaks=1:30,name="Codon bp1 - 5' Read End")+
+# 		scale_color_discrete(guide=FALSE)+
+# 	theme_minimal()+
+# 	theme(panel.grid.minor = element_line( size=0.5))
+# dev.off()
+# normalizePath(codistplot)%>%message
+
+
+
+# codonsmagvect<-codondisttabs%>%group_by(codon)%>%summarise(signal=sum(between(dist,6,16)))%>%arrange(desc(signal))%>%.$codon
+
+
+# stopcodons<-codons%>%DNAStringSet%>%translate%>%as.character%>%is_in(c('*'))%>%codons[.]
+# stopcodonsoratg<-c('ATG',stopcodons)
+
+# codistplot <- here('plots/codondistplots/codondist.pdf')
+# pdf(codistplot)
+# codondisttabs%>%group_by(codon,dist,length)%>%tally%>%
+# 	filter(codon %in% c(codonsmagvect[1:4],rev(codonsmagvect)[1:4]))%>%
+# 	filter(!codon %in% stopcodonsoratg)%>%
+# 	filter(dist>3)%>%filter(dist<length-3)%>%
+# 	group_by(codon,length)%>%
+# 	mutate(n=n/min(n))%>%
+# 	ggplot(aes(y=n,x=dist,color=codon))+facet_grid(scale='free',length~.)+geom_line()+
+# 	scale_x_continuous(breaks=seq(1,30,3),minor_breaks=1:30,name="Codon bp1 - 5' Read End")+
+# 		scale_color_discrete()+
+# 	theme_minimal()+
+# 	theme(panel.grid.minor = element_line( size=0.5))
+# dev.off()
+# normalizePath(codistplot)%>%message
+
+
+# codondisttabs[[9]]%>%.$dist%>%table%>%
+# 	.[order(as.numeric(names(.)))]%>%txtplot(y=.,x=as.numeric(names(.)))
+
+
+# codondisttabs%>%setNames(codons)%>%bind_rows(.id='codon')
+# 	filter(dist==5,length==29)%>%group_by(codon,dist)%>%tally
+
+# codonlocs%>%mergeByOverlaps(cdsread_trmap)%>%{tibble(dist=start(.$.)-start(.$cdsread_trmap),length=.$length)}%>%table%>%
+# 	.[order(as.numeric(names(.)))]%>%txtplot(y=.,x=as.numeric(names(.)))
 
 
 

@@ -190,6 +190,7 @@ rule all:
     ('xtail/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
+    expand("seqshift_reads/data/{sample}/segment_counts_df.tsv", sample = ribosamples),
     expand("SaTAnn/{sample}/.done", sample = ribosamples),
     # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
@@ -1541,12 +1542,11 @@ rule run_riboqc:
 
 rule get_rf_offset:
   input:
-    bam = 'pipeline/star/data/{sample}/{sample}.bam',
+    bam = 'star/data/{sample}/{sample}.bam',
     gtf = GTF,
-    REF = REF
-  output:
-        outfolder = 'seqshift_reads/data/E13_ribo_2/'
-
+    REF = REF,
+  output: 'seqshift_reads/data/{sample}/segment_counts_df.tsv'
+  shell:r"""Rscript ../src/R/offsets3.R {input} $(dirname {output})"""
 
 
 
