@@ -1483,7 +1483,7 @@ rule riboWaltz:
     outfolder = os.path.dirname(output[0])
     shell(r"""
 
-        Rscript ../src/R/riboWaltz.R \
+        Rscript ../src/R/Psite_offsets/riboWaltz.R \
           {transcriptbam} \
           {input.gtf} \
           {output}
@@ -1546,7 +1546,7 @@ rule get_rf_offset:
     gtf = GTF,
     REF = REF,
   output: 'seqshift_reads/data/{sample}/segment_counts_df.tsv'
-  shell:r"""Rscript ../src/R/offsets3.R {input} $(dirname {output})"""
+  shell:r"""Rscript ../src/R/Psite_offsets/offsets3.R {input} $(dirname {output})"""
 
 
 
@@ -1587,7 +1587,7 @@ rule make_id_table:
 rule create_ms_exprtables:
   input: ms_total_file,ms_spec_file
   output: touch('ms_tables/.done')
-  shell: r"""Rscript ../exploration/load_data/create_ms_exprtables.R {input[0]} {input[1]} $(dirname {output})"""
+  shell: r"""Rscript ../src/load_data/create_ms_exprtables.R {input[0]} {input[1]} $(dirname {output})"""
 
 DISPDIFF = 0
 
@@ -1595,14 +1595,14 @@ rule run_ribodiff:
   input: 'feature_counts/all_feature_counts'
   # conda: '../envs/ribodiff_filt'
   output: touch('ribodiff/.done')
-  shell: r"""source activate ribodiff ; Rscript ../src/R/pipeline/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
+  shell: r"""source activate ribodiff ; Rscript ../src/R/TE_change/run_ribodiff.R {input} {DISPDIFF} $(dirname {output})"""
 
 DISPDIFF = 0
 
 rule run_xtail:
   input: 'feature_counts/all_feature_counts','SaTAnn/uORFs.feature_counts'
   output: touch('xtail/.done')
-  shell: r"""Rscript ../src/R/pipeline/run_xtail.R {input} $(dirname {output})"""
+  shell: r"""Rscript ../src/R/TE_change/run_xtail.R {input} $(dirname {output})"""
 
 MS_MEASURE_TO_USE = 'LFQ'
 mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
@@ -1613,32 +1613,32 @@ rule integrate_exprdata:
   input: 'feature_counts/all_feature_counts',mstbl
   output: 'exprdata/transformed_data.txt','exprdata/cent_scaled_exprdata.txt','exprdata/designmatrix.txt','exprdata/allcounts_snorm.tsv'
   shell: r"""mkdir -p exprdata;
-  Rscript ../exploration/load_data/integrate_exprdata.R {input[0]} {input[1]} {output}"""
+  Rscript ../src/R/Load_data/integrate_exprdata.R {input[0]} {input[1]} {output}"""
 
 rule get_limma_fold_changes:
   input: 'exprdata/transformed_data.txt','exprdata/designmatrix.txt'
   output: 'exprdata/limma_fold_changes.txt','exprdata/limma_fold_changes.txtfull.txt'
-  shell: r"""Rscript ../exploration/modeling/get_limma_fold_changes.R {input[0]} {input[1]} {output[0]}"""
+  shell: r"""Rscript ../src/Modeling/get_limma_fold_changes.R {input[0]} {input[1]} {output[0]}"""
 
 rule perform_clustering:
   input: 'exprdata/{clusterdata}.txt',
   output: touch('clusters/{clusterdata}/{clustermethod}/.done')
-  shell: r"""Rscript ../exploration/modeling/cluster_{wildcards.clustermethod}.R {input} $(dirname {output}) 10"""
+  shell: r"""Rscript ../src/Modeling/cluster_{wildcards.clustermethod}.R {input} $(dirname {output}) 10"""
 
 rule comp_ribodiff_limma:
   input: 'ribodiff/.done','exprdata/limma_fold_changes.txtfull.txt'
   output: 'ribodiff_limma_comp/.done'
-  shell: r""" ../exploration/modeling/comp_ribodiff_limma.R $(dirname {input[0]}) $(dirname {input[1]}) $(dirname {output}) """
+  shell: r""" ../src/Modeling/comp_ribodiff_limma.R $(dirname {input[0]}) $(dirname {input[1]}) $(dirname {output}) """
 
 rule ribodiff_filt:
   input: 'ribodiff/.done','ids.txt','exprdata/cent_scaled_exprdata.txt','exprdata/limma_fold_changes.txt',
   output: 'exprdata/{clusterdata,.+_ribodfilt.txt}'
-  shell: r"""Rscript ../src/pipeline/ribodiff_filter.R {input}"""
+  shell: r"""Rscript ../src/R/TE_change/ribodiff_filter.R {input}"""
 
 rule assess_clustering:
   input: 'clusters/{clusterdata}/{clustermethod}/.done'
   output: 'cluster_assessment/{clusterdata}/{clustermethod}/.done'
-  shell: r"""Rscript ../exploration/modelling/assessclusters.R $(dirname {output}) $(dirname {output})"""
+  shell: r"""Rscript ../src/Modeling/assessclusters.R $(dirname {output}) $(dirname {output})"""
 
 rule reg_seqs:
   input: genome=REF,tputrs='tputrs.gtf',seqs='ribodiff/riboseqres_P0.txt'

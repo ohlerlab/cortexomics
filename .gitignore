@@ -56,3 +56,5 @@ tables
 plots
 _files
 .snakemake
+ 
+*.rds
