@@ -4,17 +4,13 @@
 
 
 Where am I?
-Ive been clustering with my hierarchical model?
-VBut does it work? How do I figure that out...
-I look at the weird cases, and see  how it's dealing with them.
-
+Ebp1 paper final toudhes just done. Gave up on sequence spec psite adjustments. Now just gonna do periodicity, checks on the clipping of CDS regions, then try to improve the model a bit more. About to go to 
 
 
 
 After this i can do my fuzzy clustering and see if it makes a different
 
 Then also I can look at the coverage of the weird cases
-
 
 indexing is something I"ll need to be sure of. Are Bams 0 indexed???
 
@@ -27,6 +23,9 @@ conda create -n biocli ucsc-bedGraphToBigWig samtools bedtools bamtools cutadapt
 
 #Something is borking R environment - R2 seems okay for now
 ```installed.packages()%>%saveRDS('./envs/installed_rpackages.rds')```
+
+
+
 
 
 #Organization begins now, thatsublime text is fixed.
@@ -44,9 +43,12 @@ Copy text easily back from terminal
 linting
 local copies of stuff.
 
-Snippets go here ~/Library/Application Support/Sublime Text 3/Packages/User/
 
+#Stochiometry plot for Ebp1 paper
+/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R
 
+#trajectory plots for Ebp1 paper
+/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R
 
 
 Good morning check: Is everything gitted?

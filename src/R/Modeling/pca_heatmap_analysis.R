@@ -10,7 +10,7 @@ message('...done')
 
 
 argv <- c(
-  foldchangesfile='exprdata/limma_fold_changes.txt',
+  foldchangesfile='pipeline/exprdata/limma_fold_changes.txt',
   transformdexprfile=file.path('exprdata/transformed_data.txt')
 )
 
@@ -28,12 +28,12 @@ allcoefftbl<-read_tsv(foldchangesfile)
 pcafit <- princomp(allcoefftbl%>%select(matches('time')))
 
 #make plots of the pcas
-svglite::svglite('../plots/pcafit_limmafcs.svg')
+pdf(here('plots/pcafit_limmafcs.pdf'))
 plot(pcafit,main='Fold Change Over Time - PCA')
 plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
 plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
 dev.off()
-getwd()%>%message
+here('plots/pcafit_limmafcs.pdf')%>%normalizePath%>%message
 
 pdf(h=5,w=8,'../plots/limmafc_pca_loadings.pdf'%T>%{normalizePath(.)%>%message})
 ggpubr::ggarrange(ncol=2,

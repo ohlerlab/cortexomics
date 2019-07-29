@@ -4,14 +4,14 @@ suppressMessages(library(magrittr))
 suppressMessages(library(stringr))
 suppressMessages(library(data.table))
 suppressMessages(library(assertthat))
+suppressMessages(library(here))
 library(gplots)
 library(RColorBrewer)
 
 
-source("https://bioconductor.org/biocLite.R")
+# source(here('src/R/Load_data/make_expression_table.R'))
 
-
-root<-'/fast/groups/ag_ohler/dharnet_m/cortexomics'
+root<-here()
 
 vlookup <- function(query,dicttable,key,vals){
 	dict = dicttable%>%ungroup%>%distinct_(key,vals)
@@ -40,6 +40,10 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
 
 }
 
+
+#load the iBAQ ms data
+ms_tall <- Sys.glob(here('pipeline/ms_tables/ms_iBAQ*'))%>% map_df(fread)
+
 message('looking up protein ID annotations')
 #'get info on the ribosomal subu,nts from mats table
 rids <- read_tsv(here('ext_data/riboprotids.tsv'))
@@ -47,7 +51,7 @@ lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast
 sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 
 
-c(lridssplit,sridssplit)
+ridssplit<-c(lridssplit,sridssplit)
 rids%>%filter(!`Mito-RP`)%>%nrow
 #get info on proteins so we can catagorize them
 library(biomaRt)
@@ -85,6 +89,7 @@ ebp1pid = ms_tall$Protein_IDs[match('Pa2g4',ms_tall$gene_name)]
 
 #' First we load the list of protein IDs, handpicked by Matt, using only the small
 #' or large subunits - no mitochondrial riboproteins  
+
 
 
 #define ambigous protein groups as those which have elements that appear in more than one protein group
@@ -164,6 +169,7 @@ sizefactors=sizefactors%>%stack%>%set_colnames(c('sizefactor','tmp'))%>%
 
 sizefactors$replicate %<>% as.character
 ms_tall_trans$replicate %<>% as.character
+ms_tall$replicate %<>% as.character
 
 ibnormms_tall <- ms_tall%>%filter(sigtype=='iBAQ')%>%left_join(sizefactors,by=c('time','fraction','replicate'))%>%mutate(sigtype='norm_iBAQ',signal=signal*sizefactor)
 
@@ -201,7 +207,7 @@ my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)
 #plot our heatmaps
 for(dset in dsetnames){
 	# file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps.',dset,'.pdf'))%>%dirname%>%dir.create
-	hmapfile <- file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps.',dset,'.pdf'))
+	hmapfile <- file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps_newcol.',dset,'.pdf'))
 	hmapfile%>%dirname%>%dir.create(showWarnings=FALSE)
 	pdf(normalizePath(hmapfile) %T>% message,w = 12, h = 12)
 	stochmat = stochmats[[dset]]
@@ -216,7 +222,7 @@ for(dset in dsetnames){
 
 	par(lend = 1)
 	hmout<-heatmap.2(stochmat, 
-		col=greenred(75),
+		col=colorpanel(75,'purple','black','orange'),
 		trace="none",
 		keysize=1,
 		margins=c(8,6),
@@ -239,7 +245,7 @@ rids$Protein_IDs%>%str_subset('Q3V1Z5|E9Q070|Q9D8M4|Q9D823')
 ms_tall%>%filter(Protein_IDs%>%str_detect('Q3V1Z5|E9Q070|Q9D8M4|Q9D823'))%>%distinct(Protein_IDs,.keep_all=T)
 ms_tall$gene_name
 
-pdf(file.path(root,'plots/ribostochdist.pdf')%T>%message)
+pdf(file.path(root,'plots/ribostochdist_new.pdf')%T>%message)
 	stochmats[[1]]%>%hist(breaks=42,xlim=c(-5,5))
 dev.off()
 
@@ -302,7 +308,7 @@ scatterplots<-ggdf%>%
     theme(plot.title = element_text(hjust = 0.5))
   )%>%data_frame(plot=.)})
 
-scatterplotfile<-file.path(root,str_interp('plots/ms_fraction_scatterplots_norm_iBAQ.pdf'))
+scatterplotfile<-file.path(root,str_interp('plots/ms_fraction_scatterplots_norm_iBAQ_newcols.pdf'))
 pdf(scatterplotfile,useDingbats=FALSE,w=24,h=18)
 do.call(gridExtra::grid.arrange,c(scatterplots$plot[1:2],ncol=4))
 dev.off()

@@ -37,9 +37,8 @@ left_join_ov <- function(LHS,RHS,...,.allow_dups=FALSE,.allow_missing=FALSE){
 # rids <- read_tsv('~/projects/cortexomics/ext_data/riboprotids.tsv')
 # ridssplit<-rids%>%filter(!`Mito-RP`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 
-file.path(root,"data/kallisto/")%>%normalizePath
 #first load kallisto counts
-kallistodir = file.path(root,"data/kallisto/")%T>%{stopifnot(file.exists(.))}
+kallistodir = here("pipeline/kallisto/")%T>%{stopifnot(file.exists(.))}
 
 kallistocounts <- kallistodir %>%
   list.files(full=TRUE, patt="abundance.tsv",recurs=TRUE)%>%
@@ -49,6 +48,7 @@ kallistocounts <- kallistodir %>%
   map(select,target_id,tpm)%>%
   bind_rows(.id = 'dataset')%T>%
   {assert_that(is.data.frame(.)&(nrow(.)>1e3)&(ncol(.)==3))}
+
 kallistocounts%<>%select(signal = tpm,transcript_id=target_id,dataset)
 
 #we need to ensure each entry of our kallisto table has a unique gene ID
