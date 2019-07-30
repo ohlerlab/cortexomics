@@ -1610,7 +1610,7 @@ mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
 
 
 rule integrate_exprdata:
-  input: 'feature_counts/all_feature_counts',mstbl
+  input: 'feature_counts/all_feature_counts',mstbl,expand('seqshift_reads/data/{sample}/segment_counts_df.tsv',sample=ribosamples)
   output: 'exprdata/transformed_data.txt','exprdata/cent_scaled_exprdata.txt','exprdata/designmatrix.txt','exprdata/allcounts_snorm.tsv'
   shell: r"""mkdir -p exprdata;
   Rscript ../src/R/Load_data/integrate_exprdata.R {input[0]} {input[1]} {output}"""

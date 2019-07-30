@@ -94,5 +94,10 @@
         "h_vmem": "4g",
 #"h_rt": "40:00:00",
         "pe": "smp 8"
+    },
+    "get_rf_offset":
+    {
+        "h_vmem": "8g",
+        "pe": "smp 8"
     }
 }

@@ -78,9 +78,6 @@ filtercds4train <- .%>%subset(tag=='CCDS')
 
 setpos<- .%>%{strand(.)<-'+';.}
 
-
-
-
 string2onehot<-function(scol) vapply(c('A','C','T','G'),function(lev)as.numeric(scol==lev),rep(1,length(scol)))%>%matrix(ncol=4,dimnames=list(NULL,c('A','C','T','G')))
 
 dnaseq2onehot <- function(mat,pre){
@@ -1235,7 +1232,8 @@ splitids <- cds$protein_id%>%unique%>%split(floor((1:length(.))/100))
 
 message('producing read counts')
 
-ns_all_genes<-splitids%>%mclapply(safely(function(idchunk){
+if(!file.exists('pipeline/ribosegcount/{thissamp}/allgenes.rds')){
+	ns_all_genes<-splitids%>%mclapply(safely(function(idchunk){
 
 	segment_ribocount(
 		exons2use,
@@ -1248,19 +1246,21 @@ ns_all_genes<-splitids%>%mclapply(safely(function(idchunk){
 		startflank = 9,
 		endflank = 9 ,
 		do_seqshift=FALSE)
-}))
 
+	}))
+}
 
 thissamp<-bam%>%dirname%>%basename
 
 require(glue)
-
+# thissamp='E13_ribo_1'
 rdsfile<-here(glue('pipeline/ribosegcount/{thissamp}/allgenes.rds'))
+
 rdsfile%>%dirname%>%dir.create(rec=TRUE,showWarn=FALSE,.)
+# ns_all_genes<-readRDS(rdsfile)
 ns_all_genes%>%saveRDS(rdsfile)
 
-
-segcountdf<-ns_all_genes%>%map('result')%>%bind_rows%>%select(protein_id=id,everything())
+segcountdf<-ns_all_genes%>%map('result')%>%bind_rows%>%select(protein_id=matches('id'),everything())
 
 segcountdf%>%write_tsv(file.path(outfolder,'segment_counts_df.tsv'))
 
