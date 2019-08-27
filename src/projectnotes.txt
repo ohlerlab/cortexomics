@@ -3,23 +3,21 @@
 - Plenty of papers in the papers folder
 
 
+
+
 Where am I?
-Ebp1 paper final toudhes just done. Gave up on sequence spec psite adjustments. Now just gonna do periodicity, checks on the clipping of CDS regions, then try to improve the model a bit more. About to go to 
+
+Possible things to do 
+- Use positive control for the sequence adjustments
+	So the 28 bp guys are are fucked up
+- define weird ones
+- 
+- pick out guys with significant MS effect to model kinetically.
+		make sure that increasing things pin down synthesis and degredation.
+	 	After this i can do my fuzzy clustering and see if it makes a different
 
 
 
-After this i can do my fuzzy clustering and see if it makes a different
-
-Then also I can look at the coverage of the weird cases
-
-indexing is something I"ll need to be sure of. Are Bams 0 indexed???
-
-#Envs
-conda create -n biocli ucsc-bedGraphToBigWig samtools bedtools bamtools cutadapt tophat stara
-
-
-#apparently tophat and snakemake conflict
-#install snakemake broke bedgraphtobigwig
 
 #Something is borking R environment - R2 seems okay for now
 ```installed.packages()%>%saveRDS('./envs/installed_rpackages.rds')```

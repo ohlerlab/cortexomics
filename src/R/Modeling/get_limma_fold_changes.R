@@ -375,8 +375,6 @@ rlimmafit_MS_change$coefficients%>%as.data.frame%>%rownames_to_column('gene_name
 
 
 
-i=i+1
-
 
 
 #function simulating ms given a degredation constant, a constant value for rTE, starting ms, the riboseq,

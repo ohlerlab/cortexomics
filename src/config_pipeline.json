@@ -99,5 +99,10 @@
     {
         "h_vmem": "8g",
         "pe": "smp 8"
+    },
+    "quant_riboseq":
+    {
+        "h_vmem": "12g",
+        "pe": "smp 8"
     }
 }

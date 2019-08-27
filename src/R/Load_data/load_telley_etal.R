@@ -3,12 +3,16 @@
 library(rmarkdown)
 library(knitr)
 library(here)
+library(here)
+library(magrittr)
+library(data.table)
 knitr::opts_chunk$set(root.dir = here::here(),eval=FALSE,cache=FALSE,echo=FALSE,warning = FALSE,message = FALSE,include=FALSE)
 isknitr<-isTRUE(getOption('knitr.in.progress'))
 #if(!isknitr) rmarkdown::render(knitr::spin(here('src/R/load_telley_etal.R'),knit=F),output_dir=here('Reports'),knit_root_dir=here())
 
 source('src/R/Rprofile.R')
 library('DeconRNASeq')
+
 
 telleyfiles<-c(
 	twavetbl="/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/telley/aav2522_Data-S2.xlsx",
@@ -24,9 +28,6 @@ conflicted::conflict_prefer('slice','dplyr')
 conflicted::conflict_prefer('matches','dplyr')
 
 
-
-
-
 t_wavetbl<-telleyfiles[[1]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
 t_dynamicstbl<-telleyfiles[[2]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
 
@@ -35,11 +36,144 @@ telleyfiles[[3]]%>%excel_sheets
 t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
 t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
 
+t_diffcoretbl$gene_name %in% gtf_gr$gene_name
+
 chronotypic_clusters<-telleyfiles['tclusters']%>%read_excel(sheet='Clusters')%>%rename(gene_name=`Gene symbol`)%>%rename(cluster=`tSNE cluster`)
 
-#get info on TE
+
+
+################################################################################
+######## Project Expression Data onto this
+################################################################################
+	
+exprdata<-fread(here('pipeline/exprdata/transformed_data.txt'))
+exprdata%<>%mutate_at(vars(-gene_name),scale)
+
+countdata<-fread(here('pipeline/feature_counts/all_feature_counts'))
+countdata%<>%safe_left_join(mcols(gtf_gr)%>%as.data.frame%>%select(feature_id=gene_id,gene_name)%>%distinct)
+countdata%<>%select(matches('_ribo_|_total_|gene_name'))%>%select(gene_name,everything())
+countdata%<>%mutate_at(vars(-gene_name),~scale(log2(.+1)))
+
+t_timecoretbl_early <- t_timecoretbl%>%filter(Time_core_Specificity=='Early')
+t_timecoretbl_late <- t_timecoretbl%>%filter(Time_core_Specificity=='Late')
+t_diffcoretbl_ap <- t_diffcoretbl%>%filter(Diff_core_Specificity=='AP')
+t_diffcoretbl_n <-t_diffcoretbl%>%filter(Diff_core_Specificity=='N')
+
+project_exprddata <- function(exprdata,t_coretbl,varname){
+	stopifnot(!is.null(exprdata$gene_name))
+	commongenes<-intersect(identity(exprdata$gene_name),identity(t_coretbl$gene_name))
+	# browser()
+	exprmat <- set_rownames(as.matrix(exprdata[,-1]),exprdata[,1])%>%.[commongenes,]
+	commoncoretbl <- matrix(unlist(t_coretbl[,2]),ncol=1)%>%set_rownames(t_coretbl[[1]])%>%.[commongenes,]
+	message(paste0('common genes ',length(commongenes)))
+	# browser()
+	projection <- apply(exprmat,2,function(x) sum(na.omit(x*commontimecoretbl)))
+	projection%>%enframe('dataset',varname)%>%separate(dataset,c('time','assay','rep'))
+}
+library(tidyverse)
+
+#total time
+pdf(here('plots/telley/stage_vs_pdiff.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
+project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+}
+)
+print(project_exprddata(countdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(countdata,t_diffcoretbl,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+})
+dev.off()
+
+
+
+
+
+pdf(here('plots/telley/stage_vs_pdiff_ap.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message})
+print(project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl_ap,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+})
+print(project_exprddata(countdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(countdata,t_diffcoretbl_ap,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+})
+dev.off()
+
+
+
+pdf(here('plots/telley/stage_vs_pdiff_ap.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message})
+print(project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl_ap,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+})
+dev.off()
+
+
+
+pdf(here('plots/telley/stage_vs_pdiff_n.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
+project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl_n,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
+	geom_smooth()+
+	theme_bw()
+})
+dev.off()
+
+#####Now for birthdate
+
+pdf(here('plots/telley/stage_vs_ptime.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
+project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_time)+
+	geom_smooth()+
+	theme_bw()
+}
+);dev.off()
+
+
+pdf(here('plots/telley/stage_vs_ptime_early.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
+project_exprddata(exprdata,t_timecoretbl_early,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_time)+
+	geom_smooth()+
+	theme_bw()
+}
+);dev.off()
+
+
+pdf(here('plots/telley/stage_vs_ptime_late.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
+project_exprddata(exprdata,t_timecoretbl_late,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))%>%{
+	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_time)+
+	geom_smooth()+
+	theme_bw()
+}
+);dev.off()
+
+
+project_exprddata(exprdata,t_timecoretbl%>%filter(Time_core_Specificity=='Early'))
+project_exprddata(exprdata,t_diffcoretbl%>%filter(Diff_core_Specificity=='AP'))
+project_exprddata(exprdata,t_timecoretbl%>%filter(Time_core_Specificity=='Early'))
+project_exprddata(exprdata,t_diffcoretbl%>%filter(Diff_core_Specificity=='AP'))
+
+
+commongenes<-intersect(identity(exprdata$gene_name),identity(t_timecoretbl$gene_name))
+exprmat <- set_rownames(as.matrix(exprdata[,-1]),exprdata[,1])%>%.[commongenes,]
+commontimecoretbl <- matrix(unlist(t_timecoretbl[,2]),ncol=1)%>%set_rownames(t_timecoretbl[[1]])%>%.[commongenes,]
+timeprojection <- apply(exprmat,2,function(x) sum(na.omit(x*commontimecoretbl)))
+
+
+stop()
+################################################################################
+########get info on TE
+################################################################################
+	
+
 gnamevect <- fread(here('pipeline/ids.txt'))%>%{setNames(.$gene_name,.$gene_id)}
 
+stop()
 
 xtailfiles <- Sys.glob('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/xtail//*.txt')
 names(xtailfiles)<-xtailfiles%>%str_extract('(?<=/xtail_).*?(?=.txt)')

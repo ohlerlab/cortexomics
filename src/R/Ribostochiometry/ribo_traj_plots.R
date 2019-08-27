@@ -162,10 +162,23 @@ rnaseqdata_tall%<>%left_join(lengths,by=c(feature_id='gene_id'))%>%select(-featu
 rnaseqdata_tall<-rnaseqdata_tall%>%select(-gene_name,-length)%>%as.matrix%>%divide_by(rnaseqdata_tall$length)%>%{t( t(.)*1e6/ colSums(.))}%>%cbind(rnaseqdata_tall%>%select(gene_name))
 rnaseqdata_tall<-rnaseqdata_tall%>%left_join(pids%>%left_join(distinct(ms_tall,Protein_IDs,gene_name))%>%distinct(gene_name,pcat))
 
+
 rnaseqdata_tall%<>%filter(!is.na(pcat))
 rnaseqdata_tall %<>% gather(dataset,signal,-gene_name,-pcat)
 #
 rnaseqdata_tall%<>%separate(dataset,into=c('time','assay','rep'))
+
+timerecodevect <- setNames(c("E125","E14","E155","E17","P0"),unique(rnaseqdata_tall$time))
+rnaseqdata_tall$assay%>%unique
+rnaseqdata_tall%>%mutate(time=timerecodevect[time],assay=ifelse(assay=='total','RNAseq_TPM',assay))%>%ungroup%>%unite(dataset,time,assay,rep)%>%
+  group_by(gene_name,dataset)%>%slice(which.max(signal))%>%
+  spread(dataset,signal)%>%
+  mutate(pcat=ifelse(is.na(pcat),'other',pcat))%>%
+  safe_left_join(lengths%>%distinct(gene_id,gene_name)%>%group_by(gene_name)%>%slice(1))%>%
+  select(gene_id,gene_name,protein_catagory=pcat,everything())%>%
+  write_tsv(here('tables/Ribostochiometry/TPMs.tsv'))
+'tables/Ribostochiometry/TPMs.tsv'%>%normalizePath%>%message
+'tables/Ribostochiometry/TPMs.tsv'%>%fread
 
 rnaseqdata_tall%<>%group_by(time,assay)%>%
   mutate(nnsig=signal,signal = signal/median(signal,na.rm=T))%>%

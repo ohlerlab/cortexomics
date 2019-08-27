@@ -190,7 +190,7 @@ rule all:
     ('xtail/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
-    expand("seqshift_reads/data/{sample}/segment_counts_df.tsv", sample = ribosamples),
+    expand("riboseq_quant/data/{sample}/segment_counts_df.tsv", sample = ribosamples),
     expand("SaTAnn/{sample}/.done", sample = ribosamples),
     # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
@@ -1540,15 +1540,23 @@ rule run_riboqc:
      """
 
 
-rule get_rf_offset:
+rule get_offset_model:
   input:
     bam = 'star/data/{sample}/{sample}.bam',
     gtf = GTF,
     REF = REF,
-  output: 'seqshift_reads/data/{sample}/segment_counts_df.tsv'
+  output: 'seqshift_reads/data/{sample}/seqshiftmodel.rds'
   shell:r"""Rscript ../src/R/Psite_offsets/offsets3.R {input} $(dirname {output})"""
 
-
+rule quant_riboseq:
+  input:
+    bam = 'star/data/{sample}/{sample}.bam',
+    gtf = GTF,
+    REF = REF,
+    shiftmodel = 'seqshift_reads/data/{sample}/seqshiftmodel.rds',
+  threads:10
+  output: 'riboseq_quant/data/{sample}/segment_counts_df.tsv'
+  shell:r"""Rscript ../src/R/Psite_offsets/segment_counts.R {input} $(dirname {output})"""
 
 rule run_satann:
   input : 'riboqc/data/{sample}/.done','riboqc/annot.done',REF
@@ -1568,8 +1576,6 @@ rule run_satann:
       R -e 'devtools::load_all("~/work/Applications/SaTann");run_SaTAnn(for_SaTAnn_file = "{params.for_satannfile}",annotation_file = "{params.annofile}",genome_seq = "{REF}", n_cores = {threads} ,  prefix = "{params.outputdir}") '
       #R -e 'try({{library(SaTAnn);if(file.exists(paste0("{params.for_satannfile}","_final_SaTAnn_results"))){{plot_SaTAnn_results(for_SaTAnn_file = {params.for_satannfile},SaTAnn_output_file = paste0("{params.for_satannfile}","_final_SaTAnn_results"),annotation_file = "{params.annofile}") }}}})'
         
-#      mv {params.for_satannfile}_* /
-
       """
 
 
@@ -1610,7 +1616,7 @@ mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
 
 
 rule integrate_exprdata:
-  input: 'feature_counts/all_feature_counts',mstbl,expand('seqshift_reads/data/{sample}/segment_counts_df.tsv',sample=ribosamples)
+  input: 'CDS_rna_counts',mstbl,expand('riboseq_quant/data/{sample}/segment_counts_df.tsv',sample=ribosamples)
   output: 'exprdata/transformed_data.txt','exprdata/cent_scaled_exprdata.txt','exprdata/designmatrix.txt','exprdata/allcounts_snorm.tsv'
   shell: r"""mkdir -p exprdata;
   Rscript ../src/R/Load_data/integrate_exprdata.R {input[0]} {input[1]} {output}"""

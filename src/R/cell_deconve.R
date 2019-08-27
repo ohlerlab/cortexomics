@@ -108,8 +108,9 @@ plotdf_te<-deconresults_cult$out.all%>%extractdecon
 deconresults_cult <- DeconRNASeq(exprdata[rownames(exprdata)%in%ntegenes,],LFQsigs_cultured)
 plotdf_nte<-deconresults_cult$out.all%>%extractdecon 
 
+pdf(here('plots/deconv/deconv.pdf')%T>%{dir.create(dirname(.));message(normalizePath(.))})
 ggpubr::ggarrange(plotdecon(plotdf_te)+ggtitle('TE Changing Genes'),plotdecon(plotdf_nte)+ggtitle('non TE Changing Genes'),nrow=2)
-
+dev.off()
 
 exprdata[gnamestbl%>%filter(gene_name=='Aif1')%>%pluck('gene_id'),]
 

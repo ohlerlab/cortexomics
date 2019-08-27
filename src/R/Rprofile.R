@@ -1,9 +1,14 @@
+library(GenomicRanges)
 library(memoise)
 library(assertthat)
 library(stringr)
 
+filter<-dplyr::filter
+select<-dplyr::select
+slice<-dplyr::slice
+
 ###memoise
-# project_cache=here::here('R_cache')
+project_cache=here::here('R_cache')
 if(!exists('project_cache'))project_cache=tempdir()
 message(system(str_interp('du -h ${project_cache}'),intern=T))
 mycache=memoise::cache_filesystem(project_cache)
@@ -32,6 +37,15 @@ mymemoise <- function(f){
       f
   }
 }
+
+if(!interactive()) mymemoise=identity
+gigsused <- function(x)system(paste0("cat /proc/",Sys.getpid(),"/status | grep VmSize"),intern=TRUE)%>%str_extract('\\d+')%>%as.numeric%>%divide_by(1e6)
+message('memory in use ',gigsused())
+
+# rm(foomat)
+# gc(reset=TRUE,full=TRUE)
+# message('memory in use ',gigsused())
+
 
 # #
 # foo<-function(x){message('foooooobar called')}
@@ -461,3 +475,267 @@ get_riboprofdata<- function(exons_tr,bigwigpair){
     mutate(frame=as.factor(pos %% 3))
 }
 
+
+
+# reads_tr<-oldenv$cdsread_trmap
+fp<-function(gr) ifelse(strand(gr)=='-',end(gr),start(gr))
+tp<-function(gr) ifelse(strand(gr)=='-',start(gr),end(gr))
+fpend<-function(x)resize(x,1,'start')
+tpend<-function(x)resize(x,1,'end')
+
+# gr1<-GRanges(c('chr1:5-6:+'))
+# gr2<-GRanges(c('chr1:50-51:+','chr1:40-51:+'))
+
+downstream_dist_till<-function(gr1,gr2){
+  (fp(gr2)[precede(gr1,gr2)] - tp(gr1)) * ( ifelse(strand(gr1)=='+',1,-1))
+}
+
+upstream_dist_till<-function(gr1,gr2){
+  (tp(gr2)[follow(gr1,gr2)] - fp(gr1)) * ( ifelse(strand(gr1)=='+',-1,1))
+}
+
+istpmost<-function(cds,groupvar='transcript_id'){ 
+  ids <- seq_along(cds)
+  tpmostids<-data_frame(id=ids,end=end(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(end*ifelse(strand=='-',-1,1)))%>%.$id
+  ids %in% tpmostids
+}
+isfpmost<-function(cds,groupvar='transcript_id'){
+  ids <- seq_along(cds)
+  fpmostids<-data_frame(id=ids,start=start(cds),strand=as.vector(strand(cds)),groupvar=mcols(cds)[[groupvar]])%>%group_by(groupvar)%>%slice(which.max(start*ifelse(strand=='-',1,-1)))%>%.$id
+  ids %in% fpmostids
+}
+
+
+
+clip_start <- function(x,n) resize(x,width(x)-n,fix='end')
+clip_end <- function(x,n) resize(x,width(x)-n,fix='start')
+setstrand<-function(x) {strand(x)<-Rle('+') 
+  x}
+
+testthat::expect_equal(downstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr1:5:-','chr1:40-51:+'))),5)
+testthat::expect_equal(downstream_dist_till(GRanges(c('chr1:10:+')),GRanges(c('chr1:14:+','chr1:40-51:+'))),4)
+
+testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr1:11:+','chr1:12:-','chr1:40-51:+'))),2)
+
+testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:+')),GRanges(c('chr1:11:+','chr1:6:+','chr1:40-51:+'))),4)
+testthat::expect_equal(upstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr1:11:+','chr1:14:-','chr1:40-51:+'))),4)
+
+
+
+
+apply_cds_offsets<- function(reads_tr,bestscores){
+
+  #if you pass null to this, we can just take the middle of each read
+  if(is.null(bestscores)) return(floor(width(reads_tr)/2))
+
+  compartmentcol <- if('compartment'%in%colnames(bestscores)) 'compartment' else NULL
+  phasecol <- if('phase'%in%colnames(bestscores)) 'phase' else NULL
+  joincols <- c('length',compartmentcol,phasecol)
+  assert_that(all(has_name(mcols(reads_tr),joincols)))
+
+  reads_tr%>%
+    mcols%>%
+    as_tibble%>%
+    safe_left_join(bestscores%>%
+      ungroup%>%
+      # select(-phase,-score),by=c('length','compartment'),
+      select(offset,one_of(joincols)),by=joincols,
+      allow_missing=TRUE
+    )%>%
+    .$offset
+}
+
+
+
+take_Fvals_spect<-function(x,n_tapers,time_bw,slepians_values){
+     if(length(x)<25){
+          remain<-50-length(x)
+          x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
+     }
+
+     if(length(x)<1024/2){padding<-1024}
+     if(length(x)>=1024/2){padding<-"default"}
+
+     resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
+     
+     resSpec2<-dropFreqs(resSpec1,0.29,0.39)
+     
+     closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
+     
+     freq_max_3nt<-resSpec1$freq[closestfreqind]
+     Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
+     spect_3nt<-resSpec1$spec[closestfreqind]
+     return(c(Fmax_3nt,spect_3nt))
+     
+}
+
+
+ftestvect<-function(psit,k=24,bw=12){
+  sl<-dpss(n=length(psit)%>%ifelse(.<25,50,.),k=k,nw=bw)
+  vals<-take_Fvals_spect(x = psit,n_tapers = k,time_bw = bw,slepians_values = sl)
+  pval <- pf(q=vals[1],df1=2,df2=(2*24)-2,lower.tail=F)
+  return(c(vals[2],pval))
+}
+
+
+library(R6)
+
+#could include the lengths and variables it needs
+#could include a method for getting the data
+#and a method for shiftng a granges object
+
+Psite_model<-R6Class("Psite_model",
+  public = list(
+    offsets=NULL,
+    seqshiftmodel=NULL,
+    compartments=NULL,
+    initialize=function(bestscores,seqshiftmodel,compartments){
+
+      #checks - compartments has nrow
+      #seqshiftmodel is a ranger object,
+      #compartments is a vecotr with 'nucl' in it
+
+      self$offsets <- bestscores
+      self$seqshiftmodel <- seqshiftmodel 
+      self$compartments <- as(compartments,'List')   
+  },get_cds_offsets = function(reads_tr){
+
+    compartmentcol <- if('compartment'%in%colnames(self$offsets)) 'compartment' else NULL
+
+    if(!'compartment' %in% colnames(mcols(reads_tr))){
+      mcols(reads_tr)$compartment <- self$compartments[seqnames(reads_tr)]%>%unlist(use.names=F)
+    }
+
+    phasecol <- if('phase'%in%colnames(self$offsets)) 'phase' else NULL
+    joincols <- c('length',compartmentcol,phasecol)
+
+
+  assert_that(all(has_name(mcols(reads_tr),joincols)))
+  
+
+  reads_tr%>%
+    mcols%>%
+    as_tibble%>%
+    safe_left_join(self$offsets%>%
+      ungroup%>%
+      # select(-phase,-score),by=c('length','compartment'),
+      select(offset,one_of(joincols)),by=joincols,
+      allow_missing=TRUE
+    )%>%
+    .$offset
+}
+)
+)
+
+
+get_cds_offsets = function(reads_tr,offsets,compartments){
+
+    compartmentcol <- if('compartment'%in%colnames(offsets)) 'compartment' else NULL
+
+    if(!'compartment' %in% colnames(mcols(reads_tr))){
+      mcols(reads_tr)$compartment <- as(compartments,"List")[seqnames(reads_tr)]%>%unlist(use.names=F)
+    }
+    if(!'length' %in% colnames(mcols(reads_tr))){
+      mcols(reads_tr)$length <- qwidth(reads_tr)
+    }
+
+
+    phasecol <- if('phase'%in%colnames(offsets)) 'phase' else NULL
+    joincols <- c('length',compartmentcol,phasecol)
+
+
+  assert_that(all(has_name(mcols(reads_tr),joincols)))
+  
+
+  reads_tr%>%
+    mcols%>%
+    as_tibble%>%
+    safe_left_join(offsets%>%
+      ungroup%>%
+      # select(-phase,-score),by=c('length','compartment'),
+      select(offset,one_of(joincols)),by=joincols,
+      allow_missing=TRUE
+    )%>%
+    .$offset
+}
+
+setGeneric('apply_psite_offset',function(offsetreads,offset) shift(offsetreads,offset))
+setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
+  if(is.character(offset)){
+    offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
+  } 
+  if(length(offset)==1) offset = rep(offset,length(offsetreads))
+  isneg <-  as.logical(strand(offsetreads)=='-')
+  offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
+  ends <- qwidth(offsetreads[isneg])-offset[isneg]
+  offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
+  offsetreads
+})
+
+fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
+tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
+strandshift<-function(gr,shift) shift(gr , ifelse( strand(gr)=='-',- shift,shift))
+
+get_seqforrest_data <- function(trainreads,seq,nbp=2,trim=TRUE){
+
+  stopifnot('length' %in% colnames(mcols(trainreads)))
+  stopifnot(all(seqnames(trainreads)%in%seqinfo(seq)@seqnames))
+
+  # if(is(trainreads,"GAlignments")){
+    # trainreads<-trainreads[njunc(trainreads)==0]
+    # trainreads <- GRanges(trainreads)
+  # }
+
+  fp<-trainreads%>%resize(nbp,'start')%>%as("GRanges")%>%resize(nbp*2,'end')
+  # fp_inbounds <- !is_out_of_bounds(fp,seqinfo(seq))
+
+  tp <- trainreads%>%resize(nbp,'end')%>%as("GRanges")%>%resize(nbp*2,'start')
+  # tp_inbounds <- !is_out_of_bounds(tp,seqinfo(seq))
+  
+  # inbounds <- fp_inbounds & tp_inbounds
+  # inbounds%>%table
+  
+  startseq <- getSeq(seq,fp)
+  endseq <- getSeq(seq,tp)
+
+
+  seqmat <- cbind(dnaseq2onehot(startseq,'fp.'),dnaseq2onehot(endseq,'tp.'))
+
+  seqmat%<>%cbind(length=mcols(trainreads)$length)%>%as.data.frame
+
+  if(has_name(mcols(trainreads),'dist')){
+    seqmat %<>% cbind(dist=trainreads$dist)
+    #note that we need to negate the phase to get it from the 'dist', so e.g. -1 means the 2nd base of the stop,
+    #while 1 means the 3rd base of the one before AUG
+    seqmat$phase = as.factor(abs(-(as.numeric(as.character((seqmat)$dist))%%3)))
+  }
+  
+  seqmat
+
+}
+
+
+
+#' group_slice
+#' 
+#' get N groups.
+#' #' 
+#' @param dt - a grouped tbl
+#' @param v - a vector for slicing
+#' @examples e.g. - an example
+#' this 
+#' @return returns 
+#' @export 
+
+group_slice<-function(dt,v){
+  stopifnot('data.frame'%in%class(dt))
+  stopifnot(v>0,(v%%1)==0)
+  if(n_groups(dt)==1) warning('Only 1 group to slice')
+  #get the grouping variables
+  groups=
+    unique(dt%>%select())%>%
+    group_by()%>%
+    slice(v)
+  out=inner_join(dt,groups)
+  out
+}

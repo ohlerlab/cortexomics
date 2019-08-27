@@ -1,29 +1,36 @@
 library(rtracklayer)
 library(Rsamtools)
 library(GenomicFeatures)
+library(here)
+library(tidyverse)
+library(magrittr)
+#fasta files
 fafile <- FaFile('my_GRCm38.p5.genome.chr_scaff.fa')
 
-mappatrack <- import('mappability/mappability_27.bedgraph')
-
-cds <- import('my_gencode.vM12.annotation.cds.gtf')
-exons <- import('my_gencode.vM12.annotation.gtf')%>%subset(type=='exon')
-
-cds<-cds%>%mapToTranscripts(exons%>%split(.$transcript_id))
-
-seqinfo(mappatrack) <- seqinfo(cds)[
-	c(seqinfo(mappatrack)@seqnames,setdiff(seqinfo(cds)@seqnames,seqinfo(mappatrack)@seqnames)),]
+#load the cds
+cds <- import(here('pipeline/my_gencode.vM12.annotation.cds.gtf'))
+exons <- import(here('pipeline/my_gencode.vM12.annotation.gtf'))%>%subset(type=='exon')
+#we need the cdsd to be 
+cdsmap<-cds%>%mapToTranscripts(exons%>%split(.$transcript_id))
+mcols(cdsmap) <- mcols(cds)[cdsmap$xHits,]
+#load the tracks
+mappatrack <- import(here('pipeline/mappability/mappability_27.bedgraph'))
+#add CDS
+seqinfo(mappatrack) <- seqinfo(cdsmap)[
+	c(seqinfo(mappatrack)@seqnames,setdiff(seqinfo(cdsmap)@seqnames,seqinfo(mappatrack)@seqnames)),]
 
 mappatrack%<>%coverage(weight='score')
 
 #cds$nomapbases <- 
 
 
-cdssamp <- cds%>%sample(1000)
+cdssamp <- cdsmap%>%sample(1000)
 
-cut_number( mappatrack[cdssamp]%>%sum / width(cdssamp) ,5)%>%table
+cut_number( mappatrack[cdsmap]%>%sum / width(cdsmap) ,5)%>%table
 
+cdsmap$nomapbases <- mappatrack[cdsmap]%>%sum / width(cdsmap)
 
-cdsmap_df <- cds%>%as.data.frame%>%
+cdsmap_df <- cdsmap%>%as.data.frame%>%
 	select(transcript_id,nomapbases,width)%>%
 	group_by(gene_id,transcript_id)%>%
 	summarise(width = sum(width),nomapbases = sum(nomapbases))
@@ -38,15 +45,5 @@ pdfexpr<-function(file,expr,...){
 	dev.off()
 	message(normalizePath(file))
 }
-
+mappahistplotfile <- here('plots/mapppbility/mappability.pdf')
 pdfexpr(mappahistplotfile,hist((floor(cdsmap_df$nomap_frac/0.1)*0.1),50))
-
-
-cdsmap_df$nomap_frac%>%`>`(0.05)%>%mean
-
-
-cds%>%subsetByOverlaps(GRanges('chr1:195132153-195146569'))
-cds%>%subsetByOverlaps(GRanges('chr1:195132153-195146569'))%>%width%>%sum
-25/503
-
-mappability[]
