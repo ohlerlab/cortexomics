@@ -1,5 +1,29 @@
 
 
+
+argv <- c(
+	bam = here('pipeline/star/data/E13_ribo_2/E13_ribo_2.bam')%T>%{stopifnot(file.exists(.))},
+	gtf = here('pipeline/my_gencode.vM12.annotation.gtf'),
+	REF = here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'),
+	outfolder = here('pipeline/seqshift_reads/data/E13_ribo_2/')
+)
+
+sample_params<-here::here('src/sample_parameter.csv')%>%fread%>%filter(assay=='ribo')%>%.$sample_id
+
+
+# bams <- paste0('star/data/',sample_params,'/',sample_params,'.bam')%>%map(. %T>%{stopifnot(file.exists(.))})
+
+argv[] <- commandArgs(trailing=TRUE)
+
+for (nm in names(argv)) assign(nm,argv[[nm]])
+
+
+
+psite_model<-readRDS(file.path(outfolder,'seqshiftmodel.rds'))
+
+
+
+
 # ################################################################################
 # ########Test the quality of the model
 # ################################################################################
@@ -46,14 +70,45 @@ get_periodicity_scores<-function(cdstosamp,reads,topcdsmap,cds,seqshiftisneg=FAL
         	fft%>%abs%>%`^`(2)%>%{sum(get_frac_inds(.,0.3,0.36))/sum(.) }
 
         data_frame(no_seqshift,with_seqshift)
+
 }
 
-data4readshift <- get_seqforrest_data(topcdsreads,FaFile(REF),nbp=2)
+mytopcds <- GRanges(c('a:1-4','a:15-18','a:29-35'),phase=c(0,2,1))
 
-get_predictedshifts(seqshiftmodel_GAonly,data4readshift,prob=0.5)%>%table
-mcols(topcdsreads)$seqshift <-  get_predictedshifts(seqshiftmodel_GAonly,data4readshift,prob=0.5)
+mytopcds<-topcds
+
+framecovs<-lapply(0:2,function(frame){
+	frame1shifts <-  mytopcds%>%resize(width(.)-.$phase,'end')%>%{map2(0+frame,width(.),.f=~ seq(from=.x,to=.y,by=3))}%>%List%>%stack
+	frame1cov<-mytopcds[as.numeric(frame1shifts$name)]%>%resize(1,'start')%>%strandshift(.$phase)%>%strandshift(frame1shifts$value)
+	frame1cov
+})
+
+framecovs[[1]] <- framecovs[[1]]%>%.[!overlapsAny(.,framecovs[[2]])]%>%.[!overlapsAny(.,framecovs[[3]])]
+framecovs[[2]] <- framecovs[[2]]%>%.[!overlapsAny(.,framecovs[[1]])]%>%.[!overlapsAny(.,framecovs[[3]])]
+framecovs[[3]] <- framecovs[[3]]%>%.[!overlapsAny(.,framecovs[[2]])]%>%.[!overlapsAny(.,framecovs[[1]])]
+
+readframecov<-c(
+	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[1]])%>%sum,
+	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[2]])%>%sum,
+	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[3]])%>%sum
+)
+readframecov
+readframecov%>%txtplot(ylim=c(0,max(.)*1.2))
+
+
+
+topcdsreads%>%subsetByOverlaps(topcds[3])
+
+topcdsreads<-topcdsreadsbak
+#topcdsreads%<>%head
+
+mcols(topcdsreads)$cdsshift <- psite_model$get_cds_offsets(topcdsreads)
+mcols(topcdsreads)$seqshift <- psite_model$get_seq_offsets(topcdsreads)
+
+
 
 seqshift_periodicities<- seqnames(topcdsmap)%>%
+	seqshift_periodicities
 	unique%>%
 	sample%>%		# head(300)%>%
 	as.character%>%
