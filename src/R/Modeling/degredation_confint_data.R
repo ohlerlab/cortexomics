@@ -26,70 +26,144 @@ source(here('src/R/cortexomics_myfunctions.R'))
 
 # message('temp commented out')
 
-transformdexprfile=here('pipeline/exprdata/transformed_data.txt')
+processedexprdatafile=here('pipeline/exprdata/transformed_data.txt')
 designmatrixfile=here('pipeline/exprdata/designmatrix.txt')
 registerDoMC(32)
 
 
-#get the data
-source(here('src/R/Modeling/stan_predict_impute.R'))
+hierarchCIstanfile <- file.path(root,'src/Stan/degmodel_dataconfint.stan') %T>%{stopifnot(file.exists(.))}
 
 
-hierarchstanfile <- file.path(root,'src/Stan/degmodel_hierarch.stan') %T>%{stopifnot(file.exists(.))}
-indivfitstanfile <- file.path(root,'src/Stan/degmodel_simple.stan') %T>%{stopifnot(file.exists(.))}
-linearstanfile <- file.path(root,'src/Stan/degmodel_simple_linear.stan')%T>%{stopifnot(file.exists(.))}
+dir.create('exprdata',showWarnings = FALSE)
+exprtbl <- read_tsv(processedexprdatafile) 
+
+# processedtbl<-exprtbl%>%gather(dataset,signal,-gene_name)%>%separate(dataset,into=c('time','assay','rep'))%>%
+#   group_by(gene_name,time,assay)%>%
+#   mutate(sd=sd(na.omit(signal)),signal=mean(na.omit(signal)))%>%
+#   group_by(gene_name)%>%
+#   filter(!any(sd==0))
+
+# processedtbl %<>% select(gene_name, everything())
+# processedtbl
+
+test_that("we have datathat looksl ike the old but with confidence intervals",{
+  expect_gt(nrow(processedtbl),10)
+  expect_true(!any(exprtbl$gene_name%>%duplicated))
+  data_has_confints = 'sd' %in% colnames(processedtbl)
+  points_per_gene <- processedtbl%>%group_by(gene_name)%>%tally%>%.$n
+  expect_true(all(points_per_gene>0))
+  expect_equal(n_distinct(points_per_gene),1)
+  expect_true(data_has_confints)
+})
+
+
+get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
+  
+  MS_array <- exprdata%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay=='MS')%>%
+    arrange(match(gene_name,g2fit),time,rep)%>%
+    .$signal%>%
+    array(dim=c(5,length(g2fit)))%>%
+    aperm(c(1,2))%>%
+    {2^.}
+
+  MS_tau <- exprdata%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay=='MS')%>%
+    arrange(match(gene_name,g2fit),time,rep)%>%
+    .$sd%>%
+    array(dim=c(5,length(g2fit)))%>%
+    aperm(c(1,2))
+
+  riboarray<-preddf%>%
+    filter(gene_name%in%g2fit)%>%
+    filter(assay==assay2get)%>%
+    arrange(match(gene_name,g2fit),time)%>%
+    .$predicted_signal_full%>%
+    {2^.}%>%
+    matrix(ncol=length(g2fit))
+
+  #Use gene lengths to get DENSITY - we care about this, not the total counts
+  if(lengthnorm) riboarray%<>%sweep(2,STATS=genelengths[g2fit],FUN='/')
+
+  #timepoint averaging - we'll leave in the first, unused timepoint...
+  riboarray_old<-riboarray
+
+  for(i in 2:nrow(riboarray)){
+    riboarray[i,] <- (riboarray_old[i,]+riboarray_old[i-1,])/2
+  }
+
+  standata <- list(
+     G=length(g2fit),T=length(tps),K=3,
+     # gene_name=gnamei,
+     MS=MS_array,
+     MS_tau=MS_tau,
+     # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
+     ribo =riboarray 
+  )
+  dimnames(standata$MS)=list(tps,unique(g2fit))
+  dimnames(standata$MS_tau)=list(tps,unique(g2fit))
+  dimnames(standata$ribo)=list(tps,unique(g2fit))
+
+  standata
+}
 
 
 #Funciton to fit linear and nonlinear model with stan
-get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
+get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter=1e3){
   require(tools)
 
   ##First copy the model file to a new folder
-  tmpdir <- tempdir() 
+
+  tmpdir <- file.path(tempdir(),tempfile())
   stopifnot(file.exists(stanfile))
   #delete the rds file
   stanfile%>%str_replace('.stan','.rds')%>%{suppressWarnings(file.remove(.))}
   # stanfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
-  tdir <-   tempdir()
-  dir.create(tdir)
-  file.copy(stanfile,tdir)
-  modelcopy=file.path(tdir,basename(stanfile))
+  dir.create(rec=TRUE,tmpdir)
+
+  stopifnot(file.copy(stanfile,tmpdir))
+  modelcopy=file.path(tmpdir,basename(stanfile))
   stopifnot(file.exists(modelcopy))
-  modelcopy
+  message(normalizePath(stanfile))
+  message(normalizePath(modelcopy))
+  # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tmpdir))
 
-
-  # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tdir))
-
-  message(paste0('fitting model ',basename(tdir),' on ',standata$G,' genes'))
-  # modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(stanfile),'_modsamples')
+  message(paste0('fitting model ',basename(tmpdir),' on ',standata$G,' genes'))
+  # modelsamplefile<-paste0('stansamples_',basename(tmpdir),'_',basename(stanfile),'_modsamples')
   #
   n_chains <- 4
 
-  setwd(sampledir)
+  setwd(tmpdir)
+
 
   stanfit <- rstan::stan(file=modelcopy,
-          model_name=basename(tdir),seed=1,
+          model_name=basename(tmpdir),
           # model_name=modelnm,seed=1,
           data=standata,
-              control=list(adapt_delta=0.95,max_treedepth=15),save_dso=FALSE,
-              pars=c(pars,'lrTE'),
+              control=list(adapt_delta=0.98,max_treedepth=20),save_dso=FALSE,
+              # pars=c(pars,'lrTE'),
               # init = lapply(seq_len(n_chains),function(id)list('lrTE'=array(rep(20,length(g2fit))))),
-              chains=n_chains,iter=1e3,cores=n_chains,verbose=TRUE,save_warmup=FALSE,
-              sample_file=modelsamplefile,
+              chains=n_chains,iter=iter,cores=n_chains,verbose=FALSE,save_warmup=FALSE,
+              sample_file=basename(modelsamplefile),
               # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
             )
 
-    
-  chainfiles <- Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
-  stopifnot(length(chainfiles)==n_chains)
   
-
+  chainfiles <- Sys.glob(file.path(tmpdir,'*_[0-9].csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
+  stopifnot(length(chainfiles)==n_chains)
+  file.path(sampledir,basename(chainfiles))%>%file.remove
+  stopifnot(file.copy(chainfiles,sampledir))
+  
   list(fit=stanfit,chainfiles= chainfiles)
 
 }
-stop()
 
-test_that("the model Im using reliably converges for easy genes - those that are increasing",{
+hierarchpars <- c('hmu_lrTE','hsig_lrTE','hmu_ldeg','hsig_ldeg')
+pars<-hierarchpars
+
+# test_that("the model Im using reliably converges for easy genes - those that are increasing",{
   #pick such a set of genes
   msincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
   riboincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
@@ -100,16 +174,46 @@ test_that("the model Im using reliably converges for easy genes - those that are
   
   map(list(msincreasing,riboincreasing,low_variance, not_missing,test_genes),table)
 
-
+  test_gene_names <- unique(exprdata$gene_name)[test_genes]
+  #(c("Clpp", "Eif2b5", "Rpl8", "Psmb1", "Cops3", "Pold2", "Pnn","Scamp1", "Ktn1", "Sorbs1", "Mms19", "Pikfyve", "Ndufa10", "Itga6","Celf3", "Ncbp1", "Actb", "Acbd6", "Gpc1", "Sox5", "Kmt2d", "Sorl1","Ddx17", "Kif13b"))
   #run the model on them
 
 
+  testsetstandata <- get_standata_confint(test_gene_names[1:4],genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
+
   #see if they converge
+  testhierarchfit <- get_stanfit(testsetstandata,hierarchCIstanfile,pars=NULL,iter=1e3,modelsamplefile='stansamples/testhierarch.csv',sampledir=here('pipeline/stansamples'))
 
-  expect_true(all(is_convergent))
-})
+  parsum<-testhierarchfit[[1]]%>%
+    summary%>%
+    .$summary%>%
+    as.data.frame%>%
+    rownames_to_column('par')%>%
+    mutate(ppar=parse_stan_pars(par))%>%unnest
+    # filter(is.na(time),is.na(gene))%>%
+    # filter(par%>%str_detect('rTE'))
+    parsum$par%>%unique
+  Rhat_lrTE<-parsum%>%filter(par=='hmu_lrTE')%>%.$Rhat
+  
+  expect_lt(  Rhat_lrTE,1.1)
+  expect_gt(  Rhat_lrTE,0.9)
+
+  parsum%>%filter(par%>%str_detect('lrTE|ldeg'))
+  parsum%>%filter(par%>%str_detect('rTE'))
+#  parsum%>%filter(par%>%str_detect('prot'))
+  
 
 
+# })
+#' The first four genes seem to converge okay
+#' totally converge if indep and I do 1e3 
+#' lognormal dist...
+#' Asdding in others of our test genes do not
+#' I need to look at trajectories.
+
+
+stop()
+test_that("our various improvements to the expression data do in fact improve it...")
 # stop()
 
 

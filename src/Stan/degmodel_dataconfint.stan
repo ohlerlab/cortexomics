@@ -16,9 +16,9 @@ parameters {
   vector[G] lrTE;
 
   real hmu_lrTE;
-  real hsig_lrTE;
+  real<lower= 0,upper=100> hsig_lrTE;
   real hmu_ldeg;
-  real hsig_ldeg;
+  real<lower= 0,upper=100> hsig_ldeg;
   
 }
 
@@ -50,17 +50,18 @@ model{
   #priors
 
   ms0logratio ~ normal(0,40);
-  
+
   hmu_lrTE ~ normal(0,1000);
   hsig_lrTE ~ normal(0,1000);
   hmu_ldeg ~ normal(0,1000);
   hsig_ldeg ~ normal(0,1000);
 
-  lrTE ~ normal(hmu_lrTE,exp(hsig_lrTE));
-  ldeg ~ normal(hmu_ldeg,exp(hsig_ldeg));
+  //lrTE ~ normal(hmu_lrTE,hsig_lrTE);
+  //ldeg ~ normal(hmu_ldeg,hsig_ldeg);
   
   for(t in 1:T){//for each tp
       log2(prot[t]) ~ normal(log2(MS[t]),  MS_tau[t] ) ;
+      target += -log2(prot[t]);
   }
 }
 

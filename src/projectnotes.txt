@@ -16,7 +16,7 @@ Possible things to do
 		make sure that increasing things pin down synthesis and degredation.
 	 	After this i can do my fuzzy clustering and see if it makes a different
 
-
+- you are going to limma with precision weights from the Mass spec, and you are going to 
 
 
 #Something is borking R environment - R2 seems okay for now

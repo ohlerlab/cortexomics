@@ -116,6 +116,7 @@ pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
 
 pids%<>%mutate(pcat = case_when(
  (Protein_IDs==ebp1pid) ~ "Ebp1",
+ (Protein_IDs=='P68040') ~ "P68040",
   sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
   sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
   sep_element_in(Protein_IDs,translationprotids) ~ "translation-associated",
@@ -200,11 +201,12 @@ stochmats <- lapply(2:ncol(sigmat),function(j) {
 	})%>%setNames(dsetnames)
 
 #plot the stochiometry heatmap
-catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E"),pcat = c("translation-associated","Rps","Rpl","Ebp1"))
+catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","#E6E6FA"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
 #colors for fold changes
 colors = c(seq(-15,-log2(1.25),length=100),seq(-log2(1.25),log2(1.25),length=100),seq(log2(1.25),15,length=100))
 my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)
 #plot our heatmaps
+hmouts <- list()
 for(dset in dsetnames){
 	# file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps.',dset,'.pdf'))%>%dirname%>%dir.create
 	hmapfile <- file.path(root,paste0('plots/ribostochheatmaps/stochiometry_heatmaps_newcol.',dset,'.pdf'))
@@ -221,7 +223,7 @@ for(dset in dsetnames){
 		vlookup(catcolors,'pcat','color')
 
 	par(lend = 1)
-	hmout<-heatmap.2(stochmat, 
+	hmouts<-append(hmouts,list(heatmap.2(stochmat, 
 		col=colorpanel(75,'purple','black','orange'),
 		trace="none",
 		keysize=1,
@@ -236,10 +238,22 @@ for(dset in dsetnames){
 		RowSideColors=protcolors,
 		ColSideColors=protcolors,
 		key.xlab="Log2(norm_iBAQ ratio)"
-	)
+	)))
 	legend(x=0,y=0.85, legend=catcolors$pcat,fill=catcolors$color,cex=0.7)
 	dev.off()
 }
+stop()
+
+lapply(hmouts,function(hmout){
+cutree(as.hclust(hmouts[[1]]$colDendrogram),3)%>%enframe('Protein_IDs','cluster')%>%left_join(ms_tall_trans%>%distinct(Protein_IDs,pcat))%>%
+	group_by(cluster)%>%filter(any(pcat=='Ebp1'))%>%
+	filter(!pcat %in% c('Ebp1','Rpl','Rps'))
+})%>%bind_rows
+
+#figure out which of the translation associated proteins is clustering with the 
+#RBps
+
+
 
 rids$Protein_IDs%>%str_subset('Q3V1Z5|E9Q070|Q9D8M4|Q9D823')
 ms_tall%>%filter(Protein_IDs%>%str_detect('Q3V1Z5|E9Q070|Q9D8M4|Q9D823'))%>%distinct(Protein_IDs,.keep_all=T)

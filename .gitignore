@@ -58,3 +58,9 @@ _files
 .snakemake
  
 *.rds
+*.ida
+*.idea
+src/.idea
+.idea
+*.RData
+*.RData

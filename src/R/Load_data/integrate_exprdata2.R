@@ -13,6 +13,7 @@ suppressMessages(library(here))
 suppressMessages(library(biomaRt))
 library(zeallot)
 library(splines)
+library(limma)
 
 message('...done' )
 
@@ -40,6 +41,7 @@ for(i in names(args)) assign(i,args[i])
 segment_counts_list%<>%str_split(string=.,pattern=',')%>%.[[1]]
 allsegcounts <- segment_counts_list%>%setNames(.,basename(dirname(.)))%>%map_df(fread,.id='sample')
 
+
 #add gene id
 allsegcounts %<>% safe_left_join(mcols(gtf_gr)[,c('gene_id','protein_id')]%>%as.data.frame%>%distinct(gene_id,protein_id))
 allsegcounts_nz <- allsegcounts%>%group_by(protein_id)%>%filter(any(centercount>10))
@@ -61,11 +63,20 @@ mainribosamps <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/samp
 	filter(sample_id%>%
 	str_detect(neg=T,'test'))%>%
 	.$sample_id
-stopifnot('E13_ribo_1' %in% mainribosamps)
-mainribosamps %in% allsegcounts$sample
 
-allsegcounts%>%filter(sample==	 'E13_ribo_2')%>%filter(protein_id=='ENSMUSP00000000001')
-allsegcounts%>%filter(sample==	 'E13_ribo_1')%>%filter(protein_id=='ENSMUSP00000000001')
+
+
+
+test_that("It looks like the counting worked!",{
+	allsegcounts%>%group_by(protein_id)%>%group_slice(1)%>%as.data.frame
+	expect_true('E13_ribo_1' %in% mainribosamps)
+	expect_true(mainribosamps %in% allsegcounts$sample)
+})
+
+
+
+stop()
+
 
 
 
@@ -76,22 +87,50 @@ allsegcounts%>%filter(sample==	 'E13_ribo_1')%>%filter(protein_id=='ENSMUSP00000
 allms=data.table::fread(msfile)
 #some formatting differences
 allms%<>%select(ms_id=Protein_IDs,everything())
+allms$time%<>%str_replace('p5','5')
 allms$dataset%<>%str_replace('p5','5')
 allms$dataset%<>%str_replace('_rep','_')
 allms$dataset%<>%str_replace('^[^_]+_','')#no need to annotate what signal type it is
 allms$dataset%<>%str_replace('total','MS')#no need to annotate what signal type it is
-	
-ms_id2protein_id <- with(new.env(),{
-	source(here('src/R/Load_data/get_ms_gencode_tablematch.R'));
-	ms_id2protein_id
-})
+
+
+if(!exists('ms_id2protein_id')){
+	ms_id2protein_id <- with(new.env(),{
+
+		if(file.exists('data/ms_id2protein_id.rds')){
+			ms_id2protein_id <- readRDS('data/ms_id2protein_id.rds')
+		}else{
+			source(here('src/R/Load_data/get_ms_gencode_tablematch.R'));	
+		}
+		ms_id2protein_id
+	})
+}
+
+
 #keep the mass spec we've matched to protein IDs
 matched_ms <- allms%>%semi_join(ms_id2protein_id%>%distinct(ms_id,protein_id))
 matched_ms%<>%group_by(ms_id)%>%filter(!all(is.na(signal)))
 ms_id2protein_id$ms_id%>%duplicated
 ms_id2protein_id%<>%ungroup%>%filter(!duplicated(protein_id))
-stopifnot(!any(ms_id2protein_id$protein_id%>%duplicated))
 
+test_that("the protein id mapping looks the way we expect",{
+	expect_true(!any(ms_id2protein_id$protein_id%>%duplicated))
+	expect_true(!any(ms_id2protein_id$transcript_id%>%duplicated))
+})
+
+################################################################################
+########Now, use proDD to get our proteomic values as posterios
+################################################################################
+ms_id2protein_id <- with(new.env(),{
+	if(!exists('posteriors')){
+		if(file.exists('data/proDD.data')) load(file='data/proDD.data')
+		source(here('src/R/Load_data/protein_impute.R'));
+	}
+
+	stopifnot(setequal(posteriorsum$ms_id, matched_ms$ms_id%>%unique))
+	matched_ms%>%group_by(ms_id,time)%>%summarise(mean(na.omit(signal)))
+})
+posteriorsum%<>%mutate(assay='MS')
 
 ################################################################################
 ########Perform linear modeling to select the best protein IDs
@@ -118,6 +157,88 @@ sizefactnorm<-function(countmat){
 	countmat <- countmat %>% {sweep(.,2,STATS = sizefactors[colnames(countmat)],FUN='-')}
 }
 
+#Get the spline smoothed estimates of abundance per timepoint for each ms id
+c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
+
+####
+ribocounts <- allsegcounts%>%select(protein_id,dataset=sample,signal=centercount)%>%filter(dataset%in%mainribosamps)%>%mutate(signal=replace_na(signal,0))
+c(ribocountmat,ribodesign)%<-% get_matrix_plus_design(ribocounts,protein_id,transform=identity,sigcol=signal)
+
+hasnoribo <- ribocountmat%>%rowSums%>%`==`(0)
+noriboprotids <- names(hasnoribo)[hasnoribo]
+noribobutms <- noriboprotids%>%intersect(ms_id2protein_id$protein_id)
+ribocountmat <- ribocountmat[!hasnoribo,]
+countvoom <- limma::voom(ribocountmat,design=model.matrix(~ns(as.numeric(time),2), ribodesign))
+
+#vooom object for all counts
+allcountcounts <- allsegcounts%>%select(protein_id,dataset=sample,signal=centercount)%>%filter(dataset%>%str_detect('ribo|total'))%>%mutate(signal=replace_na(signal,0))
+c(allcountmat,allcountdesign)%<-% get_matrix_plus_design(allcountcounts,protein_id,transform=identity,sigcol=signal)
+allcountmat %<>% replace_na(0)
+hasnoallcount <- allcountmat%>%rowSums%>%`==`(0)
+noallcountprotids <- names(hasnoallcount)[hasnoallcount]
+noallcountbutms <- noallcountprotids%>%intersect(ms_id2protein_id$protein_id)
+allcountmat <- allcountmat[!hasnoallcount,]
+countmodel = model.matrix(~ ns(as.numeric(time),3),data=allcountdesign)
+
+
+
+#add the protein mean estimates
+postmeanmat <- posteriorsum%>%
+	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
+	filter(!is.na(protein_id))%>%
+	filter(protein_id %in% rownames(allcountmat))%>%
+	select(protein_id,mean,time)%>%
+	spread(time,mean)%>%
+	{structure(as.matrix(.[,-1]),.Dimnames=list(.[,1],colnames(.)[-1]))}%>%
+	{colnames(.)%<>%paste0('_MS');.}
+postprecmat <- posteriorsum%>%
+	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
+	filter(!is.na(protein_id))%>%
+	filter(protein_id %in% rownames(allcountmat))%>%
+	select(protein_id,precision,time)%>%
+	spread(time,precision)%>%
+	{structure(as.matrix(.[,-1]),.Dimnames=list(.[,1],colnames(.)[-1]))}%>%
+	{colnames(.)%<>%paste0('_MS');.}
+
+
+
+allmscountmat <- allcountmat%>%.[rownames(.) %in% rownames(postmeanmat),]
+
+#create voom objects
+countvoom <- limma::voom(allcountmat,design=countmodel)
+
+#create voom 
+mscountvoom <- limma::voom(allmscountmat,design=countmodel)
+#add our MS vals into the voom object
+voomnames <- rownames(mscountvoom$E)
+#add expression values
+mscountvoom$E%<>%cbind(postmeanmat[voomnames,])
+#add precision weights
+mscountvoom$weights%<>%cbind(postprecmat[voomnames,])
+#add the design matrix
+mscountvoomdesign <- mscountvoom$E%>%
+	colnames%>%str_split('_')%>%
+	map(head,2)%>%
+	simplify2array%>%t%>%as.data.frame%>%
+	set_colnames(c('time','assay'))%>%
+	mutate(dataset=colnames(mscountvoom$E),time=factor(time),ribo = assay %in% c('ribo','MS'),MS = assay=='MS')
+modelmat=model.matrix(~ 1 + ribo+MS+ns(as.numeric(time),3)+ns(as.numeric(time),3):(ribo+MS),data=mscountvoomdesign )
+mscountvoom$design <- modelmat
+#add the lib sizes to the object
+mscountvoom$targets%<>%rbind(colSums(postmeanmat[voomnames,])%>%
+	stack%>%
+	{set_rownames(data.frame(lib.size=.$values),.$ind)})
+
+
+
+mscountlm <- lmFit(mscountvoom,design = ~ time+ribo+MS)
+
+mscountebayes<-eBayes(mscountlm)
+
+timeeffect<-limma::topTable(mscountebayes,number=length(voomnames),confint=0.95)
+
+
+limmafit <- mscountlm
 get_limmafit_predvals <- function(limmafit,designmatrix){
   (limmafit$coef %*% t(limmafit$design))%>%
 	  set_colnames(designmatrix$dataset)%>%
@@ -126,41 +247,55 @@ get_limmafit_predvals <- function(limmafit,designmatrix){
 	  gather(dataset,signal,-gene_name)%>%
 	  left_join(designmatrix)%>%
 	  distinct(gene_name,time,assay,.keep_all = TRUE)%>%
-	  select(-rep)%>%
+	  select(-dplyr::matches('rep'))%>%
 	  mutate(dataset=paste0(as.character(time),'_',assay))
 }
+get_limmafit_predvals(mscountlm,mscountvoomdesign)
 
-library(limma)
-stop()
-#Get the spline smoothed estimates of abundance per timepoint for each ms id
-c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
-limma_pred <- get_limmafit_predvals(
-	limma::lmFit(matchedms_mat,design=model.matrix(~ns(as.numeric(time),3), matched_ms_design)),
-	matched_ms_design)
-
-mspredmat <- limma_pred%>%get_matrix_plus_design(gene_name)%>%.[[1]]
-
-#countdata<-allsegcounts%>%get_matrix_plus_design(countdata,protein_id)
-
-#Get the spline smoothed estimates of abundance per timepoint for each gencode protein id
-message('using the old data')
+ntp=n_distinct(allms$time)
 
 
-###Code for using the old data
-# rawcountmat <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/feature_counts/all_feature_counts'%>%
-# 	fread%>%
-# 	select(feature_id,one_of(mainribosamps))%>%
-# 	left_join(gtf_gr%>%mcols%>%as.data.frame%>%distinct(feature_id=gene_id,protein_id)%>%filter(!is.na(protein_id))%>%group_by(feature_id)%>%slice(1:n()))%>%
-# 	ungroup%>%select(-feature_id,protein_id,one_of(mainribosamps))
-# countdata<-rawcountmat%>%gather(dataset,signal,-protein_id)
+cds%>%mcols%>%data.frame%>%distinct(gene_id,gene_name,transcript_id,protein_id)%>%saveRDS('pipeline/allids.txt')
+allids <- readRDS('pipeline/allids.txt')
+ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
+satb2ids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$protein_id
 
-countddata <- allsegcounts%>%select(protein_id,dataset=sample,signal=centercount)
+allmscountmat[satb2ids,]
+timeeffect[satb2ids[1],]
 
-c(countmat,countdesign)%<-% get_matrix_plus_design(countdata,protein_id,transform=identity,sigcol=signal)
 
-limma_pred <- get_limmafit_predvals(
-	limma::lmFit(limma::voom(countmat,design=model.matrix(~ns(as.numeric(time),3), countdesign))),
-	countdesign)
+
+
+test_that("we can get variance estimate from our linear model",{
+	timeeffect[1,]%>%select(dplyr::matches('^ns.as.num'))
+})
+
+
+test_that("Our linear modeling is a decent substitute for xtail etc.",{
+	timeeffect[1,]%>%select(dplyr::matches('^ns.as.num'))
+})
+
+
+timeeffect<-limma::topTable(mscountebayes,number=sum(!isincomplete),coef=c(2,1+spline_n),confint=0.95)
+
+
+
+
+#protein ids in annotaiton
+#protein ids counts
+#protein IDs with no RNAseq
+#protein IDs with no Riboseq
+#protein IDs with no matching MS
+
+
+#add the precision weights
+
+#add the 
+
+
+# limma_pred <- get_limmafit_predvals(
+# 	limma::lmFit(,
+# 	countdesign)
 
 countpredmat <- limma_pred%>%get_matrix_plus_design(gene_name)%>%.[[1]]
 
@@ -190,6 +325,10 @@ splinemodel <- limma::lmFit(
 	limma::voom(exprmat,design=model.matrix(~ns(as.numeric(time),3), designmat))
 )
 
+
+
+
+
 ################################################################################
 ########Also try correlation of MS with periodicity
 ################################################################################
@@ -207,7 +346,6 @@ specms_ribo_corddf <- ms_id2protein_id%>%inner_join(mspreddsnested)%>%inner_join
 spec_count_comp_table <- specms_ribo_corddf%>%select(ms_id,protein_id,ms_cor)%>%left_join(ms_ribo_corddf%>%select(protein_id,ms_cor),by='protein_id')%>%
 	group_by(ms_id)%>%arrange(desc(ms_cor.y))%>%slice(1)%>%mutate(spec_diff = ms_cor.x - ms_cor.y,specbetter = ms_cor.x > ms_cor.y)
 
-stop()
 
 #######
 
@@ -238,6 +376,9 @@ designmatrix<-matched_ms_design
 countsmatrix <- countsmatrix %>% {sweep(.,2,STATS = sizefactors[colnames(countsmatrix)],FUN='/')}
 
 countsmatrix_snorm %>%{cbind(gene_name=rownames(.),as_data_frame(.))} %>% write_tsv(normcountstable)
+
+
+
 
 
 
@@ -302,6 +443,20 @@ test_that("Correlations should look right",{
 #Satb2 should show increasing TE
 isUnique <- function(vector){return(!any(duplicated(vector))) ; !any()}
 test_that("Satb2 should have increasing TE",{
+	
+	
+
+	cds%>%mcols%>%data.frame%>%distinct(gene_id,gene_name,transcript_id,protein_id)%>%saveRDS('pipeline/allids.txt')
+	allids <- readRDS('pipeline/allids.txt')
+	ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
+	satb2ids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$protein_id
+
+	expect_true(allmscountmat[satb2ids,]%>%colMeans%>%last%>%`!=`(0))	
+	
+	
+	satb2timeeffects <- as.matrix(timeeffect[satb2ids,3:5]) %*% t(ns(1:ntp,3))%>%colMeans
+	expect_true(satb2timeeffects%>%first < satb2timeeffects%>%last)
+
 	'Satb2' %in% exprdata$gene_name
 	satb2ddata <- (exprddata%>%filter(gene_name=='Satb2'))
 	'Q8VI24' %in% satb2ddata$ms_id
@@ -311,11 +466,17 @@ test_that("Satb2 should have increasing TE",{
 	te_table%>%filter(time=='P0')%$%{log2fc > 0 & padj < 0.05}
 })
 
+test_that("mostly just a few funny cases where we have ribo but no MS",{
+	expect_true(length(noribobutms)==38)
+	expect_true(all(has_low_ms))
+})
+#Test that our linear modeling worked
 
 
 
+test_that("Mappability masks used",{
 
-test_that("Mappability masks used",{})
+})
 
 test_that("Xtail's TE should broadly agree with limma",{})
 test_that("Xtail's TE should broadly agree with DESeq",{})

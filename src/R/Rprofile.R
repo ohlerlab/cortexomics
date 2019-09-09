@@ -39,8 +39,8 @@ mymemoise <- function(f){
 }
 
 if(!interactive()) mymemoise=identity
-gigsused <- function(x)system(paste0("cat /proc/",Sys.getpid(),"/status | grep VmSize"),intern=TRUE)%>%str_extract('\\d+')%>%as.numeric%>%divide_by(1e6)
-message('memory in use ',gigsused())
+  gigsused <- function(x)system(paste0("cat /proc/",Sys.getpid(),"/status | grep VmSize"),intern=TRUE)%>%str_extract('\\d+')%>%as.numeric%>%divide_by(1e6)
+  message('memory in use ',gigsused())
 
 # rm(foomat)
 # gc(reset=TRUE,full=TRUE)
@@ -583,49 +583,136 @@ library(R6)
 #could include the lengths and variables it needs
 #could include a method for getting the data
 #and a method for shiftng a granges object
+get_predictedshifts<-function(seqshiftmodel,data4readshift,probcutoff=0.5){
+
+  outpred <- predict(seqshiftmodel,data=data4readshift)$prediction
+
+  if(is.matrix(outpred)){
+    maxcol <- max.col(outpred)
+    is_highprob <- outpred[matrix(c(1:nrow(outpred),maxcol),ncol=2)] > probcutoff
+    outpred=ifelse(is_highprob,colnames(outpred)[maxcol],0)
+  }
+
+  outpred <- outpred%>%as.character%>%as.numeric
+
+  assert_that(all((outpred %% 1)==0))
+
+  outpred
+
+}
+
 
 Psite_model<-R6Class("Psite_model",
   public = list(
     offsets=NULL,
     seqshiftmodel=NULL,
     compartments=NULL,
-    initialize=function(bestscores,seqshiftmodel,compartments){
+    referencefasta=NULL,
+    initialize=function(offsets=NULL,seqshiftmodel=NULL,compartments=NULL,referencefasta=NULL){
 
       #checks - compartments has nrow
       #seqshiftmodel is a ranger object,
       #compartments is a vecotr with 'nucl' in it
+      if(!is.null(offsets)){
+        is.data.frame(offsets)
+        stopifnot(c('offset','length') %in% colnames(offsets)) 
+      }
+      if(!is.null(self$seqshiftmodel)) {
+        stopifnot(!is.null(referencefasta))
+        chrs <- seqinfo(referencefasta)@seqnames%>%unique
 
-      self$offsets <- bestscores
-      self$seqshiftmodel <- seqshiftmodel 
-      self$compartments <- as(compartments,'List')   
-  },get_cds_offsets = function(reads_tr){
+      }
+      
+      self$offsets <- offsets
+      self$seqshiftmodel <- seqshiftmodel
+      self$compartments <- as(compartments,'List')
+      self$referencefasta <- referencefasta
+  },
 
-    compartmentcol <- if('compartment'%in%colnames(self$offsets)) 'compartment' else NULL
 
-    if(!'compartment' %in% colnames(mcols(reads_tr))){
-      mcols(reads_tr)$compartment <- self$compartments[seqnames(reads_tr)]%>%unlist(use.names=F)
+  get_cds_offsets = function(reads_tr){
+
+    if('compartment'%in%colnames(self$offsets)) {
+        compartmentcol <- 'compartment'
+        if(!'compartment' %in% colnames(mcols(reads_tr))){      
+          mcols(reads_tr)$compartment <- self$compartments[seqnames(reads_tr)]%>%unlist(use.names=F)
+  
+      } 
+    }else{
+        compartmentcol <- NULL
     }
-
+    if(! 'length' %in% colnames(mcols(reads_tr))) {
+      mcols(reads_tr)$length <- possibly(qwidth,otherwise=width(reads_tr))(reads_tr)
+    }
+    
     phasecol <- if('phase'%in%colnames(self$offsets)) 'phase' else NULL
     joincols <- c('length',compartmentcol,phasecol)
 
+    assert_that(all(has_name(mcols(reads_tr),joincols)))
+    
+    browser()
 
-  assert_that(all(has_name(mcols(reads_tr),joincols)))
-  
+    reads_tr%>%
+      mcols%>%
+      as_tibble%>%
+      safe_left_join(self$offsets%>%
+        ungroup%>%
+        # select(-phase,-score),by=c('length','compartment'),
+        select(offset,one_of(joincols)),by=joincols,
+        allow_missing=TRUE
+      )%>%
+      .$offset
+    },  
 
-  reads_tr%>%
-    mcols%>%
-    as_tibble%>%
-    safe_left_join(self$offsets%>%
-      ungroup%>%
-      # select(-phase,-score),by=c('length','compartment'),
-      select(offset,one_of(joincols)),by=joincols,
-      allow_missing=TRUE
-    )%>%
-    .$offset
+
+  get_seq_offsets = function(seqoffreads,nbp=2){
+      if(is.null(self$seqshiftmodel)) return(rep(0,length(seqoffreads)))
+      
+      if(! 'length' %in% colnames(mcols(seqoffreads))) {
+        mcols(seqoffreads)$length <- possibly(qwidth,otherwise=width(seqoffreads))(seqoffreads)
+      }
+      
+      data4readshift <- get_seqforrest_data(seqoffreads,self$referencefasta,nbp)
+      
+      get_predictedshifts(self$seqshiftmodel,data4readshift,prob=0.5)
+
+  },
+
+  get_offsets = function(seqoffreads,nbp=2){
+      self$get_cds_offsets(seqoffreads) + self$get_seq_offsets(seqoffreads)
+  },
+
+  get_psites = function(offsetreads,filterreads=FALSE){
+
+
+    offset <- self$get_offsets(offsetreads)
+    mcols(offsetreads)$psite <- !is.na(offset)
+    #we can also just use a pre-made shift that's in the reads' mcols
+    if(is.character(offset)){
+      offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
+    } 
+    #or a single number
+    if(length(offset)==1) offset = rep(offset,length(offsetreads))
+    isneg <-  as.logical(strand(offsetreads)=='-')
+    offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
+    ends <- qwidth(offsetreads[isneg])-offset[isneg]
+    offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
+
+    if(filterreads){ 
+      offsetreads <- offsetreads[mcols(offsetreads)$psite]
+    }
+    offsetreads
+  })
+)
+if(exists('psite_model')){
+  psite_model <- Psite_model$new(
+    offsets=psite_model$offsets,
+    seqshiftmodel=psite_model$seqshiftmodel,
+    compartments=psite_model$compartments,
+    referencefasta=psite_model$referencefasta
+)
+
 }
-)
-)
 
 
 get_cds_offsets = function(reads_tr,offsets,compartments){
@@ -698,13 +785,12 @@ get_seqforrest_data <- function(trainreads,seq,nbp=2,trim=TRUE){
   startseq <- getSeq(seq,fp)
   endseq <- getSeq(seq,tp)
 
-
   seqmat <- cbind(dnaseq2onehot(startseq,'fp.'),dnaseq2onehot(endseq,'tp.'))
 
   seqmat%<>%cbind(length=mcols(trainreads)$length)%>%as.data.frame
 
   if(has_name(mcols(trainreads),'dist')){
-    seqmat %<>% cbind(dist=trainreads$dist)
+    seqmat %<>% cbind(dist=as.numeric(as.character(trainreads$dist)))
     #note that we need to negate the phase to get it from the 'dist', so e.g. -1 means the 2nd base of the stop,
     #while 1 means the 3rd base of the one before AUG
     seqmat$phase = as.factor(abs(-(as.numeric(as.character((seqmat)$dist))%%3)))

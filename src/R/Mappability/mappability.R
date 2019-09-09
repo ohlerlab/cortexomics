@@ -11,7 +11,7 @@ fafile <- FaFile('my_GRCm38.p5.genome.chr_scaff.fa')
 cds <- import(here('pipeline/my_gencode.vM12.annotation.cds.gtf'))
 exons <- import(here('pipeline/my_gencode.vM12.annotation.gtf'))%>%subset(type=='exon')
 #we need the cdsd to be 
-cdsmap<-cds%>%mapToTranscripts(exons%>%split(.$transcript_id))
+cdsmap<-cds%>%setNames(.,as.character(.))%>%mapToTranscripts(exons%>%split(.$transcript_id))
 mcols(cdsmap) <- mcols(cds)[cdsmap$xHits,]
 #load the tracks
 mappatrack <- import(here('pipeline/mappability/mappability_27.bedgraph'))
@@ -21,14 +21,22 @@ seqinfo(mappatrack) <- seqinfo(cdsmap)[
 
 mappatrack%<>%coverage(weight='score')
 
-#cds$nomapbases <- 
-
-
 cdssamp <- cdsmap%>%sample(1000)
 
-cut_number( mappatrack[cdsmap]%>%sum / width(cdsmap) ,5)%>%table
+stop()
 
-cdsmap$nomapbases <- mappatrack[cdsmap]%>%sum / width(cdsmap)
+cdsmap$nomapbases <- mappatrack[cdsmap]%>%mean
+cdsmap$cds_id = paste0(seqnames(cdsmap),'_',start(cdsmap),'_',end(cdsmap))
+
+data.frame(seqnames(cdsmap),names(cdsmap),cdsmap$nomapbases)
+
+
+mcols(cds)[,c('nomapbases','cds_id')] %>% as.data.frame%>%write_tsv('pipeline/mappability/cds')
+
+stop('mappability - now save it')
+
+if(interactive()){
+
 
 cdsmap_df <- cdsmap%>%as.data.frame%>%
 	select(transcript_id,nomapbases,width)%>%
@@ -47,3 +55,5 @@ pdfexpr<-function(file,expr,...){
 }
 mappahistplotfile <- here('plots/mapppbility/mappability.pdf')
 pdfexpr(mappahistplotfile,hist((floor(cdsmap_df$nomap_frac/0.1)*0.1),50))
+
+}
