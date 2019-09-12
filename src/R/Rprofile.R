@@ -622,7 +622,7 @@ Psite_model<-R6Class("Psite_model",
         chrs <- seqinfo(referencefasta)@seqnames%>%unique
 
       }
-      
+      if(is.character(referencefasta)) referencefasta <- FaFile(referencefasta)
       self$offsets <- offsets
       self$seqshiftmodel <- seqshiftmodel
       self$compartments <- as(compartments,'List')
@@ -650,7 +650,6 @@ Psite_model<-R6Class("Psite_model",
 
     assert_that(all(has_name(mcols(reads_tr),joincols)))
     
-    browser()
 
     reads_tr%>%
       mcols%>%
@@ -825,3 +824,32 @@ group_slice<-function(dt,v){
   out=inner_join(dt,groups)
   out
 }
+
+
+make_lfc_trajplot<-function(lfc_tbl_plot){
+  
+  assert_that(all(  lfc_tbl_plot %has_name% c('log2fc','lmax','lmin','gene_name','assay','time')))
+  assert_that(nrow(lfc_tbl_plot)!=0)
+
+  lfc_tbl_plot %<>% filter(time %>% {.==unique(.)[1]}) %>%mutate(log2fc=0,time=factor('E13',levels=levels(time)))%>%rbind(lfc_tbl_plot)
+
+  opac <- 1
+
+    ggplot(data=lfc_tbl_plot,aes(y=log2fc,x = as.numeric(time),group=gene_name,color=class))+
+      geom_line(data=lfc_tbl_plot%>%filter(class%in%c('other','No sig TE change')),position='identity',alpha = I(1)) +
+      geom_line(data=lfc_tbl_plot%>%filter(!class%in%c('No sig TE change')),position='identity',alpha=I(opac)) +
+      # geom_line(position='identity',alpha='0.5') +
+      # expand_limits(y=c(floor(min(lfc_tbl_plot$log2fc)),ceiling(max(lfc_tbl_plot$log2fc))))+
+      # coord_cartesian(y=c(-3,3))+
+      ggtitle(str_interp("TE trajectory - all genes"))+
+      theme_bw()+
+      scale_color_manual(values=class_color_dict)+
+      guides(colour = guide_legend(override.aes = list(alpha = 1)))+
+      scale_x_continuous(labels=levels(time),name='Stage')+
+      theme(text = element_text(size = 16))
+
+      # geom_ribbon(data=lfc_tbl_plot,aes(ymax=lmax,ymin=lmin,x=ntime),alpha=0.5,fill=I('darkgreen'))+
+        # geom_line(data=lfc_tbl_plot,aes(y=log2fc,x=ntime))+
+        
+}
+

@@ -201,7 +201,7 @@ stochmats <- lapply(2:ncol(sigmat),function(j) {
 	})%>%setNames(dsetnames)
 
 #plot the stochiometry heatmap
-catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","#E6E6FA"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
+catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","green"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
 #colors for fold changes
 colors = c(seq(-15,-log2(1.25),length=100),seq(-log2(1.25),log2(1.25),length=100),seq(log2(1.25),15,length=100))
 my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)

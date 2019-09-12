@@ -113,7 +113,8 @@ gnamei = 'Satb2'
   message('Plot')
 
   #plot showing trajectories and fits with MCMC samples 
-  trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+
+  trajectoryplot<-ggplot(rdata2plot%>%
+    mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+
     stat_summary(geom='line',fun.y=mean)+
     geom_point()+
     geom_line(size=I(1),data=ml2plot%>%mutate(model='Kinetic'),linetype=1)+

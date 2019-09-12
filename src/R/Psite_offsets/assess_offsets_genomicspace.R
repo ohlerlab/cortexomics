@@ -87,12 +87,46 @@ framecovs[[1]] <- framecovs[[1]]%>%.[!overlapsAny(.,framecovs[[2]])]%>%.[!overla
 framecovs[[2]] <- framecovs[[2]]%>%.[!overlapsAny(.,framecovs[[1]])]%>%.[!overlapsAny(.,framecovs[[3]])]
 framecovs[[3]] <- framecovs[[3]]%>%.[!overlapsAny(.,framecovs[[2]])]%>%.[!overlapsAny(.,framecovs[[1]])]
 
-readframecov<-c(
-	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[1]])%>%sum,
-	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[2]])%>%sum,
-	topcdsreads%>%resize(1)%>%countOverlaps(framecovs[[3]])%>%sum
-)
-readframecov
+
+psite_model$seqshiftmodel
+
+psite_model$get_seq_offsets(head(topcdsreads))
+
+mcols(topcdsreads)$cdsshift <- psite_model$get_cds_offsets(topcdsreads)
+oldseqshift <- mcols(topcdsreads)$seqshift
+mcols(topcdsreads)$seqshift <- psite_model$get_seq_offsets(topcdsreads)
+oldseqshift[oldseqshift==(mcols(topcdsreads)$seqshift)]
+
+#Is this not applicable in the middle of genes?
+lens = unique(mcols(topcdsreads)$length)%>%setNames(.,.)
+iframes=(1:3)%>%setNames(.,.)
+readframesums <- mclapply(mc.cores=1,lens,function(len){
+	lapply(iframes,function(iframe){
+		list(	
+			fp=topcdsreads%>%subset(mcols(.)$length==len)%>%resize(1)%>%countOverlaps(framecovs[[iframe]])%>%sum,
+			cds = topcdsreads%>%subset(mcols(.)$length==len)%>%apply_psite_offset('cdsshift')%>%countOverlaps(framecovs[[iframe]])%>%sum,
+			seq = topcdsreads%>%subset(mcols(.)$length==len)%>%apply_psite_offset(c('cdsshift','seqshift'))%>%countOverlaps(framecovs[[iframe]])%>%sum
+			)
+	})
+})
+
+#flatten
+readframesums%<>%map_df(.id='length',.%>%map_df(.id='frame',.%>%enframe%>%unnest))
+readframesums%>%arrange(name)%>%.$value%>%txtplot
+readframesums
+
+#plot
+plotfile<-'./plots/rlframecov.pdf'
+pdf(plotfile)
+ggplot(readframesums,aes(y=value,x=frame))+facet_grid(length ~ name,scale='free')+geom_point()
+dev.off()
+message(normalizePath(plotfile))
+
+stop()
+
+c(readframecov,readframecovcds,readframecovseq,1)%>%txtplot
+
+
 readframecov%>%txtplot(ylim=c(0,max(.)*1.2))
 
 
@@ -122,7 +156,7 @@ t.test(seqshift_periodicities$no_seqshift,seqshift_periodicities$with_seqshift)
 
 
 
-
+topcds%>%resize
 
 # })()
 
@@ -136,8 +170,10 @@ stop()
 
 {
 
+
+
+
 cdsread_trmap <- topcdsreads%>%
-	# sample(10e3)%>%
 	GRanges%>%
 	mapToTranscripts(topcdsexons%>%split(.,.$transcript_id))
 mcols(cdsread_trmap) <- mcols(topcdsreads)[cdsread_trmap$xHits,]
@@ -183,7 +219,7 @@ seqshiftfuncs <- list(
 #
 
 #' We can also simply look at a metaplot of the frames, (comparing riboqc and cdsmax shift)
-plist=lapply(seqshiftfuncs,mymemoise(function(seqshiftfunc){
+plist=lapply(seqshiftfuncs,(function(seqshiftfunc){
 	#
 	p=cdsread_trmap%>%
 		# sample(100e3)%>%

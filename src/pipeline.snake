@@ -841,6 +841,7 @@ rule bigwigs:
         bedtools genomecov -ibam {bam} -bg -strand {strandsym} -split -scale $count > {bedgraph}
         bedSort {bedgraph} {bedgraph}
         bedGraphToBigWig {bedgraph} {chromsizes} {bw} 
+        s
         """)
 
 
@@ -876,7 +877,6 @@ rule mergedbigwigs:
         
         bedSort {mergedfilebase}.bg {mergedfilebase}.bg 
 
-        co
         rm {mergedfilebase}.bg
         """)
 # set -e  pipefail; 

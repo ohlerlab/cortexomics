@@ -97,13 +97,13 @@ test_that("Imputation Looks reasonable, not just ",{
 	notallnatp1 <- apply(matchedms_mat[,c(1:3)],1,is.na)%>%colMeans%>%`==`(0)
 	allnatp5 <- apply(matchedms_mat[,c(13:15)],1,is.na)%>%colMeans%>%`==`(1)
 
-	testrowsneg <- which(notallnatp1 & allnatp5 & (slopes < quantile(slopes,0.1,na.rm=TRUE)))
-	testrowneg<-testrowsneg%>%sample(1)
+	testrowsneg <<- which(notallnatp1 & allnatp5 & (slopes < quantile(slopes,0.1,na.rm=TRUE)))
+	testrowneg<<-testrowsneg%>%sample(1)
 
 
 })
 
-if(!exists('plotting') plotting = TRUE)
+if(!exists('plotting')) plotting = FALSE
 
 if(plotting){
 

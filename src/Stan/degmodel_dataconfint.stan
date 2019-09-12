@@ -34,7 +34,7 @@ transformed parameters {
   
   #defining our starting parameter MS0 in terms of it's ratio to the production
   MS0 = rTE .* exp(ms0logratio);
-  
+    
   #defining deg in terms of logdeg
   deg = exp(ldeg);
   

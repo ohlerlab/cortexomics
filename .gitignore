@@ -64,3 +64,5 @@ src/.idea
 .idea
 *.RData
 *.RData
+*RData
+proDD_fit.RData

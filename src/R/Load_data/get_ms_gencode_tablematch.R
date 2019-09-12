@@ -10,7 +10,7 @@ allprotids <- allms%>%
   distinct%>%
   mutate(uniprot_id=strsplit(ms_id,';'))%>%
   unnest
-
+allprotids$uniprot_id%<>%str_replace('\\-\\d+$','')
 
 #lod a bioconductor object
 library(EnsDb.Mmusculus.v79)
@@ -60,6 +60,7 @@ allpid_tr_df<-bind_rows(
 
 allprotids_trs<-allprotids%>%left_join(allpid_tr_df)
 allprotids_trs%<>%as_tibble
+allprotids_trs%>%head
 
 #some genes have two gene names associated
 allprotids_trs%>%group_by(ms_id)%>%filter(!is.na(gene_name))%>%summarise(n_distinct_gnames = n_distinct(gene_name))%>%group_by(n_distinct_gnames)%>%tally
@@ -73,7 +74,16 @@ protids_trs<- allprotids_trs%>%
 
 protids_trs%<>%filter(transcript_id%in%cds$transcript_id)
 
+allprotids_trs%>%ungroup%>%sample_n(10)
+gc_protiddf%>%ungroup%>%sample_n(10)
+
 ms_id2protein_id <- protids_trs%>%safe_left_join(as.data.frame(gtf_gr)%>%distinct(transcript_id,protein_id))
+
+# allms%>%filter(gene_name=='Satb2')
+satb2ids <- cds%>%mcols%>%data.frame%>%filter(gene_name=='Satb2')%>%pluck('protein_id')%>%unique
+# gc_protiddf%>%head
+# gc_protiddf%>%filter(tr_gene_name=='Satb2')%>%distinct
+
 
 # allcds <- gtf_gr%>%subset(type=='CDS')%>%split(.,.$transcript_id)%>%.[protids_trs$transcript_id]
 
