@@ -23,47 +23,63 @@ exprtbl <- read_tsv(transformdexprfile)
 exprtbl %<>% select(gene_name, everything())
 
 #read in the data
-allcoefftbl<-read_tsv(foldchangesfile)
+allcoefdf <- ebayes_stepwise%>%topTable(number=Inf)%>%rownames_to_column('uprotein_id')%>%select(-AveExpr,-F,-P.Value,-adj.P.Val)
+allcoefmat <- allcoefdf[,-1]%>%set_rownames(allcoefdf[,1])%>%as.matrix
+
 #perform pca
-pcafit <- princomp(allcoefftbl%>%select(matches('time')))
+pcafit <- princomp(allcoefmat)
+pcafitSeq <- princomp(allcoefmat%>%select(-dplyr::matches('MS')))
 
 #make plots of the pcas
-pdf(here('plots/pcafit_limmafcs.pdf'))
+pcaplot<-here('plots/pcafit_limmafcs_stepwise.pdf')
+pdf(pcaplot)
 plot(pcafit,main='Fold Change Over Time - PCA')
 plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
 plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
+plot(pcafit,main='Fold Change Over Time Seq Only - PCA')
+plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
+plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
 dev.off()
-here('plots/pcafit_limmafcs.pdf')%>%normalizePath%>%message
+pcaplot%>%normalizePath%>%message
 
-pdf(h=5,w=8,'../plots/limmafc_pca_loadings.pdf'%T>%{normalizePath(.)%>%message})
-ggpubr::ggarrange(ncol=2,
-pcafit$loading[,1]%>%enframe('dimension','loading')%>%
-  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
+
+plotpcafit<-function(i=1,pcafit){
+  pcafit$loading[,i]%>%
+  enframe('dimension','loading')%>%
+  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo|TE'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
+  mutate(color = case_when(
+     str_detect(dimension,'total|rna|all') ~ 'blue',
+     str_detect(dimension,'ribo|TE') ~ 'green',
+     str_detect(dimension,'MS') ~ 'orange'
+    ))%>%
   mutate(dimension=factor(dimension,unique(dimension)))%>%
-  ggplot(aes(x=dimension,y=loading))+stat_identity(geom='bar')+
+  ggplot(aes(x=dimension,y=loading,fill=I(color)))+stat_identity(geom='bar')+
   theme_minimal()+
   theme(axis.text.x=element_text(angle=45,vjust=0.5))+
-  ggtitle('Developmental Fold Changes \n PCA1')
-,
-pcafit$loading[,2]%>%enframe('dimension','loading')%>%
-  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
-  mutate(dimension=factor(dimension,unique(dimension)))%>%
-  ggplot(aes(x=dimension,y=loading))+stat_identity(geom='bar')+
-  theme_minimal()+
-  theme(axis.text.x=element_text(angle=45,size=8,vjust=0.5))+
-  ggtitle('Developmental Fold Changes \n PCA3')
-)
-dev.off()
+  ggtitle(str_interp('Developmental Fold Changes \n PCA${i}'))
+}
 
-# svdfit <- svd(t(allcoefftbl[,-1]))
-# svdfit%>%str
+
+pcaloadingsplot<-here('plots/limmafc_pca_loadings_spline.pdf')
+pdf(h=5,w=8,pcaloadingsplot%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(ncol=2,plotlist=lapply(1:4,FUN=plotpcafit,pcafit))
+dev.off()
+pcaloadingsplot%>%normalizePath%>%message
+
+pcaloadingsplot<-here('plots/limmafc_pca_loadings_spline_seq.pdf')
+pdf(h=5,w=8,pcaloadingsplot%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(ncol=2,plotlist=lapply(1:4,FUN=plotpcafit,pcafitSeq))
+dev.off()
+pcaloadingsplot%>%normalizePath%>%message
 
 
 hmapfile <- file.path(paste0('heatmaps/',basename(transformdexprfile),'_limma_cs.pdf'))
 hmapfile%>%dirname%>%dir.create
 
+
+
 #
-hmapdata <- as.matrix(allcoefftbl%>%select(matches('time')))%>%pmax(.,-3)%>%pmin(.,3)
+hmapdata <- allcoefmat%>%pmax(.,-3)%>%pmin(.,3)
 #
 cairo_pdf(normalizePath(hmapfile) %T>% message,w = 10, h = 10)
 #
@@ -90,6 +106,8 @@ gplots::heatmap.2(hmapdata,
 )
 # legend(x=0,y=0.85, legend=catcolors$pcat,fill=catcolors$color,cex=0.7)
 dev.off()
+hmapfile%>%normalizePath%>%message
+
 
 #TODO heatmaps with expr data not fold changes
 

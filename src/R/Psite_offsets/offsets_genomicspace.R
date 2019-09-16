@@ -764,14 +764,16 @@ trainsites$dist%>%table%>%txtplot
 traindata4readshift <- get_seqforrest_data(trainsites,FaFile(REF),nbp=2)
 
 # get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim)
-get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim_rl)
+get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim)
 
 # c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly) %<-% get_seqoffset_model_elim(
-c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly) %<-% get_seqoffset_model_elim_rl(
+ modellist <-  get_seqoffset_model_elim_rl(
 	traindata4readshift,
 	doelim=FALSE)
 
-psite_model <- Psite_model$new(bestscores,seqshiftmodel_allvars,referencefasta=REF,compartments)
+c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly)
+
+psite_model <- Psite_model$new(bestscores,seqshiftmodel = map(modellist,2),referencefasta=REF,compartments)psite_model
 
 psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))
 save.image('offsetsgenomicspace.RData')

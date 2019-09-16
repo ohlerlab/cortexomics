@@ -73,6 +73,11 @@ get_periodicity_scores<-function(cdstosamp,reads,topcdsmap,cds,seqshiftisneg=FAL
 
 }
 
+
+mcols(topcdsreads)$cdsshift <- psite_model$get_cds_offsets(topcdsreads)
+mcols(topcdsreads)$seqshift <- psite_model$get_seq_offsets(topcdsreads)
+
+
 mytopcds <- GRanges(c('a:1-4','a:15-18','a:29-35'),phase=c(0,2,1))
 
 mytopcds<-topcds
@@ -123,21 +128,6 @@ dev.off()
 message(normalizePath(plotfile))
 
 stop()
-
-c(readframecov,readframecovcds,readframecovseq,1)%>%txtplot
-
-
-readframecov%>%txtplot(ylim=c(0,max(.)*1.2))
-
-
-
-topcdsreads%>%subsetByOverlaps(topcds[3])
-
-topcdsreads<-topcdsreadsbak
-#topcdsreads%<>%head
-
-mcols(topcdsreads)$cdsshift <- psite_model$get_cds_offsets(topcdsreads)
-mcols(topcdsreads)$seqshift <- psite_model$get_seq_offsets(topcdsreads)
 
 
 

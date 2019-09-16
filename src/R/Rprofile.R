@@ -7,11 +7,11 @@ filter<-dplyr::filter
 select<-dplyr::select
 slice<-dplyr::slice
 
-###memoise
-project_cache=here::here('R_cache')
-if(!exists('project_cache'))project_cache=tempdir()
-message(system(str_interp('du -h ${project_cache}'),intern=T))
-mycache=memoise::cache_filesystem(project_cache)
+# ###memoise
+# project_cache=here::here('R_cache')
+# if(!exists('project_cache'))project_cache=tempdir()
+# message(system(str_interp('du -h ${project_cache}'),intern=T))
+# mycache=memoise::cache_filesystem(project_cache)
 
 myclearcache=function() system(str_interp('rm -rf ${project_cache}'))
 
@@ -608,8 +608,10 @@ Psite_model<-R6Class("Psite_model",
     seqshiftmodel=NULL,
     compartments=NULL,
     referencefasta=NULL,
+    rl_sep_seqmodel=NULL,
     initialize=function(offsets=NULL,seqshiftmodel=NULL,compartments=NULL,referencefasta=NULL){
 
+      if(is.character(referencefasta)) referencefasta <- FaFile(referencefasta)
       #checks - compartments has nrow
       #seqshiftmodel is a ranger object,
       #compartments is a vecotr with 'nucl' in it
@@ -617,12 +619,19 @@ Psite_model<-R6Class("Psite_model",
         is.data.frame(offsets)
         stopifnot(c('offset','length') %in% colnames(offsets)) 
       }
-      if(!is.null(self$seqshiftmodel)) {
+      if(!is.null(seqshiftmodel)) {
         stopifnot(!is.null(referencefasta))
         chrs <- seqinfo(referencefasta)@seqnames%>%unique
+        if(is(seqshiftmodel,'ranger')){
+          self$rl_sep_seqmodel <- FALSE
+        }else{
+          assert_that(is.list(seqshiftmodel))
+          assert_that(all(map_lgl(seqshiftmodel,is,'ranger')))
+          assert_that(all(names(seqshiftmodel) %in% (1:100)))
+          self$rl_sep_seqmodel <- TRUE
+        }
 
       }
-      if(is.character(referencefasta)) referencefasta <- FaFile(referencefasta)
       self$offsets <- offsets
       self$seqshiftmodel <- seqshiftmodel
       self$compartments <- as(compartments,'List')
@@ -672,8 +681,26 @@ Psite_model<-R6Class("Psite_model",
       }
       
       data4readshift <- get_seqforrest_data(seqoffreads,self$referencefasta,nbp)
-      
-      get_predictedshifts(self$seqshiftmodel,data4readshift,prob=0.5)
+      browser()
+      if(self$rl_sep_seqmodel){
+        seqshift <- rep(NA,nrow(data4readshift))
+        dlens <-unique(data4readshift[,'length'])
+        stopifnot(all(dlens %in% names(self$seqshiftmodel)))
+        for(ilen in unique(dlens)){
+          imodel <- self$seqshiftmodel[[as.numeric(names(self$seqshiftmodel)) == ilen]]
+          stopifnot(!is.null(imodel))
+          stopifnot(!is(imodel,'ranger'))
+          
+          irows <- dlens==ilen
+
+          seqshift[irows] <- self$get_predictedshifts(imodel,data4readshift[irows,],prob=0.5)
+        }
+        stopifnot(!any(is.na(seqshift)))
+
+      }
+
+      seqshift <- get_predictedshifts(self$seqshiftmodel,data4readshift,prob=0.5)
+      return(seqshift)
 
   },
 

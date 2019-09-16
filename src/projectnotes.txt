@@ -6,6 +6,11 @@
 
 
 Where am I?
+Endgame
+- determine, as quickly as possible, whether the kinetic model is worth anything (by looking at only those genes who have in any way determined deg/synth).
+
+
+
 
 Possible things to do 
 - Use positive control for the sequence adjustments

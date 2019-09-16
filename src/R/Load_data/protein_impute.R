@@ -23,26 +23,26 @@ experimental_design <- matchedms_mat%>%colnames%>%str_extract('[^_]+')
 #syn_data
 # The data matrix, where non-observed values are coded as NA
 #X <- syn_data$X
-X <- matchedms_mat[,TRUE]%>%
+MS_mat <- matchedms_mat[,TRUE]%>%
 	{.[apply(.,1,is.na)%>%colMeans%>%`!=`(1),]}
-ms_id2row <- data_frame(ms_id=rownames(X),id=1:nrow(X))
-X%<>%set_rownames(1:nrow(.))
+ms_id2row <- data_frame(ms_id=rownames(MS_mat),id=1:nrow(MS_mat))
+
+stopifnot(satb2ms_ids %in% rownames(MS_mat))
+
+MS_mat%<>%set_rownames(1:nrow(.))
 
 # Median normalization to remove sample effects 
-X <- median_normalization(X)
+MS_mat <- median_normalization(MS_mat)
 
 # The columns are the samples and each row is a protein
-params <-  fit_parameters(X[TRUE,TRUE],experimental_design,n_subsample=2000,verbose=TRUE)
-
-
+params <-  fit_parameters(MS_mat[TRUE,TRUE],experimental_design,n_subsample=2000,verbose=TRUE)
 
 posteriors <- sample_protein_means(X, params, verbose=TRUE)
 
 proddtest <- proDD::test_diff(posteriors[['E13']],posteriors[['P0']])
 
-proddtest$adj_pval%>%`<`(0.05)%>%table
 
-# save.image('proDD_fit.RData')
+save.image('proDD_fit.RData')
 
 # load('proDD_fit.RData')
 
@@ -60,6 +60,13 @@ X[weirdinds,]%>%head
 posteriors$A[weirdinds,]%>%head%>%rowMeans
 posteriors$A[sample(weirdinds,1),]%>%hist(50)
 
+dim(matchedms_mat)
+dim(posteriors[[1]])
+
+colMeans(X,na.rm=TRUE)
+colMeans(matchedms_mat,na.rm=TRUE)
+colMeans(MS_mat,na.rm=TRUE)
+
 
 #Now, for limma we can simply replace with three imputed values, and for the kinetic moddeling we can directly use our
 #prot values.
@@ -76,11 +83,50 @@ posteriorsum <- posteriorsumsplit%>%as.list%>%
 	bind_rows(.id='time')%>%
 	#mutate(ymin=mean-(sd*1.96),ymax=mean+(sd*1.96))
 	identity
-posteriorsum%<>% mutate(precision = 1 / var)
+posteriorsum%<>% mutate(precision = 1 / var )
 posteriorsum%<>%mutate(ms_id=rep(ms_id2row$ms_id,5))
 posteriorsum%>%head
 posteriorsum%<>%mutate_at(vars(mean,sd,ymin,ymax),~ 2^.)
 posteriorsum%>%head
+
+MS_mat%>%colMeans
+
+
+test_that("voo precision weights work the way I think they should",{
+
+#what kind of precision weights does voom want, exactly?
+
+#gene strengths
+
+	strengths = 50000:52000
+	strengths = strengths*10
+	# sds = rep(c(10,20),50)
+	# sds = rep(c(sd_i),length(strengths))
+#j
+	fakemat = replicate(200,
+		rpois(length(strengths),
+			exp(
+				rnorm(length(strengths),mean = log2(strengths),sd=4)
+				)
+		))%>%replace_na(0)
+
+
+#
+	fakevoom <- voom(fakemat)
+
+	myweights <- fakevoom$E%>%apply(1,var)%>%{1/.}%>%mean
+
+	actualweights <- mean(fakevoom$weights[,1])
+
+	expect_lt((myweights-actualweights)/mean(myweights,actualweights),0.05)
+	# mean(head(fakevoom$weights[,1] / strengths))
+
+})
+
+
+
+
+
 
 test_that("Imputation Looks reasonable, not just ",{
 	#first let's find a gene with NAs at the first tp and upward slope
@@ -167,6 +213,8 @@ if(plotting){
 	message(normalizePath(plotfile))
 
 }
+
+stopifnot(all(satb2ms_ids%in%posteriorsum$ms_id))
 save(posteriors,posteriorsum,X,params,file='data/proDD.data')
 
 #' Okay so, indeed this method doesn't take time point variation into account, so we end up with strange results

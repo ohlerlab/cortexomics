@@ -3,6 +3,7 @@
 message('loading libraries')
 suppressMessages(library(magrittr))
 suppressMessages(library(stringr))
+suppressMessages(library(ggpubr))
 suppressMessages(library(data.table))
 suppressMessages(library(GenomicRanges))
 suppressMessages(library(DESeq2))
@@ -85,17 +86,18 @@ mainribosamps <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/samp
 	filter(is.na(fraction))%>%
 	filter(assay=='ribo')%>%
 	filter(sample_id%>%
-	str_detect(neg=T,'test'))%>%
+	str_detect(neg=T,'test'))%>%	
 	.$sample_id
 
-
-
+colMedians(mscountvoom$E)
 
 test_that("It looks like the counting worked!",{
 	allsegcounts_nz%>%group_by(protein_id)%>%group_slice(1)%>%as.data.frame
 	expect_true('E13_ribo_1' %in% mainribosamps)
 	expect_true(all(mainribosamps %in% allsegcounts_nz$sample))
 })
+
+
 
 
 
@@ -167,18 +169,29 @@ c(posteriorsum,posteriors) %<-% with(new.env(),{
 	# matched_ms%>%group_by(ms_id,time)%>%summarise(mean(na.omit(signal)))
 	list(posteriorsum,posteriors)
 })
-matched_ms%>%filter(ms_id %in% satb2ms_ids)%>%.$ms_id%>%unique
-posteriorsum%>%filter(ms_id %in% satb2ms_ids)%>%.$ms_id%>%unique
+assert_that(posteriorsum%>%filter(ms_id %in% satb2ms_ids)%>%.$ms_id%>%unique%>%n_distinct%>%`>`(1))
+assert_that(posteriorsum%>%filter(ms_id %in%'B7FAU9;Q8BTM8;B7FAV1')%>%.$precision%>%head(1)%>%`>`(100))
 
+
+
+#Pick most precise MS
+pickms_ids<-posteriorsum%>%
+	group_by(ms_id)%>%summarise(mean_prec=mean(precision))%>%
+	left_join(ms_id2protein_id%>%distinct(gene_id,ms_id))%>%
+	group_by(gene_id)%>%
+	mutate(mostprec_ms_id=mean_prec==max(mean_prec))
+#always a most precise ms_id for a gene
+assert_that(pickms_ids%>%filter(sum(mostprec_ms_id)>1)%>%nrow )==0
+pickms_ids <- pickms_ids%>%filter(mostprec_ms_id)
 posteriorsum%<>%mutate(assay='MS')
 
-stop("need to deal with the non unique protein ids")
 #maybe the count values get tagged, or the 
 ms_id2protein_id%<>%ungroup%>%mutate(uprotein_id = paste0(protein_id,'_',as.numeric(factor(ms_id))))
 assert_that(!ms_id2protein_id$uprotein_id%>%anyDuplicated)
 
 #add the protein mean estimates
 postmeanmat <- posteriorsum%>%
+	filter(ms_id%in%pickms_ids$ms_id)%>%
 	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
 	filter(!is.na(protein_id))%>%
 	filter(protein_id %in% rownames(allcountmat))%>%
@@ -188,6 +201,7 @@ postmeanmat <- posteriorsum%>%
 	{colnames(.)%<>%paste0('_MS');.}
 
 postprecmat <- posteriorsum%>%
+	filter(ms_id%in%pickms_ids$ms_id)%>%
 	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
 	filter(!is.na(protein_id))%>%
 	filter(protein_id %in% rownames(allcountmat))%>%
@@ -195,6 +209,9 @@ postprecmat <- posteriorsum%>%
 	spread(time,precision)%>%
 	{structure(as.matrix(.[,-1]),.Dimnames=list(.[,1],colnames(.)[-1]))}%>%
 	{colnames(.)%<>%paste0('_MS');.}
+
+flnauid <- ms_id2protein_id%>%filter(ms_id=='B7FAU9;Q8BTM8;B7FAV1')%>%.$uprotein_id%>%head(1)
+assert_that(postprecmat[flnauid,]%>%head(1)%>%`>`(100))
 
 
 
@@ -234,9 +251,6 @@ allmscountmat <- allcountmat%>%.[uprot2protinds,]
 # mscountvoom <- limma::voom(allmscountmat,design=countmodel)
 countvoom <- limma::voom(allcountmat,design=countmodel)
 itimecountvoom <- limma::voom(allcountmat,design=model.matrix(~ 1+ribo*time,data=allcountdesign%>%mutate(time=tps[time],ribo=assay=='ribo')))
-
-
-
 
 
 
@@ -292,7 +306,58 @@ mscountmodelmat <- mscountmodelmat%>%set_colnames(mscountmodelmat%>%colnames%>%s
 uprot2protinds <- rownames(postmeanmat)%>%str_replace('_\\d+$','')%>%match(rownames(allcountmat))
 mscountonlyvoom <- limma::voom(cbind(allcountmat[uprot2protinds,]%>%set_rownames(rownames(postmeanmat))))
 countonlyweights <- mscountonlyvoom$weights
-mscountvoom <- limma::voom(cbind(allcountmat[uprot2protinds,]%>%set_rownames(rownames(postmeanmat)),postmeanmat),design=mscountmodelmat)
+
+
+mscountvoom <- limma::voom(
+	cbind(
+		allcountmat[uprot2protinds,]%>%set_rownames(rownames(postmeanmat)),
+		2^postmeanmat
+	),
+	design=mscountmodelmat
+)
+
+mscoln <- ncol(postprecmat)
+totcoln <- ncol(mscountvoom$weights)
+
+
+ms_lib_sizes<-tail(mscountvoom$targets$lib.size/1e6,5)
+postprecsdmat<-sqrt(1/postprecmat)
+scaled_ms_sds <- sweep(postprecsdmat,2,ms_lib_sizes,`/`)
+
+scaled_ms_vars <- scaled_ms_sds^2
+scaled_ms_precisions <- 1 / (scaled_ms_vars)
+# posteriorsum%>%left_join(ms_id2protein_id)%>%filter(uprotein_id=='ENSMUSP00000000049_2085')
+
+mscountvoom$weights%>%colnames
+mscountvoom$weights[,1:(totcoln-mscoln)] <- countonlyweights
+# mscountvoom$weights[,(totcoln-mscoln+1):totcoln] <- scaled_ms_precisions[,]
+mscountvoom$weights[,(totcoln-mscoln+1):totcoln] <- postprecmat[,]
+
+
+# mscountvoom_const_msdev <- mscountvoom
+# mscountvoom_const_msdev$design <- 
+# #add timeless msdev design
+# mscountvoom_const_msdev$design <- model.matrix(~ 1 + ribo+MS+ns(time,SPLINE_N)+ns(time,SPLINE_N):(ribo),data=mscountvoomdesign )
+# #prettifynames
+# mscountvoom_const_msdev$design%<>%set_colnames(mscountmodelmat%>%colnames%>%str_replace('riboTRUE','TE')%>%str_replace('MSTRUE','MS_dev'))
+
+# mscountmodelmat=
+
+
+test_that("the library size numbers in a limma object work as I think they do",{
+
+	rnaunscaled <- mscountvoom$E[,1]%>%head%>%{2^.}%>%multiply_by(mscountvoom$targets$lib.size[1]/1000000)
+	rnaactual <- allcountmat[uprot2protinds,][,1]%>%head
+
+	msunscaled <- mscountvoom$E[,21]%>%tail%>%{2^.}%>%multiply_by(mscountvoom$targets$lib.size[21]/1000000)
+	msactual <- postmeanmat[,][,1]%>%{2^.}%>%tail
+
+	expect_true(between(mean(rnaactual-rnaunscaled),-1,1))
+	expect_true(between(mean(abs((msactual-msunscaled)/msunscaled)),-0.001,0.001))
+
+})
+
+
 #(countonlyweights - mscountvoom$weights[,1:20] )%>%txtdensity
 
 voomeffects <- mscountvoom$design%>%colnames
@@ -309,13 +374,7 @@ assert_that(identical(c("(Intercept)", "TE", "MS_dev", "ns(time, SPLINE_N)1", "n
 ########Manipulate the effects from spline space to linear space 
 ################################################################################
 	
-mscoln <- ncol(postprecmat)
-totcoln <- ncol(mscountvoom$weights)
-
-mscountvoom$weights%>%colnames
-mscountvoom$weights[,1:(totcoln-mscoln)] <- countonlyweights
-mscountvoom$weights[,(totcoln-mscoln+1):totcoln] <- postprecmat[,]
-
+{
 itime_modelmat<-model.matrix(~ 1 + ribo+MS+time+time:(ribo+MS),data=mscountvoomdesign%>%mutate(time=factor(tps[add(time,3)])))
 itime_modelmat%<>%set_colnames(itime_modelmat%>%colnames%>%str_replace('riboTRUE','TE')%>%str_replace('MSTRUE','MS_dev'))
 
@@ -334,7 +393,7 @@ alltimeeff <- rbind(
 	t(ns(1:5,SPLINE_N)),
 	splinezeros,
 	splinezeros
-)%>%set_rownames(voomeffects)%>%set_colnames(paste0('all_',tp))
+)%>%set_rownames(voomeffects)%>%set_colnames(paste0('all_',tps))
 #
 timeTEeffect <- rbind(
 	matrix(0,ncol=5,nrow=3),
@@ -350,28 +409,49 @@ timeMSeffect <- rbind(
 	t(ns(1:5,SPLINE_N))
 )%>%set_rownames(voomeffects)%>%set_colnames(paste0('MS_dev',tps))
 
-contrastmat <- diag(length(voomeffects))[,1:nosplinen]%>%set_colnames(voomeffects[1:nosplinen])%>%cbind(alltimeeff,timeTEeffect,timeMSeffect)
-contrastmat%<>% . [,colSums(.!=0)!=0]#remove the zero cols at first time point
+ntps<-length(tps)
+sntps <- seq_along(tps)
+i_n <- 1
+
+	itimecontrasts=alltimeeff
+
+stepwise_contrasts <- lapply(list(all=alltimeeff,TE=timeTEeffect,MS_dev=timeMSeffect),function(itimecontrasts){
+	lapply(1:(ntps-1),function(i_n){
+		cname <- colnames(itimecontrasts)[i_n+1]%>%str_replace('_','from_')
+		(itimecontrasts[,i_n+1,drop=FALSE] - (itimecontrasts[,i_n,drop=FALSE])) %>%
+		set_colnames(cname)
+	})%>%do.call(cbind,.)
+})%>%do.call(cbind,.)
+
+
+
+
+contrastmatall <- diag(length(voomeffects))[,1:nosplinen]%>%set_colnames(voomeffects[1:nosplinen])%>%cbind(alltimeeff,timeTEeffect,timeMSeffect)
+contrastmat <- contrastmatall%>% . [,colSums(.!=0)!=0]#remove the zero cols at first time point
 
 counteffs <- colnames(countvoom$design)
 countnosplinen <- counteffs%>%str_detect(negate=TRUE,'ns\\(')%>%which%>%tail(1)
 contrastmatcounts <- diag(length(counteffs))[,1:countnosplinen]%>%set_colnames(counteffs[1:countnosplinen])%>%
 	cbind(head(alltimeeff[-3,],-SPLINE_N),head(timeTEeffect[-3,],-SPLINE_N),head(timeMSeffect[-3,],-SPLINE_N))
-contrastmat%<>% . [,colSums(.!=0)!=0]#remove the zero cols at first time point
+contrastmatcounts%<>% . [,colSums(.!=0)!=0]#remove the zero cols at first time point
+
+itimeeffs <- contrastmat%>%colnames
+
+}
 
 
+################################################################################
+########model fitting
+################################################################################
+	
 
-
-
-
-
-
-
+{
+#fit 
 
 message('fitting linear model to counts and inferred MS CIs, using splines')
 mscountlm <- lmFit(mscountvoom,design = mscountvoom$design)
 mscountebayes <- eBayes(mscountlm)
-mscountebayescontr <- eBayes(contrasts.fit(mscountlm,contrastmat))
+# mscountebayescontr <- eBayes(contrasts.fit(mscountlm,contrastmat))
 
 message('fitting linear model to counts and inferred MS CIs, indep time points')
 itime_mscountlm <- lmFit(mscountvoom,design = itime_modelmat)
@@ -383,16 +463,27 @@ countebayes <- eBayes(lmFit(countvoom))
 message('fitting linear model to counts, indep timepoints')
 itimecountebayes <- eBayes(lmFit(itimecountvoom)) 
 
+#Now test time dependence of MSDEV
+best_uprotein_ids <- mscountebayes%>%topTable(coef=12:15,number=Inf)%>%rownames_to_column('uprotein_id')%>%
+	safe_left_join(ms_id2protein_id%>%distinct(gene_id,uprotein_id))%>%
+	group_by(gene_id)%>%slice(which.max(P.Value))%>%
+	.$uprotein_id
 
-timeeffect<-limma::topTable(itime_mscountebayes,number=1e9,confint=0.95)
+#And redo the model with the best pairs
+bestmscountebayes <- eBayes(lmFit(mscountvoom[best_uprotein_ids,]))
 
+
+ebayes_stepwise <- contrasts.fit(bestmscountebayes,stepwise_contrasts)
+
+
+
+}
 
 
 #now we can calculate the minimum MS specific variance per gene.
 ms_id2protein_id%<>%left_join(allids%>%distinct(gene_id,protein_id))
 
 
-TODO - big contrast matrix with everything we want - so reparametrizing the splines.
 
 uprotein_ms_diffs <- contrasts.fit(mscountebayes,contrasts = timeMSeffect[,2:5])%>%topTable(coef=which(tps=='P0')-1,number=1e9,confint=0.95)%>%as.data.frame%>%
 	rownames_to_column('uprotein_id')%>%safe_left_join(ms_id2protein_id%>%distinct(ms_id,gene_name,gene_id,uprotein_id))%>%group_by(gene_id)%>%
@@ -434,7 +525,33 @@ ieigs <- itimevarpca$sdev^2
 ivarexplained <- ieigs / sum(ieigs)
 
 
-mscountebayes%>%topTable
+#I think the best way to pick the MS relationship would be by picking minimum expected stepwise linear changes
+#Variance explained by 
+
+diff_dists <- 
+
+mean(
+	
+)
+
+test_that("I remember how linear combinations of normal dists work...",{
+	a=3;sa=2
+# b=2;sb=.1
+# pgrid<-expand.grid(a=c(1,10,100),b=-2:2,sa=c(2,4,9),sb=c(.1,1,3))
+# sim<-function(a,b,sa,sb){
+# 	diffs<-rnorm(10e3,mean=a,sd=sa) - rnorm(10e3,mean=b,sd=sb)
+# 	actualdiff<-mean(diffs)
+# 	actualsd<-sd(diffs)
+# 	tdiff <- a - b
+# 	tsd <- sqrt( ((sa^2)) + ((1)*(sb^2)) )
+# 	return(list(a,b,sa,sb,actualdiff,tdiff,actualsd,tsd))
+# }
+# lapply(1:nrow(pgrid),function(ii) do.call(sim,as.list(pgrid[ii,])))%>%simplify2array%>%t
+
+
+})
+
+
 
 
 ################################################################################
@@ -493,18 +610,26 @@ test_that("I've identified the cause of this Satb2 diff",{
 
 	(mscountebayes$coef %*% t(mscountebayes$design))
 
-
 })
 
-#object list
+
+# exprdf <- normcountdf%>%
+# 	separate(dataset,c('time','assay','rep'))%>%
+# 	left_join(ms_id2protein_id%>%distinct(uprotein_id,protein_id))%>%
+# 	mutate(rep = as.numeric(rep))%>%
+# 	bind_rows(msdf)%>%
+# 	as_tibble
+
+satb2sig <- countsmatnorm[satb2_uids[1],]%>%.[c(1:4,17:20)]
+satb2sig%>%{mean(.[1:2])-mean(.[3:4])}
+satb2sig%>%{mean(.[5:6])-mean(.[7:8])}
 
 
+# allcountcounts <- allsegcounts_nz%>%select(protein_id,dataset=sample,signal=centercount)%>%filter(dataset%>%str_detect('ribo|total'))%>%mutate(signal=replace_na(signal,0))
+# c(allcountmat,allcountdesign)%<-% get_matrix_plus_design(allcountcounts,protein_id,transform=identity,sigcol=signal)
 
 
-
-
-
-
+{
 
 #process our mass spec data for plotting
 postprecdf<-postprecmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,precision,-uprotein_id)%>%mutate(rep=NA)
@@ -515,35 +640,89 @@ msdf%<>%select(uprotein_id,protein_id,dataset,signal,time,rep=replicate)%>%mutat
 stopifnot(!ms_id2protein_id$uprotein_id%>%anyDuplicated)
 msdf$signal%<>%log2
 
-
 countsmatnorm <- allcountmat %>% {sweep(.,2,STATS = DESeq2::estimateSizeFactorsForMatrix(.),FUN='/')}
-normcountdf <- countsmatnorm%>%add(0.5)%>%log2%>%as.data.frame%>%rownames_to_column('protein_id')%>%gather(dataset,signal,-protein_id)%>%as_tibble
-
-exprdf <- normcountdf%>%
-	separate(dataset,c('time','assay','rep'))%>%
-	left_join(ms_id2protein_id%>%distinct(uprotein_id,protein_id))%>%
-	mutate(rep = as.numeric(rep))%>%
-	bind_rows(msdf)%>%
-	as_tibble
-
-satb2sig <- countsmatnorm[satb2ids[1],]%>%.[c(1:4,17:20)]%>%log2
-satb2sig%>%{mean(.[1:2])-mean(.[3:4])}
-satb2sig%>%{mean(.[5:6])-mean(.[7:8])}
-
-
-allcountcounts <- allsegcounts_nz%>%select(protein_id,dataset=sample,signal=centercount)%>%filter(dataset%>%str_detect('ribo|total'))%>%mutate(signal=replace_na(signal,0))
-c(allcountmat,allcountdesign)%<-% get_matrix_plus_design(allcountcounts,protein_id,transform=identity,sigcol=signal)
+countsmatnorm <- mscountvoom$E[,]
+exprdf <- countsmatnorm%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,signal,-uprotein_id)%>%as_tibble
+exprdf%<>%separate(dataset,c('time','assay','rep'))%>%left_join(ms_id2protein_id%>%distinct(uprotein_id,protein_id))%>%
+	mutate(rep = as.numeric(rep))
 
 
 
+#Extract confidence inttervals for effects
+time_eff_contrasts <- contrastmatall
+effects<-colnames(time_eff_contrasts)
+istimete<-colnames(time_eff_contrasts)%>%str_detect('TE_')
+time_eff_contrasts[,istimete] %<>%add( time_eff_contrasts[,'TE'])
+istimeMSde<-colnames(time_eff_contrasts)%>%str_detect('MS_dev.')
+time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'TE'])
+time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'TE'])
+time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'MS_dev'])
+time_eff_contrasts%<>%.[,istimete | istimeMSde]
+timeeffnames<-colnames(time_eff_contrasts)%>%setNames(.,.)
+
+time_eff_contrastsdf<-	lapply(timeeffnames,function(effect){
+	message(effect)
+	topTable(contrasts.fit(mscountebayes,time_eff_contrasts[,effect]),coef=1,number=Inf,confint=.95)%>%
+	as.data.frame%>%rownames_to_column('uprotein_id')
+})%>%bind_rows(.id='effect')
+time_eff_contrastsdf%<>%separate(effect,c('assay','time'))
+time_eff_contrastsdf$time%>%head
+
+#Extract confidence intervals for time points
+datagroup_names <- mscountvoomdesign%>%.$dataset%>%str_replace('_\\d+$','')%>%unique%>%setNames(.,.)
+sample_contrasts<-mscountebayes$design%>%unique%>%set_rownames(datagroup_names)%>%t
+datagroup<-datagroup_names[1]
+prediction_df<-	lapply(datagroup_names,function(datagroup){
+	message(datagroup)
+	prediction_ob$coef
+	topTable(contrasts.fit(mscountebayes,sample_contrasts[,datagroup,drop=F]),coef=1,number=Inf,confint=.95)%>%
+	as.data.frame%>%rownames_to_column('uprotein_id')
+})%>%bind_rows(.id='datagroup')
+prediction_df%<>%as_tibble
+prediction_df%<>%separate(datagroup,c('time','assay'))
 
 
-testname <- 'Flna'
+
+msrescale2lfq<-(postmeanmat%>%colMedians(na.rm=T)%>%median) -(mscountvoom$E[,21:25]%>%colMedians%>%median)
+
+
+}
+
+test_that("predictions look sane!",{
+	testorcuid<-'ENSMUSP00000048319_5829'
+	orc3mspredisgdf <- prediction_df%>%filter(uprotein_id==testorcuid)
+	orc3mspredisgdf%>%left_join(exprdf%>%filter(uprotein_id==testorcuid)%>%select(uprotein_id,signal))%>%
+		mutate(within = (CI.L < signal) & (signal < CI.R))%>%
+		select(assay,signal,logFC,CI.L,CI.R,within)%>%
+		filter(assay=='MS')
+
+	testi <- which(mscountvoom$E%>%rownames%>%`==`(testorcuid))
+
+	exprdf%>%filter(uprotein_id==testorcuid)
+	postmeanmat[testorcuid,]-msrescale2lfq
+	exprdf%>%filter(assay=='MS',uprotein_id==testorcuid)
+
+	#our data is going into the 
+	expect_true(mscountvoom$E[testorcuid,]%>%tail(5)%>%{(.[1] - .[5]) > 1.5})
+})
+
+{
+testname <- 'Sox9'
 assert_that(testname %in% cds$gene_name)
 testpids <- cds%>%subset(gene_name==testname)%>%.$protein_id%>%unique
 test_uids<-unique(exprdf$uprotein_id)%>%str_subset(testpids%>%paste0(collapse='|'))
 #get data for that test gene
 ggdf <- exprdf%>%filter(uprotein_id%in%test_uids)
+postmeanmat_scaled <- postmeanmat - msrescale2lfq
+ggdf_msconf <- 
+	safe_left_join(
+		((postmeanmat_scaled[test_uids,,drop=F])-(1.96*postprecsdmat[test_uids,,drop=F]))%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,CI.L,-uprotein_id)%>%separate(dataset,c('time','assay')),
+		((postmeanmat_scaled[test_uids,,drop=F])+(1.96*postprecsdmat[test_uids,,drop=F]))%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,CI.R,-uprotein_id)%>%separate(dataset,c('time','assay'))
+	)%>%
+	safe_left_join(
+		((postmeanmat_scaled[test_uids,,drop=F]))%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,signal,-uprotein_id)%>%separate(dataset,c('time','assay')),
+		)
+# ggdf_msconf$time%<>%factor%>%time
 #get ms-protein id pairs
 test_uids<-ggdf$uprotein_id%>%unique
 #
@@ -551,37 +730,34 @@ trajfile = './plots/tmp.pdf'
 #
 pdf(trajfile)
 for(testuid in test_uids){
-	trajectoryplot<-ggplot(
-		data = ggdf%>%filter(uprotein_id==testuid),
+	uidfilt<-.%>%filter(uprotein_id==testuid)
+	plotdf<-ggdf%>%uidfilt
+	assays2plot <- unique(ggdf$assay)%>%sort%>%rev
+	trajectoryplots<-lapply(assays2plot,function(assay2plot){ggplot(
+		data = plotdf%>%filter(assay==assay2plot),
 		aes(
 			x=as.numeric(as_factor(time)),
 			y=signal
 		))+
-		stat_summary(geom='line',fun.y=mean)+
 		geom_point()+
-
-		# geom_line(data=procmsdf,aes(y=log2(means),ymin=log2(means)-(1.96*precision),ymin=log2(means)+(1.96*precision)))+
+		geom_linerange(data=ggdf_msconf%>%uidfilt%>%filter(assay==assay2plot),aes(y=signal,ymin=CI.L,ymax=CI.R))+	
+		geom_ribbon(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot),aes(x=as.numeric(as_factor(time)),y=logFC,ymin=CI.L,ymax=CI.R),alpha=I(0.5))+	
+		# geom_line(data=prediction_df%>%uidfilt,aes(x=time,y=logFC))+	
 		scale_x_continuous(name='Stage',labels=tps)+
 		scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
-		theme_bw()+
-		facet_wrap( ~ assay,scales='free')+
-		ggtitle(label = str_interp('Data vs Linear Model - ${testname}')
-	)
+		theme_bw()+ggtitle(assay2plot)
+		# facet_wrap( ~ assay,scales='free')+
+	})
+	trajectoryplots<-commonyspanplots(trajectoryplots)
+	trajectoryplot<-ggarrange(plotlist=trajectoryplots,ncol=3)
+	trajectoryplot<-annotate_figure(trajectoryplot,top  = str_interp('Data vs Linear Model - ${testname}'))
 	print(trajectoryplot)
 }
 dev.off()
 message(normalizePath(trajfile))
-
-
-timeeffect
-	ggplot(data=.,)+
-	geom_linerange(
-		data=posteriorsum%>%filter(ms_id==names(testrowneg)),
-		aes(ymin=ymin,ymax=ymax,x=as.numeric(as.factor(time))))+
-	theme_bw()+
-	geom_point(data=.,aes(x=as.numeric(as.factor(time)),y=signal))+
-	# scale_y_log10()+
-	ggtitle(matched_ms%>%filter(ms_id==names(testrowneg))%>%.$gene_name%>%.[1])
+'plots/trajectorys_splinelimma/'%>%dir.create
+system(str_interp('cp ${trajfile} plots/trajectorys_splinelimma/${testname}.pdf'))
+ }
 
 test_that('the linear modeling with the MS confidence intervals seems to have worked',{
 
@@ -592,6 +768,27 @@ test_that("The confidence intervals for the MS specific effect really are proper
 
 })
 
+breakint <- 0.5
+commonyspanplots  <- function(trajectoryplots,breakint=0.5){
+	trajectoryplots_ranges <- map(trajectoryplots,~ggplot_build(.)$layout$panel_scales_y[[1]]$range$range)
+	trajectoryplots_range_centers <- trajectoryplots_ranges%>%map_dbl(mean)
+	centeredranges <- map2(trajectoryplots_ranges,trajectoryplots_range_centers,`-`)
+	centbreakrangemin<-centeredranges%>%map_dbl(1)%>%min%>%divide_by(breakint)%>%floor%>%multiply_by(breakint)
+	centbreakrangemax<-centeredranges%>%map_dbl(2)%>%max%>%divide_by(breakint)%>%ceiling%>%multiply_by(breakint)
+	trajrangeminsnap <- trajectoryplots_ranges%>%map_dbl(1)%>%map(divide_by,breakint)%>%map(floor)%>%map(multiply_by,breakint)
+	trajrangemaxsnap <- trajrangeminsnap%>%map_dbl(add,centbreakrangemax-centbreakrangemin)
+	for(i in seq_along(trajectoryplots)){
+		trajectoryplots[[i]] = 	trajectoryplots[[i]] + coord_cartesian(ylim=c(trajrangeminsnap[[i]],trajrangemaxsnap[[i]]))
+	}
+	trajectoryplots
+}
+
+maxwidth <- max(trajectoryplots_range_widths)
+ymaxs_exp <- trajectoryplots_range_centers + (maxwidth/2) 
+ymins_exp <- trajectoryplots_range_centers - (maxwidth/2) 
+ymins_exp_breaks <- ymins_exp%>%divide_by(breakint)%>%floor%>%multiply_by(breakint)
+ymaxs_exp_breaks <- ymaxs_exp%>%divide_by(breakint)%>%floor%>%multiply_by(breakint)
+ 
 
 
 limmafit <- mscountlm
