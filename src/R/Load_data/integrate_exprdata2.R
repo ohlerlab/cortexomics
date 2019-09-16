@@ -181,7 +181,7 @@ pickms_ids<-posteriorsum%>%
 	group_by(gene_id)%>%
 	mutate(mostprec_ms_id=mean_prec==max(mean_prec))
 #always a most precise ms_id for a gene
-assert_that(pickms_ids%>%filter(sum(mostprec_ms_id)>1)%>%nrow )==0
+assert_that((pickms_ids%>%filter(sum(mostprec_ms_id)>1)%>%nrow) ==0)
 pickms_ids <- pickms_ids%>%filter(mostprec_ms_id)
 posteriorsum%<>%mutate(assay='MS')
 
@@ -189,22 +189,20 @@ posteriorsum%<>%mutate(assay='MS')
 ms_id2protein_id%<>%ungroup%>%mutate(uprotein_id = paste0(protein_id,'_',as.numeric(factor(ms_id))))
 assert_that(!ms_id2protein_id$uprotein_id%>%anyDuplicated)
 
-#add the protein mean estimates
-postmeanmat <- posteriorsum%>%
+msposteriorsumfilt <- posteriorsum%>%
 	filter(ms_id%in%pickms_ids$ms_id)%>%
 	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
 	filter(!is.na(protein_id))%>%
-	filter(protein_id %in% rownames(allcountmat))%>%
+	filter(protein_id %in% rownames(allcountmat))
+
+#add the protein mean estimates
+postmeanmat <- msposteriorsumfilt%>%
 	select(uprotein_id,mean,time)%>%
 	spread(time,mean)%>%
 	{structure(as.matrix(.[,-1]),.Dimnames=list(.[,1],colnames(.)[-1]))}%>%
 	{colnames(.)%<>%paste0('_MS');.}
 
-postprecmat <- posteriorsum%>%
-	filter(ms_id%in%pickms_ids$ms_id)%>%
-	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
-	filter(!is.na(protein_id))%>%
-	filter(protein_id %in% rownames(allcountmat))%>%
+postprecmat <- msposteriorsumfilt%>%
 	select(uprotein_id,precision,time)%>%
 	spread(time,precision)%>%
 	{structure(as.matrix(.[,-1]),.Dimnames=list(.[,1],colnames(.)[-1]))}%>%
@@ -489,7 +487,6 @@ uprotein_ms_diffs <- contrasts.fit(mscountebayes,contrasts = timeMSeffect[,2:5])
 	rownames_to_column('uprotein_id')%>%safe_left_join(ms_id2protein_id%>%distinct(ms_id,gene_name,gene_id,uprotein_id))%>%group_by(gene_id)%>%
 	mutate(bestprotmatch = abs(logFC) == min(abs(logFC)))
 
-bestuprotids <- uprotein_ms_diffs%>%filter(bestprotmatch)%>%.$uprotein_id
 
 testtp='E175'
 
@@ -629,7 +626,37 @@ satb2sig%>%{mean(.[5:6])-mean(.[7:8])}
 # c(allcountmat,allcountdesign)%<-% get_matrix_plus_design(allcountcounts,protein_id,transform=identity,sigcol=signal)
 
 
+
 {
+
+get_predictions <- function(mscountebayes,mscountvoomdesign){
+	#df of predictions from limma model
+	datagroup_names <- mscountvoomdesign%>%.$dataset%>%str_replace('_\\d+$','')%>%unique%>%setNames(.,.)
+	sample_contrasts<-mscountebayes$design%>%unique%>%set_rownames(datagroup_names)%>%t
+	datagroup<-datagroup_names[1]
+	prediction_df<-	lapply(datagroup_names,function(datagroup){
+		message(datagroup)
+		topTable(contrasts.fit(mscountebayes,sample_contrasts[,datagroup,drop=F]),coef=1,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('uprotein_id')
+	})%>%bind_rows(.id='datagroup')
+	prediction_df%<>%as_tibble
+	prediction_df%<>%separate(datagroup,c('time','assay'))
+}
+prediction_df <- get_predictions(mscountebayes,mscountvoomdesign)
+countpred_df <- get_predictions(countebayes,mscountvoomdesign%>%filter(assay!='MS'))
+
+#df of predictions from limma model
+datagroup_names <- mscountvoomdesign%>%.$dataset%>%str_replace('_\\d+$','')%>%unique%>%setNames(.,.)
+sample_contrasts<-mscountebayes$design%>%unique%>%set_rownames(datagroup_names)%>%t
+datagroup<-datagroup_names[1]
+prediction_df<-	lapply(datagroup_names,function(datagroup){
+	message(datagroup)
+	prediction_ob$coef
+	topTable(contrasts.fit(mscountebayes,sample_contrasts[,datagroup,drop=F]),coef=1,number=Inf,confint=.95)%>%
+	as.data.frame%>%rownames_to_column('uprotein_id')
+})%>%bind_rows(.id='datagroup')
+prediction_df%<>%as_tibble
+prediction_df%<>%separate(datagroup,c('time','assay'))
 
 #process our mass spec data for plotting
 postprecdf<-postprecmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,precision,-uprotein_id)%>%mutate(rep=NA)
@@ -1002,7 +1029,6 @@ test_that("mostly just a few funny cases where we have ribo but no MS",{
 #Test that our linear modeling worked
 
 
-
 test_that("Mappability masks used",{
 
 })
@@ -1011,6 +1037,15 @@ test_that("Xtail's TE should broadly agree with limma",{})
 test_that("Xtail's TE should broadly agree with DESeq",{})
 
 test_that("Spline based TE change implemented",{})
+
+
+postprecmat%>%str
+
+postprecmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%write_tsv('exprdata/ms_proDD_precision.tsv')
+postmeanmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%write_tsv('exprdata/ms_proDD_mean.tsv')
+
+countpred_df%>%
+	select(uprotein_id,time,assay,logFC,CI.L,CI.R,adj.P.val)%>%
 
 #There should in general be a decent correaltion between the spectral coef and the MS
 
