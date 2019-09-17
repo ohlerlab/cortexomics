@@ -23,6 +23,7 @@ exprtbl <- read_tsv(transformdexprfile)
 exprtbl %<>% select(gene_name, everything())
 
 #read in the data
+
 allcoefdf <- ebayes_stepwise%>%topTable(number=Inf)%>%rownames_to_column('uprotein_id')%>%select(-AveExpr,-F,-P.Value,-adj.P.Val)
 allcoefmat <- allcoefdf[,-1]%>%set_rownames(allcoefdf[,1])%>%as.matrix
 

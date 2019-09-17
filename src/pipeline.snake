@@ -1615,6 +1615,7 @@ mstbl = 'ms_tables/ms_'+MS_MEASURE_TO_USE+'_total_ms_tall.tsv'
 
 
 
+#needs to be integrate exprdata2 nwo
 rule integrate_exprdata:
   input: 'CDS_rna_counts',mstbl,expand('riboseq_quant/data/{sample}/segment_counts_df.tsv',sample=ribosamples)
   output: 'exprdata/transformed_data.txt','exprdata/cent_scaled_exprdata.txt','exprdata/designmatrix.txt','exprdata/allcounts_snorm.tsv'
@@ -1652,6 +1653,9 @@ rule reg_seqs:
   shell: r"""
     R -e   'library(magrittr);library(GenomicRanges);library(data.table);myfasta <- Rsamtools::FaFile("{input.genome}") ; myutrs <- rtracklayer::import("{input.tputrs}") ; diffIDs <-  "{input.seqs}"%>% fread %>% dplyr::filter(padj<0.05) %>% .$geneID; myutrs %>% subset(gene_id %in% diffIDs) %>%split(.,.$gene_id) %>% reduce %>% {{GenomicFeatures::extractTranscriptSeqs(x=myfasta,.)}} %>% {{Biostrings::writeXStringSet(., "{output[0]}")}}'
   """
+
+#
+
 
 #Things we want to search for motifs - anything that's translationally reuglated
 #later, clusters
