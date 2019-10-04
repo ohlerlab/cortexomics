@@ -1,0 +1,9 @@
+trying to change the ode integrate function but bugs
+	I failed to see one of the old parameters sitting in the function
+		=> Use find replace systematically when editing a function
+		=> Greater emphasis on reading the code not just reacting
+
+
+DIdn't consider  what an  issue the log thing really   is.
+
+Didn't consider that i needed to take a definite integral on the function where time was being integrated.

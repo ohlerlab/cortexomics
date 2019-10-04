@@ -157,7 +157,9 @@ pars<-hierarchpars
   #testsetstandata <- get_standata_confint(test_gene_names[1:4],genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
 
   genelengths <- metainfo%>%{setNames(.$width,.$gene_name) }
-  
+
+
+{
 #Funciton to fit linear and nonlinear model with stan
 get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter=200, n_chains=4)
 {
@@ -188,13 +190,13 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
 
   ngenes <- standata$MS%>%ncol
   
-  initvals = list(list(
-      ms0logratio = array(log(standata$MS[1,] / standata$ribo[1,]),dim=ngenes),
-      lrTE = array(rep(log(1),  ngenes),dim=ngenes),
-      ldeg = array(rep(log(0.9),ngenes),dim=ngenes),
-      mRNA = standata$ribo
-    )
-  )
+  initvals = list(
+    list(
+      rTE = array(rep(1,  ngenes),dim=ngenes),
+      mRNA = 2^standata$ribo[1,],
+      ldeg = array( rep(log(0.9),ngenes) ,dim=ngenes),
+      prot0 = array(2^standata$MS[1,],dim=ngenes)
+    ))
   exportenv()
   initvals = rep(initvals,  n_chains)
   stanfit <- rstan::stan(file=modelcopy,
@@ -239,6 +241,17 @@ testhierarchfit <- get_stanfit(
   modelsamplefile='stansamples/testhierarch.csv',
   sampledir=here('pipeline/stansamples')
 )
+}
+
+
+
+
+install.packages("deSolve")
+closed.sir.model <- function (t, x, params) {
+ 
+}
+
+
 
 testhierarchfit[[1]]%>%summary%>%.[[1]]%>%head
   parsum<-testhierarchfit[[1]]%>%

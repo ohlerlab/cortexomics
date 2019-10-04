@@ -4,12 +4,30 @@
 
 
 
+So where am I?
+Okay I think I  have a simple, sensible answer - take the easy route, use piecewise linear functions.
+
+Okay so piecewise thing now works beautifully in R. Can translate direclty to 
+
+Splines  face the problem where determing backwards is constrainedi n a really awkwards way
+
+I'm pretty sure that I can just use splines to get around the ODE and model this very quickly. Actually reading Liu et al helped. Now I need to actually read INSIGHT.
+THen I need to solve the meta problem of me not actually reading
+
+I think I can maybe use offset to fix the effects for the spline and dspline 
+
+okay so we got to somewhere with Philip and I think I can fit that relatively okay equation now, should probably just do so in stan....	
+
+Outlier robustness?
+	Fitting a t distribution
+
+
 
 Where am I?
 Endgame
 - determine, as quickly as possible, whether the kinetic model is worth anything (by looking at only those genes who have in any way determined deg/synth).
 
-
+ so - adding uncertainty in the mRNA DRAMATICALLY increases the issues with 
 
 
 Possible things to do 
