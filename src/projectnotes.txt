@@ -2,39 +2,31 @@
 - When in doubt organize, overview, look at the paper plan, read, until you realize the urgency and import
 - Plenty of papers in the papers folder
 
+Table w/ dropouts
+GO term plots for groups definedd in fig1
+
+
+
 
 
 So where am I?
-Okay I think I  have a simple, sensible answer - take the easy route, use piecewise linear functions.
-
-Okay so piecewise thing now works beautifully in R. Can translate direclty to 
-
-Splines  face the problem where determing backwards is constrainedi n a really awkwards way
-
-I'm pretty sure that I can just use splines to get around the ODE and model this very quickly. Actually reading Liu et al helped. Now I need to actually read INSIGHT.
-THen I need to solve the meta problem of me not actually reading
-
-I think I can maybe use offset to fix the effects for the spline and dspline 
-
-okay so we got to somewhere with Philip and I think I can fit that relatively okay equation now, should probably just do so in stan....	
-
-Outlier robustness?
-	Fitting a t distribution
+I want this fucking kinetic modeling to work, at least a bit.
+Last was with optim. I can stitll jussts stick some reegularization in optim, get better fit, I think...
 
 
 
-Where am I?
-Endgame
-- determine, as quickly as possible, whether the kinetic model is worth anything (by looking at only those genes who have in any way determined deg/synth).
+Okay so curren thinking - I need to read up more on the fuzzy clustering with splines
+I need to be comfortable using lagrange multipliers - how do i make it work with multiple constraints - 
+	flatnes son the 
 
- so - adding uncertainty in the mRNA DRAMATICALLY increases the issues with 
+see modellingnotes.txt
 
+Is the kinetic model even worth it?
 
 Possible things to do 
 - Use positive control for the sequence adjustments
 	So the 28 bp guys are are fucked up
 - define weird ones
-- 
 - pick out guys with significant MS effect to model kinetically.
 		make sure that increasing things pin down synthesis and degredation.
 	 	After this i can do my fuzzy clustering and see if it makes a different
@@ -43,34 +35,27 @@ Possible things to do
 
 
 #Something is borking R environment - R2 seems okay for now
+
 ```installed.packages()%>%saveRDS('./envs/installed_rpackages.rds')```
 
-
-
-
-
-#Organization begins now, thatsublime text is fixed.
-
+Fuzzy clustering paper
 
 #This file is currently doing a lot of work - creating the joint and the seperate models with degredation and synthesis.
 '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_rstan.R'
 '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R'
 
-#currently doing the 
-src/R/modeling/h_deg_trajplot.R
 
 #IDE setup wishlist
-Copy text easily back from terminal
+Copy text easily back from terminal 	
 linting
 local copies of stuff.
 
-
-#Stochiometry plot for Ebp1 paper
-/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R
-
-#trajectory plots for Ebp1 paper
-/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R
-
-
 Good morning check: Is everything gitted?
+
+
+
+
+
+
+
 

@@ -10,7 +10,7 @@ knitr::opts_chunk$set(root.dir = here::here(),eval=TRUE,cache=FALSE,echo=FALSE,w
 myvar=TRUE
 
 ```
-```{r calcplottingtables, cache=TRUE}
+```{r calcplottingtables, include=TRUE,cache=FALSE,eval=TRUE}
 
 library(assertthat)
 library(here)
@@ -58,13 +58,13 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
     .$match
   
 }
-
+matches <- dplyr::matches
 
 #load fractionated ms data
 ms_tall <- map(c('./pipeline/ms_tables/ms_LFQ_total_ms_tall.tsv',
                  './pipeline/ms_tables/ms_LFQ_poly_ms_tall.tsv',
                  './pipeline/ms_tables/ms_LFQ_80S_ms_tall.tsv'),
-               fread)
+               .%>%here%>%fread)
 ms_tall <- ms_tall%>%bind_rows
 message('Labeling protein IDs with annotations')
 pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
@@ -81,7 +81,7 @@ ms_tall
 message('looking up protein ID annotations')
 
 #aet info on the ribosomal subu,nts from mats table
-rids <- read_tsv('./ext_data/riboprotids.tsv')
+rids <- read_tsv(here('./ext_data/riboprotids.tsv'))
 lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 rids%<>%left_join(ms_tall%>%ungroup%>%distinct(Protein_IDs,gene_name))
@@ -153,6 +153,9 @@ selms_tall_summ_nomed$fraction%<>%recode(poly='Poly',total='Total')
 selms_tall_summ_nomed$time %<>% str_replace('p','.')
 
 
+
+
+
 ##Also need RNA expression levels  for this plot
 lengths<-here('pipeline/feature_counts/data/E13_ribo_1/feature_counts')%>%fread%>%select(gene_id=Geneid,Length)%>%left_join(fread(here('pipeline/ids.txt')))%>%select(gene_id,gene_name,length=Length)
 rnaseqdata_tall<-fread(here('pipeline/feature_counts/all_feature_counts'))%>%dplyr::select(1,matches('total'))
@@ -169,6 +172,8 @@ rnaseqdata_tall%<>%group_by(time,assay)%>%
   mutate(nnsig=signal,signal = signal/median(signal,na.rm=T))%>%
   identity
 
+
+rnaseqdata_tall%>%ungroup%>%distinct(gene_name,pcat)%>%write_tsv(here('ext_data/gname_pcat.tsv'))
 
 rnaseqdata <- rnaseqdata_tall%>%
   group_by(time,assay,gene_name,pcat)%>%

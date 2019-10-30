@@ -115,6 +115,17 @@ then log(R(t)) = Pl(t) + log(Kd) - log(Ks)
 
 
 
+
+log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
+
+log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
+
+
+
+
+
+
+
 ################################################################################
 ########Math  - this time linear space splines
 ################################################################################
@@ -231,7 +242,10 @@ D,1 =D,1 +       D,t   %*% t,D1  %*%   D1,1
 yv = px + invdbasis %*% mybs %*%  (zv %.% px1)
 
 #waht if we assume that zv[1] = 0?
-yv = px + invdbasis %*% mybs %*%  (zv %.% px)
+yv = 
+
+
+px + invdbasis %*% mybs %*%  (zv %.% px)
 
 
 #now in orthogonolaizing our basis... we need to think about how the coefficients are effected.
@@ -240,251 +254,6 @@ yv = px + invdbasis %*% mybs %*%  (zv %.% px)
 
 
 
-####OOOOOKay problem the fold change can't be any lower than the degredation rate.
-#So the intial spline parameterization needs to be in terms of the difference between the degredation
-#rate and the fold change
-
-
-orthns<-function(x,df,...){
-  nsbasis <- ns(x,df,...)
-  svd(nsbasis)$u
-}
-x=1:20
-
-dorthns<-function(x,df,...){
-  
-  nsbasis <- ns(x,df=4)
-  dnsbasis <- rstpm2::nsxD(1:20,df=4)
-  svdns <- svd(nsbasis)
-  nsbasis %*% t(svd(nsbasis)$v)
-  svdns$u
-}
-
-
-spl_getprotdf<-function(
-splfit,
-splinedf =  4,
-deg = 0.1,
-rTE = 10,
-orthns_imat,
-ms0ratio = 1,
-logfit=TRUE
- ) {
-  ntps <- length(predict(splfit))
-# conf_interval <- predict(linfit,, interval="confidence",
-                         # level = 0.95)
-# qplot(x=1:ntps,y=ribo,geom='blank')+geom_ribbon(aes(ymin = conf_interval[,2],ymax = conf_interval[,3],fill=I('grey')))+geom_point()+theme_bw()
-# conf_interval <- predict(splfit, interval="confidence",
-                         # level = 0.95)
-#qplot(x=1:ntps,y=ribo,geom='blank')+geom_ribbon(aes(ymin = conf_interval[,2],ymax = conf_interval[,3],fill=I('grey')))+geom_point()+theme_bw()
-
-
-  dPdt <- function(itime, state, parameters){
-   trans = if(logfit) log else identity
-   dPdt <- with(as.list(c(state,parameters)) ,{
-     mRNA <- exp(c(1,orthns_imat[itime,]) %*% scoefs)
-     mRNA <- max(0,mRNA)
-     (rTE * mRNA) - (deg*P)
-   })
-   list(dPdt)
-  }
-
-
-   trans = if(logfit) log else identity
-
-  stopifnot(splinedf %in% 1:100)
-  splineribo <- exp(predict(splfit))
-
-  #set up the actual ode
-  state<-c('P'= min(
-    ((rTE*splineribo[1])/deg),
-    # ((rTE*splineribo[1])/0.1)
-    Inf
-  ))
-
-  # orthns_imat <- orthns((1:ntps)-1,splinedf)
-
-
-  state = state*ms0ratio
-  parameters = list(rTE=rTE,bounds=c(1,ntps),deg=deg,df=splinedf,scoefs = splfit$coef,orthns_imat=orthns_imat)%>%as.list
-  Pdf = ode(y = state, times = 1:ntps, func = dPdt, parms = parameters)
-
-  #discrete aprox
-  # Pdf<-rep(NA,ntps) 
-  # Pdf[0] <- state
-  # for(i in 2:ntps){
-  #   (rTE*((ribo[i-1]+ribo[i])/2))
-  #   pdf[i] <- (rTE*((ribo[i-1]+ribo[i])/2))
-  # }
-  data.frame(ribo = splineribo,P=Pdf[,2],time=1:length(splineribo))
-
-
-}
-
-################################################################################
-########Spline model basis tests
-################################################################################
-  
-ribo <-c(rep(100,20),400,800,400,rep(100,20))
-time<-seq_along(ribo)
-ztime = time -1
-nz = last(ztime)
-# nsbasis = evaluate(OrthogonalSplineBasis(orthogonalsplinebasis::expand.knots(c(0,nz))),ztime)
-# dnsbasis = evaluate(deriv(OrthogonalSplineBasis(orthogonalsplinebasis::expand.knots(c(0,nz)))),ztime)
-
-nsbasis <- bs(time,df=5)
-dnsbasis <- dbs(time,df=5)
-splfit <- (lm(log(ribo) ~ nsbasis))
-exp(predict(splfit))%>%txtplot
-stopifnot(!any(is.na(splfit$coef)))
-num_ode_res<-spl_getprotdf(splfit,deg = 0.1,rTE=20,splinedf=4,orthns_imat=nsbasis)
-
-num_ode_res$ribo%>%txtplot(ylim=c(0,max(.)))
-num_ode_res$P%>%txtplot(ylim=c(0,max(.)))
-
-
-# log(R(t)) = Pl(t) + log(Kd) - log(Ks)
-
-# orthns(time,)
-
-
-
-
-splinemodel_E <- function(Ks,Kd,a_0,a_1,a_2,a_3,a_4,a_5,R,P,nsbasis,dnsbasis,rsig,psig){
-  
-  n = length(R)
-
-  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
-  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
-
-  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
-
-  #AHA ok so dPl_t cannot be any less than the degreddation rate
-  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
-
-  E_lR
-
-  # log(R(t)) = Pl_t + log(dPl(t) + Kd ) - log(Ks)
-
-}
-
-splinemodel_LL <- function(parvect,R,P,nsbasis,dnsbasis,rsig,psig){
-
-  # stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
-  stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
-
-  with(as.list(parvect),{
-  n = length(R)
-
-  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
-  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
-  
-  mindPl_t = min(dPl_t)
-  Kd = mindPl_t + ex_Kd
-  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
-
-  #AHA ok so dPl_t cannot be any less than the degreddation rate
-  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
-  LL_P = dnorm(P,Pl_t,psig,log=T)
-  LL_R = dnorm(R,E_lR,rsig,log=T)
-  -sum(LL_P,LL_R)
-  })
-
-}
-
-splinemodel2_LL <- function(parvect,R,P,nsbasis,dnsbasis,rsig,psig){
-
-  # stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
-  stopifnot(c('Ks','ex_Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
-
-  with(as.list(parvect),{
-  n = length(R)
-
-  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
-  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
-  
-  mindPl_t = min(dPl_t)
-  Kd = mindPl_t - ex_Kd
-  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
-  #AHA ok so dPl_t cannot be any less than the degreddation rate
-  if(any(dPl_t+Kd < 0 ))browser()
-  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
-  LL_P = dnorm(P,Pl_t,psig,log=T)
-  LL_R = dnorm(R,E_lR,rsig,log=T)
-  -sum(LL_P,LL_R)
-  })
-
-}
-
-#ZIFA
-
-splfit$coef
-R = ribo
-P = out$P
-
-orthns(1:(last(ztime)*1000),4)[,]
-seq(1,length(ztime)*1000)
-
-P%>%txtplot
-psplfit <- lm(log(P) ~ nsbasis)
-psplfit%>%predict%>%exp%>%txtplot
-
-eR <- splinemodel_E(Ks=20,Kd=0.01,
-  a_0=psplfit$coef[1],a_1=psplfit$coef[2],a_2=psplfit$coef[3],a_3=psplfit$coef[4],a_4=psplfit$coef[5],
-  a_5=psplfit$coef[6],
-  R=ribo,
-  P=out$P,
-  nsbasis,dnsbasis,rsig,psig)
-
-parvect=list(Ks=20,Kd=0.01,
-  a_0=psplfit$coef[1],a_1=psplfit$coef[2],a_2=psplfit$coef[3],a_3=psplfit$coef[4],a_4=psplfit$coef[5],
-  a_5=psplfit$coef[6])%>%{setNames(unlist(.,use.names=F),names(.))}
-
-eR <- splinemodel_LL(parvect,
-  R=log(ribo),
-  P=log(out$P),
-  nsbasis,dnsbasis,rsig=1,psig=20
-)
-
-rsig=1
-psig=20
-
-# parvect['Kd']=0.9
-
-# optim(parvect,splinemodel_LL,R=log(ribo),P=log(out$P),nsbasis=nsbasis,dnsbasis=dnsbasis,rsig=rsig,psig=psig)
-
-parvect2 <- parvect
-names(parvect2)[2]<-'ex_Kd'
-parvect2['ex_Kd'] <-0.2
-
-results <- optim(parvect2,splinemodel2_LL,R=log(ribo),P=log(out$P),lower=list(ex_Kd=0.001),nsbasis=nsbasis,dnsbasis=dnsbasis,rsig=rsig,psig=psig)
-
-
-with(as.list(parvect2),{min(dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5))}) - results$par['ex_Kd']
-
-
-
-log(R(t)) = int(exp(F((t)))-Kd) + log( exp(F(t)) ) - log(Ks)
-
-
-################################################################################
-########
-################################################################################
-log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
-
-#This is a problem for parametrization. So what if instead of initializing the parameters of Pl(t)
-#We instead initialize the parameters of a split f(t) which describes dPl(t) + Kd ? Then we'd
-#Still have to avoid it getting negative sometimes.
-#We could have a spline which defines the log value of dPl(t) + Kd. It's exponent would then be
-log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
-log(R(t)) = int(exp(F((t)))-Kd) + log( exp(F(t)) ) - log(Ks)
-#This leaves us with this tricky exponential integral to deal with.....
-log(R(t)) = int{exp(F((t)))-Kd}  + F(t) - log(Ks)
-log(R(t)) = int{exp(F((t)))-Kd}  + F(t) - log(Ks)
-
-
-
-exp(predict(splfit))
 
 ################################################################################
 ########Numerically test the linear space spline solution
@@ -636,10 +405,21 @@ length(zv)
 
 yv = mypx[-1] + invmydbs %*% mybs %*% (zv * mypx)
 
-txtplot(mydbs %*% yv)
+(mydbs%*%yv) / num_ode_res$ribo
+
+txtplot(mydbs%*%yv,ribo)
+
+mydbs %*% yv
+
+num_ode_res$P
+
+txtplot(mydbs %*% yv,ylim=c(0,max(num_ode_res$ribo)))
 
 #this looks mostly correc tthough I wonder where those weird little innacuracies are coming from.
 yv = px + invdbasis %*% mybs %*%  (zv %.% px1)
+
+
+
 
 ################################################################################
 ########Try minimizing it
@@ -1280,177 +1060,254 @@ plot(bsfit)
 
 
 
-# lm_glm <- bsfit
-# SplineTerm <- "bs(time, degree = splinedf)"
 
-# RegBsplineAsPiecePoly <- function (lm_glm, SplineTerm, shift = FALSE){
-#     if (!inherits(lm_glm, c("lm", "glm")))
-#         stop("This function only works with models that inherits 'lm' or 'glm' class!")
-#     tm <- terms(lm_glm)
-#     tl <- attr(tm, "term.labels")
-#     if (!(SplineTerm %in% tl))
-#         stop(sprintf("Required SplineTerm not found! Available terms are:\n    %s",
-#             toString(tl)))
-#     is.bs <- grepl("bs(", SplineTerm, fixed = TRUE)
-#     is.ns <- grepl("ns(", SplineTerm, fixed = TRUE)
-#     if ((!is.bs) && (!is.ns))
-#         stop("Provided SplineTerm is neither 'bs()' nor `ns()` from package 'splines'!")
-#     pos <- match(SplineTerm, tl)
-#     BsplineCoef <- unname(with(lm_glm, coefficients[assign ==
-#         pos]))
-#     na <- is.na(BsplineCoef)
-#     if (any(na)) {
-#         warning("NA coefficients found for SplineTerm; Replacing NA by 0")
-#         BsplineCoef[na] <- 0
-#     }
-#     # allBsplineCoef <- BsplineCoef 
-#     BsplineCoef[]<-0
-#     lapply(1:length(BsplineCoef),function(coefn){
-#       BsplineCoef[]<-0
-#       BsplineCoef[coefn] <- 1
-#       predvars <- attr(tm, "predvars")
-#       BsplineCall <- predvars[[2L + pos]]
-#       BsplineCall[[2]] <- quote(x)
-#       degree <- if (is.bs)
-#           BsplineCall[[3]]
-#       else 3L
-#       x <- with(as.list(BsplineCall[is.bs + 3:4]), c(Boundary.knots[1],
-#           unname(knots), Boundary.knots[2]))
-#       y <- base::c(eval(BsplineCall, data.frame(x = x)) %*% BsplineCoef)
-#       n_pieces <- length(x) - 1L
-#       PiecePolyCoef <- matrix(0, degree + 1L, n_pieces)
-#       i <- 1L
-#       while (i <= n_pieces) {
-#           xg <- seq.int(x[i], x[i + 1L], length.out = degree +
-#               1L)
-#           yg <- base::c(eval(BsplineCall, data.frame(x = xg)) %*%
-#               BsplineCoef)
-#           Xg <- base::outer(xg - shift * x[i], 0:degree, "^")
-#           U <- base::chol.default(base::crossprod(Xg))
-#           PiecePolyCoef[, i] <- base::backsolve(U, base::forwardsolve(t.default(U),
-#               base::crossprod(Xg, yg)))
-#           i <- i + 1L
-#       }
-#       structure(list(PiecePoly = list(coef = PiecePolyCoef, shift = shift),
-#           Bspline = list(call = BsplineCall, coef = BsplineCoef),
-#           knots = x), class = c("PiecePoly", "RegBspline"))
-#     })
-# }
-# ?SplinesUtils::RegBsplineAsPiecePoly
-# Q
-# SplinesUtils::RegBsplineAsPiecePoly(bsfit, "bs(time, degree = splinedf)")
-# tmp<-RegBsplineAsPiecePoly(bsfit, "bs(time, degree = splinedf)")
+################################################################################
+########exponential splines - don't work
+################################################################################
 
-# curve(-0.0606 + 0.0623 * x + 0.00173 * x ^ 2,1:35)
-# curve(0.000865 - 0.00173 * x - 0.000865 * x ^ 2,1:35)
-
-# plot(map_dbl(1:35,~ -0.0606 + 0.0623 * .x + 0.00173 * .x ^ 2))
-# plot(map_dbl(1:35,~ 0.000865 - 0.00173 * .x - 0.000865 * .x ^ 2))
-
-# plot()
-
-# bs%>%args
-# plot(bs(myx,3)[,3])
-# lm(bs(1:35,3)[,3]~bs(myx,3))
-
-# splinedf<-4
-
-# lm(bs(myx,splinedf)[,splinedf]~bs(myx,splinedf))
-# plot(lm)
-# splinebasis <- bs(myx,splinedf)
-
-# perffits <- map(1:splinedf,~ SplinesUtils::RegBsplineAsPiecePoly(lm(splinebasis[,.]~bs(myx,splinedf)),"bs(myx, splinedf)",shift=FALSE))
-
-# #everything on row one 
-# #(poly_deg,num_eq) 
-# perffits[[1]][[1]]$coef
-
-# perffits%>%length
-# perffits[[1]][[1]]$coef%>%dim
-# bsplinecoeffmat <- perffits%>%map(1)%>%map('coef')%>%bind_cols
-# bsplinecoeffmat <- perffits%>%map(1)%>%map('coef')%>%map(rowSums)%>%bind_cols
-
-# bsfit <- (lm(data=bsdata,ribo ~ bs(time,degree=splinedf)))
+####OOOOOKay problem the fold change can't be any lower than the degredation rate.
+#So the intial spline parameterization needs to be in terms of the difference between the degredation
+#rate and the fold change
 
 
-# fitpolycoefs <- as.matrix(bsplinecoeffmat) %*% matrix(bsfit$coef[-1])
-# fitpolycoefs[1] <- fitpolycoefs[1] + bsfit$coef[1]
+orthns<-function(x,df,...){
+  nsbasis <- ns(x,df,...)
+  svd(nsbasis)$u
+}
+x=1:20
 
-# plot(predict(bsfit))
-# points(map_dbl(myx, ~fitpolycoefs[1] + (.)*fitpolycoefs[2] + (.^2)*fitpolycoefs[3] + (.^3)*fitpolycoefs[4]),type='l')
+dorthns<-function(x,df,...){
+  
+  nsbasis <- ns(x,df=4)
+  dnsbasis <- rstpm2::nsxD(1:20,df=4)
+  svdns <- svd(nsbasis)
+  nsbasis %*% t(svd(nsbasis)$v)
+  svdns$u
+}
 
 
+spl_getprotdf<-function(
+splfit,
+splinedf =  4,
+deg = 0.1,
+rTE = 10,
+orthns_imat,
+ms0ratio = 1,
+logfit=TRUE
+ ) {
+  ntps <- length(predict(splfit))
+# conf_interval <- predict(linfit,, interval="confidence",
+                         # level = 0.95)
+# qplot(x=1:ntps,y=ribo,geom='blank')+geom_ribbon(aes(ymin = conf_interval[,2],ymax = conf_interval[,3],fill=I('grey')))+geom_point()+theme_bw()
+# conf_interval <- predict(splfit, interval="confidence",
+                         # level = 0.95)
+#qplot(x=1:ntps,y=ribo,geom='blank')+geom_ribbon(aes(ymin = conf_interval[,2],ymax = conf_interval[,3],fill=I('grey')))+geom_point()+theme_bw()
 
-# bsfit$coef
+
+  dPdt <- function(itime, state, parameters){
+   trans = if(logfit) log else identity
+   dPdt <- with(as.list(c(state,parameters)) ,{
+     mRNA <- exp(c(1,orthns_imat[itime,]) %*% scoefs)
+     mRNA <- max(0,mRNA)
+     (rTE * mRNA) - (deg*P)
+   })
+   list(dPdt)
+  }
 
 
-# #BOOOM - we now have a formula for going from a polynomial described by splines to a polynomial described by the linear variable, I think
-# points(map_dbl(myx, ~perffit[[1]]$coef[1] + (.)*perffit[[1]]$coef[2] + (.^2)*perffit[[1]]$coef[3] + (.^3)*perffit[[1]]$coef[4]),type='l')
+   trans = if(logfit) log else identity
 
-# perffit[[1]]$coef
+  stopifnot(splinedf %in% 1:100)
+  splineribo <- exp(predict(splfit))
+
+  #set up the actual ode
+  state<-c('P'= min(
+    ((rTE*splineribo[1])/deg),
+    # ((rTE*splineribo[1])/0.1)
+    Inf
+  ))
+
+  # orthns_imat <- orthns((1:ntps)-1,splinedf)
 
 
-# ?SplinesUtils::RegBsplineAsPiecePoly
-# Q
-# SplinesUtils::RegBsplineAsPiecePoly(bsfit, "bs(time, degree = splinedf)")
-# tmp<-RegBsplineAsPiecePoly(bsfit, "bs(time, degree = splinedf)")
+  state = state*ms0ratio
+  parameters = list(rTE=rTE,bounds=c(1,ntps),deg=deg,df=splinedf,scoefs = splfit$coef,orthns_imat=orthns_imat)%>%as.list
+  Pdf = ode(y = state, times = 1:ntps, func = dPdt, parms = parameters)
 
-# curve(-0.0606 + 0.0623 * x + 0.00173 * x ^ 2,1:35)
-# curve(0.000865 - 0.00173 * x - 0.000865 * x ^ 2,1:35)
+  #discrete aprox
+  # Pdf<-rep(NA,ntps) 
+  # Pdf[0] <- state
+  # for(i in 2:ntps){
+  #   (rTE*((ribo[i-1]+ribo[i])/2))
+  #   pdf[i] <- (rTE*((ribo[i-1]+ribo[i])/2))
+  # }
+  data.frame(ribo = splineribo,P=Pdf[,2],time=1:length(splineribo))
 
-# plot(map_dbl(1:35,~ -0.0606 + 0.0623 * .x + 0.00173 * .x ^ 2))
-# plot(map_dbl(1:35,~ 0.000865 - 0.00173 * .x - 0.000865 * .x ^ 2))
 
-# plot()
+}
 
-# bs%>%args
-# plot(bs(myx,3)[,3])
-# lm(bs(1:35,3)[,3]~bs(myx,3))
+################################################################################
+########Spline model basis tests
+################################################################################
+  
+ribo <-c(rep(100,20),400,800,400,rep(100,20))
+time<-seq_along(ribo)
+ztime = time -1
+nz = last(ztime)
+# nsbasis = evaluate(OrthogonalSplineBasis(orthogonalsplinebasis::expand.knots(c(0,nz))),ztime)
+# dnsbasis = evaluate(deriv(OrthogonalSplineBasis(orthogonalsplinebasis::expand.knots(c(0,nz)))),ztime)
 
-# perffit <- SplinesUtils::RegBsplineAsPiecePoly(lm(bs(1:35,3)[,3]~bs(myx,3)),"bs(myx, 3)",shift=FALSE)
-# perffit[[1]]$coef
+nsbasis <- bs(time,df=5)
+dnsbasis <- dbs(time,df=5)
+splfit <- (lm(log(ribo) ~ nsbasis))
+exp(predict(splfit))%>%txtplot
+stopifnot(!any(is.na(splfit$coef)))
+num_ode_res<-spl_getprotdf(splfit,deg = 0.1,rTE=20,splinedf=4,orthns_imat=nsbasis)
 
-# #BOOOM - we now have a formula for going from a polynomial described by splines to a polynomial described by the linear variable, I think
-# points(map_dbl(myx, ~perffit[[1]]$coef[1] + (.)*perffit[[1]]$coef[2] + (.^2)*perffit[[1]]$coef[3] + (.^3)*perffit[[1]]$coef[4]),type='l')
+num_ode_res$ribo%>%txtplot(ylim=c(0,max(.)))
+num_ode_res$P%>%txtplot(ylim=c(0,max(.)))
+
+
+# log(R(t)) = Pl(t) + log(Kd) - log(Ks)
+
+# orthns(time,)
 
 
 
-# predict.PiecePoly <- function (object, newx, deriv = 0L, ...) {
-#   browser()
-#   ## change symbol
-#   PiecePolyObject <- object
-#   ## extract piecewise polynomial coefficients
-#   PiecePolyCoef <- PiecePolyObject$PiecePoly$coef
-#   shift <- PiecePolyObject$PiecePoly$shift
-#   ## get degree
-#   degree <- dim(PiecePolyCoef)[1L] - 1L
-#   ## deriv validation
-#   if (deriv > degree) return(numeric(length(newx)))
-#   if (deriv > 2) stop("The function only computes up to 2nd derivatives!")
-#   ## get power
-#   power <- 0:(degree - deriv)
-#   ## extract knots
-#   x <- PiecePolyObject$knots
-#   ## which piece?
-#   piece_id <- base::findInterval(newx, x, TRUE)
-#   ind <- base::split.default(seq_len(length(newx)), piece_id)
-#   unique_piece_id <- as.integer(names(ind))
-#   n_pieces <- length(unique_piece_id)
-#   ## loop through pieces
-#   y <- numeric(length(newx))
-#   i <- 1L
-#   while (i <= n_pieces) {
-#     ii <- unique_piece_id[i]
-#     xi <- newx[ind[[i]]] - shift * x[ii]
-#     pc <- PiecePolyCoef[, ii]
-#     if (deriv > 0) pc <- pc[-1] * seq_len(length(pc) - 1L)
-#     if (deriv > 1) pc <- pc[-1] * seq_len(length(pc) - 1L)
-#     y[ind[[i]]] <- base::outer(xi, power, "^") %*% pc
-#     i <- i + 1L
-#     }
-#   y
-#   }
 
-# predict(perffits[[2]],newx=3.5)
+splinemodel_E <- function(Ks,Kd,a_0,a_1,a_2,a_3,a_4,a_5,R,P,nsbasis,dnsbasis,rsig,psig){
+  
+  n = length(R)
+
+  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
+  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
+
+  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
+
+  #AHA ok so dPl_t cannot be any less than the degreddation rate
+  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
+
+  E_lR
+
+  # log(R(t)) = Pl_t + log(dPl(t) + Kd ) - log(Ks)
+
+}
+
+splinemodel_LL <- function(parvect,R,P,nsbasis,dnsbasis,rsig,psig){
+
+  # stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
+  stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
+
+  with(as.list(parvect),{
+  n = length(R)
+
+  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
+  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
+  
+  mindPl_t = min(dPl_t)
+  Kd = mindPl_t + ex_Kd
+  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
+
+  #AHA ok so dPl_t cannot be any less than the degreddation rate
+  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
+  LL_P = dnorm(P,Pl_t,psig,log=T)
+  LL_R = dnorm(R,E_lR,rsig,log=T)
+  -sum(LL_P,LL_R)
+  })
+
+}
+
+splinemodel2_LL <- function(parvect,R,P,nsbasis,dnsbasis,rsig,psig){
+
+  # stopifnot(c('Ks','Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
+  stopifnot(c('Ks','ex_Kd','a_0','a_1','a_2','a_3','a_4','a_5') %in% names(parvect) )
+
+  with(as.list(parvect),{
+  n = length(R)
+
+  Pl_t = cbind(1,nsbasis) %*% c(a_0,a_1,a_2,a_3,a_4,a_5)
+  dPl_t = dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5)
+  
+  mindPl_t = min(dPl_t)
+  Kd = mindPl_t - ex_Kd
+  # Ks = max(c(abs(min(dPl_t)),Ks))+0.001
+  #AHA ok so dPl_t cannot be any less than the degreddation rate
+  if(any(dPl_t+Kd < 0 ))browser()
+  E_lR = Pl_t + log(dPl_t + Kd) - log(Ks)
+  LL_P = dnorm(P,Pl_t,psig,log=T)
+  LL_R = dnorm(R,E_lR,rsig,log=T)
+  -sum(LL_P,LL_R)
+  })
+
+}
+
+#ZIFA
+
+splfit$coef
+R = ribo
+P = out$P
+
+orthns(1:(last(ztime)*1000),4)[,]
+seq(1,length(ztime)*1000)
+
+P%>%txtplot
+psplfit <- lm(log(P) ~ nsbasis)
+psplfit%>%predict%>%exp%>%txtplot
+
+eR <- splinemodel_E(Ks=20,Kd=0.01,
+  a_0=psplfit$coef[1],a_1=psplfit$coef[2],a_2=psplfit$coef[3],a_3=psplfit$coef[4],a_4=psplfit$coef[5],
+  a_5=psplfit$coef[6],
+  R=ribo,
+  P=out$P,
+  nsbasis,dnsbasis,rsig,psig)
+
+parvect=list(Ks=20,Kd=0.01,
+  a_0=psplfit$coef[1],a_1=psplfit$coef[2],a_2=psplfit$coef[3],a_3=psplfit$coef[4],a_4=psplfit$coef[5],
+  a_5=psplfit$coef[6])%>%{setNames(unlist(.,use.names=F),names(.))}
+
+eR <- splinemodel_LL(parvect,
+  R=log(ribo),
+  P=log(out$P),
+  nsbasis,dnsbasis,rsig=1,psig=20
+)
+
+rsig=1
+psig=20
+
+# parvect['Kd']=0.9
+
+# optim(parvect,splinemodel_LL,R=log(ribo),P=log(out$P),nsbasis=nsbasis,dnsbasis=dnsbasis,rsig=rsig,psig=psig)
+
+parvect2 <- parvect
+names(parvect2)[2]<-'ex_Kd'
+parvect2['ex_Kd'] <-0.2
+
+results <- optim(parvect2,splinemodel2_LL,R=log(ribo),P=log(out$P),lower=list(ex_Kd=0.001),nsbasis=nsbasis,dnsbasis=dnsbasis,rsig=rsig,psig=psig)
 
 
+with(as.list(parvect2),{min(dnsbasis %*% c(a_1,a_2,a_3,a_4,a_5))}) - results$par['ex_Kd']
+
+
+
+log(R(t)) = int(exp(F((t)))-Kd) + log( exp(F(t)) ) - log(Ks)
+
+
+################################################################################
+########
+################################################################################
+log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
+
+#This is a problem for parametrization. So what if instead of initializing the parameters of Pl(t)
+#We instead initialize the parameters of a split f(t) which describes dPl(t) + Kd ? Then we'd
+#Still have to avoid it getting negative sometimes.
+#We could have a spline which defines the log value of dPl(t) + Kd. It's exponent would then be
+log(R(t)) = Pl(t) + log( dPl(t) + Kd ) - log(Ks)
+log(R(t)) = int(exp(F((t)))-Kd) + log( exp(F(t)) ) - log(Ks)
+#This leaves us with this tricky exponential integral to deal with.....
+log(R(t)) = int{exp(F((t)))-Kd}  + F(t) - log(Ks)
+log(R(t)) = int{exp(F((t)))-Kd}  + F(t) - log(Ks)
+
+
+
+exp(predict(splfit))
+  

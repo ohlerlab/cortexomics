@@ -1,0 +1,43 @@
+#Modeling notes
+#
+#######
+Okay I think I  have a simple, sensible answer - take the easy route, use piecewise linear functions.
+
+Okay so piecewise thing now works beautifully in R. Can translate direclty to 
+
+Splines  face the problem where determing backwards is constrainedi n a really awkwards way
+
+I'm pretty sure that I can just use splines to get around the ODE and model this very quickly. Actually reading Liu et al helped. Now I need to actually read INSIGHT.
+THen I need to solve the meta problem of me not actually reading
+
+I think I can maybe use offset to fix the effects for the spline and dspline 
+
+okay so we got to somewhere with Philip and I think I can fit that relatively okay equation now, should probably just do so in stan....	
+
+LAGRANGIAN MULTIPLIERS BABE
+Look at liu et al. Monstrous. look at
+https://en.wikipedia.org/wiki/Block_matrix#Block_matrix_inversion
+How can I phrase my problem like that?
+1) Imagine my alpha are concatenated alphas for the RNA and prot.
+2) Can I then phrase the relationship between RNA and protein as another linear constraint, and just 
+do blockwise matrix inversion like they did??
+3) I suspect I can't make the constraint a linear function like they did. 
+linearspline.R is where the logic for this is at.
+Can I even get this clear enought o email sam?
+
+
+Maybe I should give up cos I can't do better than them....
+
+Seems shitty.
+
+My optim function in linear splines maybe just needs to have a term for linearity at the edges
+and for minimization of the coefficients.
+
+Okay so haadamard product can just be represented as a diagonal matrix, fine
+then I think I can get my protein AND RNA levels as linear products of the coefficients for the protein.
+I THINK this then opens things up to me just using lagrange multipliers, the way liu et al did...
+THis would be truly monstrous.
+But wouldn't get me confidence intervals.
+For those, confint might dot he job
+Would also need to think about how to constrain my spline parameters.
+How do we code the restriction of the synthesis always bieng positive

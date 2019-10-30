@@ -14,9 +14,16 @@ suppressMessages(library(DESeq2))
 suppressMessages(library(here))
 suppressMessages(library(biomaRt))
 suppressMessages(library(testthat))
+library(conflicted)
 library(zeallot)
 library(splines)
 library(limma)
+
+conflict_prefer('rowMedians','Biobase')
+conflict_prefer('setequal','S4Vectors')
+conflict_prefer("between", "dplyr")
+conflict_prefer("matches", "dplyr")
+matches <- dplyr::matches
 
 get_matrix_plus_design <- function(exprdata,idcol,transform=log2,sigcol=signal){
 	idcol<-enquo(idcol)
@@ -42,9 +49,10 @@ sizefactnorm<-function(countmat){
 message('...done' )
 
 
-LOWCOUNTLIM <- 10
+LOWCOUNTLIM <- 100
 
 source(here('src/R/Rprofile.R'))
+
 
 args <- c(
 	segment_counts_list = paste0(collapse=',',Sys.glob(here('pipeline/riboseq_quant/data/*/segment_counts_df.tsv'))),
@@ -73,7 +81,9 @@ cds <- gtf_gr%>%subset(type=='CDS')
 
 
 #add gene id
-allsegcounts_nz <- allsegcounts%>%group_by(protein_id)%>%filter(any(centercount>10))
+allsegcounts%<>%separate(sample,into=c('time','assay','rep'))%>%group_by(protein_id,assay,time)%>%mutate(hascounts = sum(total)>LOWCOUNTLIM)
+allsegcounts%<>%unite(sample,time,assay,rep)
+allsegcounts_nz <- allsegcounts%>%group_by(protein_id)%>%filter(any(hascounts))
 allsegcounts_nz %<>% safe_left_join(mcols(gtf_gr)[,c('gene_id','protein_id')]%>%as.data.frame%>%distinct(gene_id,protein_id))
 
 cds_nz <- cds%>%subset(protein_id %in% unique(allsegcounts_nz$protein_id))
@@ -89,14 +99,12 @@ mainribosamps <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/samp
 	str_detect(neg=T,'test'))%>%	
 	.$sample_id
 
-colMedians(mscountvoom$E)
 
 test_that("It looks like the counting worked!",{
 	allsegcounts_nz%>%group_by(protein_id)%>%group_slice(1)%>%as.data.frame
 	expect_true('E13_ribo_1' %in% mainribosamps)
-	expect_true(all(mainribosamps %in% allsegcounts_nz$sample))
+	assert_that(all(mainribosamps %in% allsegcounts_nz$sample))
 })
-
 
 
 
@@ -105,7 +113,7 @@ test_that("It looks like the counting worked!",{
 ################################################################################
 ########Load the matching between protein IDS and mass spec ids
 ################################################################################
-
+{
 allms=data.table::fread(msfile)
 #some formatting differences
 allms%<>%select(ms_id=Protein_IDs,everything())
@@ -130,6 +138,12 @@ if(!exists('ms_id2protein_id')){
 	})
 }
 
+nonredgnames <- mcols(cds)%>%as.data.frame%>%distinct(gene_name,gene_id)%>%group_by(gene_name)%>%
+	mutate(new_gene_name=paste0(gene_name[1],c('',paste0('_',2:n())))[1:n()])%>%
+	ungroup%>%
+	select(gene_name=new_gene_name,gene_id)
+
+ms_id2protein_id%<>%select(-matches('gene_name'))%>%safe_left_join(nonredgnames)
 
 #keep the mass spec we've matched to protein IDs
 matched_ms <- allms%>%semi_join(ms_id2protein_id%>%distinct(ms_id,protein_id))
@@ -140,19 +154,21 @@ c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
 
 #get the satb2 ids we want to look at
 allids <- readRDS('pipeline/allids.txt')
-ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
-#now we can calculate the minimum MS specific variance per gene.
-ms_id2protein_id%<>%left_join(allids%>%distinct(gene_id,protein_id))
+# allids2<-allids %>%bind_rows(.,mutate(.,gene_name=paste0(gene_name,'_2')))
+
+# ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
+
+ms_id2protein_id%<>%select(-matches('gene_name'))%>%safe_left_join(mcols(cds)%>%as.data.frame%>%distinct(transcript_id,gene_id))%>% safe_left_join(nonredgnames,by='gene_id')
+
+}
+
+# ms_id2protein_id%>%mutate(id=seq_len(n()))%>%left_join(allids2%>%distinct(protein_id,gene_name))%>%group_by(id)%>%filter(n()>1)
+# #now we can calculate the minimum MS specific variance per gene.
+# ms_id2protein_id%>%left_join(allids%>%distinct(gene_id,protein_id))
+# ms_id2protein_id%>%mutate(id=seq_len(n()))%>%left_join(allids2%>%distinct(protein_id,gene_name))%>%group_by(id)%>%filter(n()>1)%>%head(2)%>%as.data.frame
+# ms_id2protein_id%>%as.data.frame%>%head
 
 #deal with the few cases in which the same gene name is linked to multiple gene IDs
-nonredgnames <- ms_id2protein_id%>%ungroup%>%distinct(gene_name,gene_id)%>%group_by(gene_name)%>%
-	mutate(new_gene_name=paste0(gene_name[1],c('',paste0('_',2:n())))[1:n()])%>%
-	ungroup%>%
-	select(gene_name=new_gene_name,gene_id)
-
-nonredgnames%>%group_by(gene_id)%>%filter(n()>1)
-
-ms_id2protein_id%<>%select(-gene_name)%>%safe_left_join(nonredgnames,by='gene_id')
 
 
 satb2ids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$protein_id
@@ -194,6 +210,7 @@ pickms_ids<-posteriorsum%>%
 	left_join(ms_id2protein_id%>%distinct(gene_id,ms_id))%>%
 	group_by(gene_id)%>%
 	mutate(mostprec_ms_id=mean_prec==max(mean_prec))
+
 #always a most precise ms_id for a gene
 assert_that((pickms_ids%>%filter(sum(mostprec_ms_id)>1)%>%nrow) ==0)
 pickms_ids <- pickms_ids%>%filter(mostprec_ms_id)
@@ -207,7 +224,7 @@ msposteriorsumfilt <- posteriorsum%>%
 	filter(ms_id%in%pickms_ids$ms_id)%>%
 	left_join(ms_id2protein_id,allow_missing=TRUE,allow_dups=TRUE)%>%
 	filter(!is.na(protein_id))%>%
-	filter(protein_id %in% rownames(allcountmat))
+	filter(protein_id %in% allsegcounts_nz$protein_id)
 
 #add the protein mean estimates
 postmeanmat <- msposteriorsumfilt%>%
@@ -225,14 +242,12 @@ postprecmat <- msposteriorsumfilt%>%
 flnauid <- ms_id2protein_id%>%filter(ms_id=='B7FAU9;Q8BTM8;B7FAV1')%>%.$uprotein_id%>%head(1)
 assert_that(postprecmat[flnauid,]%>%head(1)%>%`>`(100))
 
-
-
 ################################################################################
 ########Perform linear modeling to select the best protein IDs
 ################################################################################
-
+tps <- mainribosamps%>%str_extract(.,'[^_]+')%>%unique
 SPLINE_N <- 4
-RIBOSIGCOL <- 'centercount'
+# RIBOSIGCOL <- 'centercount'
 RIBOSIGCOL <- 'total'
 allsegcounts_nz%>%colnames
 best_satb2_uid <- 'ENSMUSP00000110057_4528'
@@ -275,8 +290,45 @@ itimecountvoom <- limma::voom(allcountmat,design=model.matrix(~ 1+ribo*time,data
 # oldsatb2counts<-allcountmat[best_satb2_pid,]
 allcountmat[best_satb2_pid,]
 
+}
+
+{
+
+featuredata = rownames(allcountmat)%>%data.frame(protein_id=.)%>%
+	safe_left_join(as.data.frame(mcols(cds))%>%distinct(protein_id,gene_id,transcript_id))%>%
+	safe_left_join(nonredgnames)%>%
+	set_rownames(.$protein_id)
+
+featuredata$is_gid_highest <- data.frame(
+    gid = featuredata$gene_id,
+    pid = featuredata$protein_id,
+    rowmed = allcountmat%>%rowMedians
+  )%>%  
+  mutate( origorder = seq_len(n()))%>%
+  group_by(gid)%>%
+  sample_frac(1)%>%
+  mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
+  ungroup%>%arrange(origorder)%>%
+  .$is_gid_highest
+
+featuredata$length = width(cds)[match(featuredata$protein_id,cds$protein_id)]
+
+library(txtplot)
+
+allcountmat%>%as.data.frame%>%select(dplyr::matches('total'))%>%as.matrix%>%rowMedians%>%add(1)%>%log10%>%txtdensity
+
+
+countexprdata <- ExpressionSet(
+	allcountmat,
+	AnnotatedDataFrame(allcountdesign%>%as.data.frame%>%set_rownames(colnames(allcountmat))),
+	AnnotatedDataFrame(featuredata)
+)
+countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
 
 }
+
+
+all(countvoom$E%>%rownames%in% fData(countexprdata)$protein_id)
 
 ################################################################################
 ########construct voom object 
@@ -390,7 +442,7 @@ ntps<-length(tps)
 sntps <- seq_along(tps)
 i_n <- 1
 
-	itimecontrasts=alltimeeff
+itimecontrasts=alltimeeff
 
 stepwise_contrasts <- lapply(list(all=alltimeeff,TE=timeTEeffect,MS_dev=timeMSeffect),function(itimecontrasts){
 	lapply(1:(ntps-1),function(i_n){
@@ -399,6 +451,7 @@ stepwise_contrasts <- lapply(list(all=alltimeeff,TE=timeTEeffect,MS_dev=timeMSef
 		set_colnames(cname)
 	})%>%do.call(cbind,.)
 })%>%do.call(cbind,.)
+
 
 
 
@@ -471,6 +524,11 @@ ebayes_stepwiseold<-ebayes_stepwise
 
 
 
+stop()
+
+####Now we select the 
+
+
 
 
 uprotein_ms_diffs <- contrasts.fit(mscountebayes,contrasts = timeMSeffect[,2:5])%>%topTable(coef=which(tps=='P0')-1,number=1e9,confint=0.95)%>%as.data.frame%>%
@@ -487,8 +545,6 @@ ms_genes_w_sig_TE <- lapply(tps[-1],function(testtp){
 	filter(adj.P.Val < 0.05)
 })%>%bind_rows%>%.$gene_name%>%n_distinct
 
-
-fdsafldjaklfdsa;fdsafldjaklfdsa
 #Fix the to top table here
 count_te_fit <- eBayes(contrasts.fit(lmFit(countvoom[,]),contrasts = head(timeTEeffect[-3,2:5],-4)))
 count_te_coefs <- lapply(tps[-1]%>%setNames(.,.),function(testtp){count_te_fit%>% topTable(coef=which(tps==testtp)-1,number=1e9,confint=0.95)%>%rownames_to_column('protein_id')})%>%bind_rows(.,.id='time')

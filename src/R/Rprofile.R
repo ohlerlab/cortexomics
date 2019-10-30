@@ -730,15 +730,15 @@ Psite_model<-R6Class("Psite_model",
     offsetreads
   })
 )
-if(exists('psite_model')){
-  psite_model <- Psite_model$new(
-    offsets=psite_model$offsets,
-    seqshiftmodel=psite_model$seqshiftmodel,
-    compartments=psite_model$compartments,
-    referencefasta=psite_model$referencefasta
-)
 
-}
+# if(exists('psite_model')){
+#   psite_model <- Psite_model$new(
+#     offsets=psite_model$offsets,
+#     seqshiftmodel=psite_model$seqshiftmodel,
+#     compartments=psite_model$compartments,
+#     referencefasta=psite_model$referencefasta
+# )
+# }
 
 
 get_cds_offsets = function(reads_tr,offsets,compartments){

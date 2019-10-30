@@ -71,11 +71,9 @@ if(RUST) {
 
 reads_list%<>%setNames(dirname(transcriptbam)%>%basename)
 
-
 reads_psite_list <- psite_info(reads_list, psite_offset)
 
 example_frames <- frame_psite(reads_psite_list, sample = sampnames[[1]], region = "all")#offsets
-
 
 psite_offset <- psite(reads_list, flanking = 6, extremity = "auto")
 
@@ -126,53 +124,44 @@ ribowaltzpdf%>%dirname%>%dirname%>%dir.create
 ribowaltzpdf%>%dirname%>%dir.create
 
 pdf(ribowaltzpdf,w=14,h=7)
-rlength_distr(reads_list[1], sample = sampnames, cl = 99)[["plot"]]
-grid::grid.newpage()
+# rlength_distr(reads_list[1], sample = sampnames, cl = 99)[["plot"]]
 # example_ends_heatmap[["plot"]]
-gridExtra::grid.table(psite_offset, theme = mytheme,rows=NULL)
-# example_psite_region[["plot"]]
-example_frames_stratified[["plot"]]
-example_metaprofile[["plot"]]
-example_frames[["plot"]]
-
-# metaprofile_psite%>%debug
-# metaprofile_psite%>%undebug
-
-for(readlen in readlens%>%keep(~.%in%c(25:30))){
-	try({
+# gridExtra::grid.table(psite_offset, theme = mytheme,rows=NULL)
+# # example_psite_region[["plot"]]
+# example_frames_stratified[["plot"]]
+# example_metaprofile[["plot"]]
+# example_frames[["plot"]]
+for(readlen in 25){
+	# try({
 	message(paste0('comparison plots for readlength:',readlen))
-
-	reads_psite_readlen <- reads_psite_list[[sampnames[[1]]]][length == as.numeric(readlen)]
-
+	#
+	reads_psite_readlen <- reads_psite_list[[sampnames[[1]]]][length %in% readlen]
+	#
 	example_metaprofile_i <- metaprofile_psite(setNames(list(reads_psite_readlen),sampnames[[1]]), riboWaltzanno, sample = sampnames[[1]],
 	                                            length_range = 25:31, utr5l = 20, cdsl = 60, 
-	                                            transcripts = reads_psite_readlen$transcript%>%unique,
+	                                            # transcripts = reads_psite_readlen$transcript%>%unique,
 	                                            utr3l = 20, plot_title = "auto")
-
+	#
 	print(example_metaprofile_i[['plot']])
-
+	#
 	comparison_dt <- list()
-	
-	
+	#
 	comparison_dt[[paste0("subsample_",readlen,"nt")]] <- reads_psite_readlen
 	comparison_dt[["whole_sample"]] <- reads_psite_list[[sampnames[[1]]]]
-
+	#
 	names_list <- list( paste0("subsample_",readlen,"nt"),"whole_sample" )%>%setNames(c(paste0("Only_",readlen),'All'))
-
+	#
 	scale_facts <- comparison_dt%>%map_dbl(~ 1e6 / nrow(.))%>%setNames(names(comparison_dt))
-	# example_metaheatmap_compi <- metaheatmap_psite(comparison_dt, riboWaltzanno, sample = names_list,
-	                                         # utr5l = 20, cdsl = 40, utr3l = 20, log = F, scale_factors=scale_facts)
-	# print(example_metaheatmap_compi[['plot']])
-
+	#
 	example_frames <- frame_psite(reads_psite_list%>%map(~.[length==as.numeric(readlen)]), sample = sampnames[[1]], region = "all")
-	print(example_frames[["plot"]])
-
-	})
+	example_frames[["plot"]]
 }
-
 dev.off()
 normalizePath(ribowaltzpdf)
 
+stop()
+
+debug(metaprofile_psite)
 
 #psite_offset%>%filter(outputtsv
 

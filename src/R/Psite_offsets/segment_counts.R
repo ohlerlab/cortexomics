@@ -46,11 +46,11 @@ for(fname in lsf.str('package:dplyr')) assign(fname,get(fname,'package:dplyr'))
 
 
 argv <- c(
-	bam = here('pipeline/star/data/P0_total_1/P0_total_1.bam')%T>%{stopifnot(file.exists(.))},
+	bam = here('pipeline/star/data/E13_ribo_2/E13_ribo_2.bam')%T>%{stopifnot(file.exists(.))},
 	gtf = here('pipeline/my_gencode.vM12.annotation.gtf'),
 	REF = here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'),
-	shiftmodel = 'pipeline/seqshift_reads/data/P0_total_1/seqshiftmodel.rds',
-	outfolder = 'riboseq_quant/data/P0_total_1/'
+	shiftmodel = 'pipeline/seqshift_reads/data/E13_ribo_2/seqshiftmodel.rds',
+	outfolder = 'riboseq_quant/data/E13_ribo_2/'
 )
 
 sampleparams <- fread(here('pipeline/sample_parameter.csv'))
@@ -271,13 +271,15 @@ bams <- argv['bam']
 
 if(interactive())bams <- here('pipeline/star/data/*/*.bam')%>%Sys.glob%>%str_subset(neg=TRUE,'transcript')%>%str_subset('_ribo_|total')
 # bams<-bams[3]
+
+bam <- bams[1]
+
 for(bam in bams){
 	message(bam)
 	library(glue)
 	thissamp<-bam%>%dirname%>%basename
 	shiftmodel = here(glue('pipeline/seqshift_reads/data/{thissamp}/seqshiftmodel.rds'))
 	outfolder = here(glue('pipeline/riboseq_quant/data/{thissamp}/'))
-
 
 
 
@@ -327,8 +329,9 @@ for(bam in bams){
 
 	ns_all_genes%>%saveRDS(rdsfile)
 
-	#readRDS(rdsfile)->ns_all_genes
+	readRDS(rdsfile)->ns_all_genes
 
+	matches<-dplyr::matches
 
 	if('result' %in% names(ns_all_genes[[1]])){
 		segcountdf<-ns_all_genes%>%map('result')%>%bind_rows%>%select(protein_id=matches('id'),everything())

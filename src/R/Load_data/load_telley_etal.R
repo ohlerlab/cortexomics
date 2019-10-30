@@ -36,12 +36,21 @@ telleyfiles[[3]]%>%excel_sheets
 t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
 t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
 
+
+t_timecoretbl%>%as.data.frame
+t_diffcoretbl%>%as.data.frame
 t_diffcoretbl$gene_name %in% gtf_gr$gene_name
 
 chronotypic_clusters<-telleyfiles['tclusters']%>%read_excel(sheet='Clusters')%>%rename(gene_name=`Gene symbol`)%>%rename(cluster=`tSNE cluster`)
 
+t_timecoretbl%>%data.frame
 
 
+str_detect(t_timecoretbl$gene_name,'a2g4')
+str_detect(t_timecoretbl$gene_name,'Ebp1')
+str_detect(t_diffcoretbl$gene_name,'a2g4')
+str_detect(t_diffcoretbl$gene_name,'Ebp1')
+t_diffcoretbl$gene_name%>%sort
 ################################################################################
 ######## Project Expression Data onto this
 ################################################################################
