@@ -150,3 +150,16 @@ yv =  (1+invdbasis %*% mybs %*%  diag_z) %*% px
 now in orthogonolaizing our basis... we need to think about how the coefficients are effected.
 
 hang on, if one of our basis terms is the intercept in dbs space, then every term but one in
+
+
+So my problem is just optimizing such that the RNA is always a positive value.
+That means I need M splines
+I need to devise a basis, then, show i can get parameter values for this basis that, when I apply the equations I have,
+lead to reasonablee values for thee other measure.
+
+okay well the log spline is working okay now, though the prot trajectory got weird when I increased the lower limit boundary
+
+
+I should maybe think about a linear spline
+which means parametrizing the whole thing in terms of the log fold change
+And then the degredation.

@@ -23,3 +23,7 @@ I might use existing code, but change
 
 
 Things todaya - 
+
+Didn't fix gene lists, numbers in anticipiation of sending
+
+Was just tired when it came to fixing limits, couldn't think my way around existing code

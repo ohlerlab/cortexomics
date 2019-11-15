@@ -880,3 +880,61 @@ make_lfc_trajplot<-function(lfc_tbl_plot){
         
 }
 
+inclusiontable<-function(a,b){
+  library(rlang)
+  aname = rlang::quo_text(enquo(a))
+  bname = rlang::quo_text(enquo(b))
+  all = BiocGenerics::union(a,b)
+  outtab = table(all %in% a,all %in% b)
+  dimnames(outtab)%<>%setNames(c(aname,bname))
+  outtab
+}
+
+
+
+conflict_prefer('has_name','assertthat')
+
+get_genomic_psites <- function(bam,windows,mapqthresh=200) {
+  require(GenomicAlignments)
+  riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
+  reads <- readGAlignments(bam,param=riboparam)
+  mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
+
+  reads <- reads%>%subset(width %in% psite_model$offsets$length)
+  mcols(reads)$length <- width(reads)
+  reads%<>%subset(!is.na(cdsshift))
+  psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
+  mcols(psites)$length <- mcols(reads)$length   
+  psites
+}
+
+
+
+
+GR <- GRanges
+ext_grl<-function(grl,nbp,fixend='end'){
+  stopifnot(identical(grl,sort(grl)))
+  if(is.null(names(grl))) names(grl)<-seq_along(grl)
+  #if we fix the start we want to select the end
+  if(fixend=='start'){
+    strandtorev <- '-' 
+    endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
+
+  }else if (fixend=='end'){
+    #and if the end then we want the start
+    strandtorev <- '+'
+    endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
+
+  }else{stop('fixend needs to be start or end')}
+  cuminds <- cumsum(elementNROWS(grl))
+
+  ulgrl <- unlist(grl,use.names=TRUE)
+  endinds <- unlist(lag(cuminds,1,0)+endinds)
+  #but this isn't safe since the gene might end up out of bounds
+  #add the difference between it and the limit, rounded down to the nearest 3, up to 15
+  stopifnot(all(start(ulgrl[endinds]) > nbp))
+  ulgrl[endinds] %<>% resize(width(.)+nbp,fixend)
+  grl <- split(setNames(ulgrl,NULL),names(ulgrl))
+  stopifnot(is(grl,'GRangesList'))
+  grl
+}

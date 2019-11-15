@@ -81,6 +81,8 @@ if(!file.exists(shiftmodel)){
 }
 
 
+# exons2use[2:3]%>%revElements(.,any(strand(.)=='-'))
+
 # cds	%>%split(.,.$protein_id)%>%head(2)%>%lapply(head,2)%>%GRangesList%>%unlist%>%{.[isfpmost(.)]%<>%clip_start(5);.}
 
 
@@ -126,99 +128,6 @@ strandedorder <- function(grl) {
 	order <- order(tmpgrl)
 	order[any(strand(tmpgrl)%in%'-')]%<>%revElements
 	order
-}
-
-segment_ribocount<-function(exonsubset,cdssubset,bam,psite_model,REF,
-	STARTCLIP = 15,
-	ENDCLIP = 5,
-	nbp=2,
-	startflank=9,
-	endflank=9,
-	do_seqshift=TRUE,
-	revstrand=FALSE){
-
-	# cat(names(exonsubset)[1])
-	
-	stopifnot(!is.null(names(exonsubset)))
-	assert_that(all(names(exonsubset)==names(cdssubset)))
-
-	exons2use
-
-	#to ensure that our reads don't overlap two ranges
-	readwindow = cdssubset%>%unlist%>%reduce%>%c(.,gaps(.)%>%subset(width<400))%>%reduce
-
-	#get only reads which actually overlap cds
-	riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=MAPQTHRESH,which=readwindow)
-
-	#read in reas
-	reads <- readGAlignments(bam,param=riboparam)
-	#invert stran if needed, use only the ones on right strand
-	table(strand(reads))
-	if(revstrand) reads%<>%invertStrand
-	reads%<>%subsetByOverlaps(cdssubset)
-	mcols(reads)$length <- qwidth(reads)
-
-	stopifnot(max(psite_model$offsets$length)<100)
-	if(!is.null(psite_model)) mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
-
-	if(do_seqshift){
-		seqdata <- get_seqforrest_data(reads,FaFile(REF),nbp=2)
-
-		mcols(topcdsreads)$seqshift <-  get_predictedshifts(psite_model$seqshiftmodel,seqdata,prob=0.5)
-
-		psitesmapped <- reads%>%
-					subset(!is.na(cdsshift))%>%
-					apply_psite_offset(c('cdsshift','seqshift'))%>%as("GRanges")%>%
-					mapToTranscripts(exonsubset)
-	}else if(!is.null(psite_model)){
-		psitesmapped <- reads%>%
-					subset(!is.na(cdsshift))%>%
-					apply_psite_offset(c('cdsshift'))%>%as("GRanges")%>%
-					mapToTranscripts(exonsubset)
-	}else{
-		psitesmapped <- reads%>%qnarrow(start=floor(qwidth(.)/2),width=1)%>%as("GRanges")%>%mapToTranscripts(exonsubset)
-	}
-
-	cdsmap <- cdssubset%>%unlist%>%pmapToTranscripts(exonsubset[names(.)])%>%reduce
-
-	assert_that(length(cdsmap)==length(exonsubset))
-
-	assert_that(all(table(seqnames(cdsmap))==1),msg='CDS shoudl be one unbroken stretch of the transcript')
-	assert_that(all(names(exonsubset) %in% seqlevels(cdsmap)),msg='CDS shoudl be one unbroken stretch of the transcript')
-
-	startclipbp<-	(3*STARTCLIP) + startflank
-	stopclipbp<-	(3*ENDCLIP) + endflank
-
-	covvects <- psitesmapped%>%coverage
-
-	expcds <- cdsmap %>% resize(width(.)+startflank+endflank,'center')
-
-	#make sure our expansions worked
-	stopifnot(! any (is_out_of_bounds(expcds)))
-
-	seqlengths(expcds) <- sum(width(exonsubset))
-		
-	# expcds <- trim(expcds)
-
-
-	covvects <- covvects[expcds]
-	covvects <- lapply(covvects,as.vector)
-	#Get, periodicity scores
-	vectftests<-covvects%>%lapply(ftestvect)%>%simplify2array
-
-	cat('..')
-	# message('memory in use ',gigsused())
-
-	data.frame(
-		spec_coef = vectftests[1,],
-		spec_pval = vectftests[2,],
-		length = covvects%>%map_dbl(length),
-		total = covvects%>%map_dbl(sum),
-		startcount = covvects%>%map_dbl(possibly(~sum(.[1:startclipbp]),NA)),
-		enddcount = covvects%>%map_dbl(possibly(~sum(.[(length(.)-stopclipbp+1):length(.)]),NA)),
-		centercount = covvects%>%map_dbl(possibly(~sum(.[(startclipbp+1):(length(.)-stopclipbp)]),NA))
-	)%>%rownames_to_column('protein_id')
-
 }
 
 

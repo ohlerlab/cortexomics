@@ -49,7 +49,7 @@ sizefactnorm<-function(countmat){
 message('...done' )
 
 
-LOWCOUNTLIM <- 100
+LOWCOUNTLIM <- 32
 
 source(here('src/R/Rprofile.R'))
 
@@ -77,18 +77,16 @@ allsegcounts <- segment_counts_list%>%setNames(.,basename(dirname(.)))%>%map_df(
 if(!exists('gtf_gr')) gtf_gr<-rtracklayer::import(con=gtf,format='gtf')
 exons <- gtf_gr%>%subset(type=='exon')
 cds <- gtf_gr%>%subset(type=='CDS')
-  
+
+ 
 
 
 #add gene id
-allsegcounts%<>%separate(sample,into=c('time','assay','rep'))%>%group_by(protein_id,assay,time)%>%mutate(hascounts = sum(total)>LOWCOUNTLIM)
+allsegcounts%<>%separate(sample,into=c('time','assay','rep'))%>%group_by(protein_id,assay,time)%>%mutate(hascounts = sum(total[assay=='ribo'])>LOWCOUNTLIM)
 allsegcounts%<>%unite(sample,time,assay,rep)
 allsegcounts_nz <- allsegcounts%>%group_by(protein_id)%>%filter(any(hascounts))
 allsegcounts_nz %<>% safe_left_join(mcols(gtf_gr)[,c('gene_id','protein_id')]%>%as.data.frame%>%distinct(gene_id,protein_id))
-
 cds_nz <- cds%>%subset(protein_id %in% unique(allsegcounts_nz$protein_id))
-
-unique(allsegcounts_nz$protein_id)
 
 
 mainribosamps <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/sample_parameter.csv'%>%
@@ -106,6 +104,51 @@ test_that("It looks like the counting worked!",{
 	assert_that(all(mainribosamps %in% allsegcounts_nz$sample))
 })
 
+protid_gid_df <- cds%>%mcols%>%as.data.frame%>%distinct(protein_id,gene_id)
+
+allsegcounts_nz%>%safe_left_join(protid_gid_df)%>%.$gene_id%>%n_distinct
+allsegcounts%>%safe_left_join(protid_gid_df)%>%.$gene_id%>%n_distinct
+
+highcountgenes<-allsegcounts_nz$gene_id%>%unique
+
+################################################################################
+########Fix the count expression data
+################################################################################
+	
+
+{
+
+featuredata = rownames(allcountmat)%>%data.frame(protein_id=.)%>%
+	safe_left_join(as.data.frame(mcols(cds))%>%distinct(protein_id,gene_id,transcript_id))%>%
+	safe_left_join(nonredgnames)%>%
+	set_rownames(.$protein_id)
+
+featuredata$is_gid_highest <- data.frame(
+    gid = featuredata$gene_id,
+    pid = featuredata$protein_id,
+    rowmed = allcountmat%>%rowMedians
+  )%>%  
+  mutate( origorder = seq_len(n()))%>%
+  group_by(gid)%>%
+  sample_frac(1)%>%
+  mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
+  ungroup%>%arrange(origorder)%>%
+  .$is_gid_highest
+
+
+featuredata$length = sum(width(cds%>%split(.,.$protein_id)))[featuredata$protein_id]
+
+library(txtplot)
+
+countexprdata <- ExpressionSet(
+	allcountmat,
+	AnnotatedDataFrame(allcountdesign%>%as.data.frame%>%set_rownames(colnames(allcountmat))),
+	AnnotatedDataFrame(featuredata)
+)
+
+countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
+
+}
 
 
 
@@ -246,6 +289,7 @@ SPLINE_N <- 4
 # RIBOSIGCOL <- 'centercount'
 RIBOSIGCOL <- 'total'
 allsegcounts_nz%>%colnames
+satb2_uids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$uprotein_id%>%unique
 best_satb2_uid <- 'ENSMUSP00000110057_4528'
 best_satb2_pid <- 'ENSMUSP00000110057'
 satb2cds <- cds%>%subset(protein_id %in% satb2ids)
@@ -260,6 +304,7 @@ hasnoribo <- ribocountmat%>%rowSums%>%`==`(0)
 noriboprotids <- names(hasnoribo)[hasnoribo]
 noribobutms <- noriboprotids%>%intersect(ms_id2protein_id$protein_id)
 ribocountmat <- ribocountmat[!hasnoribo,]
+countvoom <- limma::voom(ribocountmat,design=model.matrix(~ns(as.numeric(time),2), ribodesign))
 countvoom <- limma::voom(ribocountmat,design=model.matrix(~ns(as.numeric(time),2), ribodesign))
 
 #vooom object for all counts
@@ -288,43 +333,8 @@ allcountmat[best_satb2_pid,]
 
 }
 
-{
-
-featuredata = rownames(allcountmat)%>%data.frame(protein_id=.)%>%
-	safe_left_join(as.data.frame(mcols(cds))%>%distinct(protein_id,gene_id,transcript_id))%>%
-	safe_left_join(nonredgnames)%>%
-	set_rownames(.$protein_id)
-
-featuredata$is_gid_highest <- data.frame(
-    gid = featuredata$gene_id,
-    pid = featuredata$protein_id,
-    rowmed = allcountmat%>%rowMedians
-  )%>%  
-  mutate( origorder = seq_len(n()))%>%
-  group_by(gid)%>%
-  sample_frac(1)%>%
-  mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
-  ungroup%>%arrange(origorder)%>%
-  .$is_gid_highest
-
-featuredata$length = width(cds)[match(featuredata$protein_id,cds$protein_id)]
-
-library(txtplot)
-
-allcountmat%>%as.data.frame%>%select(dplyr::matches('total'))%>%as.matrix%>%rowMedians%>%add(1)%>%log10%>%txtdensity
 
 
-countexprdata <- ExpressionSet(
-	allcountmat,
-	AnnotatedDataFrame(allcountdesign%>%as.data.frame%>%set_rownames(colnames(allcountmat))),
-	AnnotatedDataFrame(featuredata)
-)
-countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
-
-}
-
-
-all(countvoom$E%>%rownames%in% fData(countexprdata)$protein_id)
 
 ################################################################################
 ########construct voom object 
@@ -560,8 +570,8 @@ export_CIs <- countpred_df%>%
 			select(gene_name,time,assay,signal=mean,sd,uprotein_id)
 	)
 
-allgnameshavealldsets <- all(export_CIs%>%group_by(gene_name)%>%tally%>%.$n%>%`==`(length(datagroup_names)))
-expect_true(allgnameshavealldsets)
+# allgnameshavealldsets <- all(export_CIs%>%group_by(gene_name)%>%tally%>%.$n%>%`==`(length(datagroup_names)))
+# expect_true(allgnameshavealldsets)
 
 pid_widths<-cds%>%split(.,.$protein_id)%>%width%>%sum%>%stack%>%as.data.frame
 pid_widths%<>%set_colnames(c('width','protein_id'))

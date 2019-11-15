@@ -46,6 +46,10 @@ plot_go_enrich <- function(go_table, sort_var, title_str, num_top = 10){
   n_sizebreaks = min(5,(sizetranslims[2]-sizetranslims[1])+1) # how many breaks int he pvalue col scale?
   size_label_format <- function(x) format((2^x),digits = 2) 
   
+
+  got_table$Term %<>% as.character%>%linebreaklongsent%>%as.factor
+  got_table$Term %<>% forcats::fct_reorder(got_table$gene_ratio)
+
   #now plot
   go_plot <-
     ggplot(got_table,aes(size = log2(Significant) , y = Term, color = -log10(p_value), x = gene_ratio)) + 
@@ -56,7 +60,7 @@ plot_go_enrich <- function(go_table, sort_var, title_str, num_top = 10){
     ggplot2::scale_color_continuous(
       limits = coltranslims,
       breaks = round(seq(from=min(coltranslims),to=max(coltranslims),len=n_colbreaks)),
-      labels = col_label_format,high = 'darkblue',low='lightblue'
+      labels = col_label_format,high = 'darkgreen',low='lightgreen'
     )+
     #apply transformed size scale
     ggplot2::scale_size_continuous(
@@ -69,7 +73,13 @@ plot_go_enrich <- function(go_table, sort_var, title_str, num_top = 10){
   return(go_plot)
 }
 
-
+linebreaklongsent <-function(sent,n=3){
+  for(i in seq_along(sent)){
+    sent[i]%<>%str_split(' ')%>%map(.%>%{suppressWarnings(split(.,floor((seq(0,length(.))/3))))}%>%map(paste0,collapse=' ')%>%paste0(collapse='\n'))
+  }
+  sent%>%unlist
+}
+linebreaklongsent(sent=c('fdasfdas fdsafdas fdsafdsa fdsafdsa fdsafdas','fdsafdas fdsafdsa'))
 #For a predfined list of genes
 #
 if(!file.exists('data/GTOGO.rds')){
@@ -83,14 +93,26 @@ if(!file.exists('data/GTOGO.rds')){
 }else{
   GTOGO<-readRDS('data/GTOGO.rds')
 }
-rungo <- function(int.genes,GTOGO,my_ontology){
-  
+
+# int.genes = translsigvect
+
+rungo <- function(int.genes,GTOGO,my_ontology,background=NULL){
+  if(is.logical(int.genes)){
+    stopifnot(any(int.genes))
+    background = names(int.genes)
+    int.genes = names(int.genes)[int.genes]
+  } 
+  if(!is.null(background)) GTOGO <- GTOGO%>%filter(ensembl_gene_id%in%background)
   geneID2GO <- by(GTOGO$go_id, GTOGO$ensembl_gene_id, function(x) as.character(x))
   
   require(topGO)
+
+
   all.genes <- sort(unique(as.character(GTOGO$ensembl_gene_id)))
   int.genes <- factor(as.integer(all.genes %in% int.genes))
+  stopifnot(any(int.genes==1))
   names(int.genes) = all.genes
+
   
   go.obj <- new("topGOdata", ontology=my_ontology
                 , allGenes = int.genes
@@ -100,7 +122,7 @@ rungo <- function(int.genes,GTOGO,my_ontology){
   )
   
   #?runTest
-  results <- runTest(go.obj, algorithm = "elim", statistic = "fisher")
+  results     <- runTest(go.obj, algorithm = "elim", statistic = "fisher")
   results.tab <- GenTable(object = go.obj, elimFisher = results,topNodes = 100)
   results.tab%<>%mutate(Enrichment = Significant / Expected )
   results.tab%<>%mutate(elimFisher = as.numeric(elimFisher) )
@@ -131,10 +153,8 @@ plot_go_tree <- function(toptermgotable,ont='BP',tit_postfix=''){
 #Where does this go on the log fc chart?
 #Would things improve if I just implement more sophisticated log2fc filtering?
 
-# 
 # results.tab <- allcontrastwide%>%filter(glial_gabalike)%>%.$gene_id%>%rungo(geneID2GO,'BP')
 # plot_go_enrich(results.tab,sort_var = 'elimFisher',"Gabalike_Gliaresp")
-
 
 
 #okay so angiogenesis genes are almost entirely in the upregged but then down catagory.

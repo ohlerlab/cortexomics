@@ -78,6 +78,7 @@ for(tp2 in (timepoints[-c(1)])){
     write_tsv(xtailtable,xtailfiles[tp2])
   
 }
+
 isgenenames <- function(v) v%>%head%>%str_length%>%`<`(8)%>%sum%>%`>`(8)
 
 for(tp2 in (timepoints[-c(1)])){

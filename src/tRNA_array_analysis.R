@@ -1,16 +1,137 @@
 
-allread <- Sys.glob('ext_data/Matthew Kraushar J_030719-tRNA-PCR-22-10212019/PCR Array Service Report/*')%>%setNames(.,basename(.))%>%lapply(safely(.%>%readxl::read_xlsx(.,sheet=7)))
+#Notes - I want to pull out the 2 normalized values per probe from each 
+readxl::excel_sheets(here('ext_data/tRNA_data/*Rep*/*')%>%Sys.glob%>%.[[1]])
+alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))
 
-allread%<>%map('result')%>%bind_rows(.id='table')
+allread <- alltRNAreps%>%
+	str_subset('.xlsx$')%>%
+	setNames(.,basename(.))%>%
+	lapply(.%>%readxl::read_xlsx(.,sheet='Data pre-processing'))
 
-	filter(!`...1`=='Transcript name')%>%
+testcolind = allread[[1]]%>%colnames%>%`==`('Test(normalization)')%>%which
+ctlcolind = allread[[1]]%>%colnames%>%`==`('Control(normalization)')%>%which
 
-allread%>%mutate(sig = as.numeric(`T-TEST`)<0.05)%>%
-		filter(!is.na(sig))%>%
-		group_by(table,sig)%>%tally%>%spread(sig,n)%>%as.data.frame
+startsamp<-allread['Total E145 VS Total E13.xlsx']%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!ctlcolind,!!ctlcolind+1))%>%
+	mutate(sample=str_extract(file,regex('(?<= VS ).*(?=.xlsx)')))
+
+othersamps<-allread%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!testcolind,!!testcolind+1))%>%
+	mutate(sample=str_extract(file,regex('.*(?= VS )')))
+
+allcodonsig <- list(startsamp,othersamps)%>%lapply(set_colnames,c('file','decoder','rep1','rep2','sample'))%>%bind_rows%>%
+	gather(rep,signal,-file,-sample,-decoder)%>%group_by(file,sample,decoder,rep)%>%slice(1)
+
+allcodonsig%<>%mutate(codon = decoder%>%str_replace('-\\d+$',''))
+allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
+allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
 
 
 
+allcodsigmean <- allcodonsig%>%
+	filter(iscodon)%>%
+	group_by(time,sample,codon,decoder)%>%
+	summarise(signal=mean(as.numeric(signal)))
+
+allcodonsig%>%filter(between(as.numeric(signal),11.8956,11.8957))
+allcodonsig%>%filter(between(as.numeric(signal),11.8956,11.8957))%>%.$file%>%unique
+
+alltRNAreps%>%str_subset('Poly P0 VS Poly E13.xlsx')%>%read_xlsx(sheet='Data pre-processing')
+
+	filter(signal>12.0166,signal<12.0167)%>%as.data.frame%>%
+
+allcodonsig%>%.$signal%>%table%>%sort%>%tail
+	filter(signal>12.0166,signal<12.0167)%>%as.data.frame
+
+allcodsigmean$signal%>%table%>%sort%>%tail
+
+#how each decoder
+plotfile<-'plots/figures/figure2/tRNA_sig_strip.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean%>%
+	group_by(decoder)%>%
+	mutate(dmean=mean(signal))%>%
+	group_by(codon)%>%arrange(dmean)%>%
+	mutate(decoder = as_factor(decoder))%>%
+	filter(sample%>%str_detect('Total'))%>%
+	group_by(codon)%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=decoder,color=stageconv[time],y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+
+allcodsigmean%>%.$codon%>%str_subset('Asp-')%>%unique
+
+#group them on same row
+plotfile<-'plots/figures/figure2/tRNA_sig_strip.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean%>%
+	filter(sample%>%str_detect('Total'))%>%
+	group_by(codon)%>%
+	mutate(cmean=mean(signal))%>%
+	ungroup%>%
+	arrange(cmean)%>%
+	mutate(codon = as_factor(codon))%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=codon,color=stageconv[time],y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+
+
+
+#group them on same row
+plotfile<-'plots/figures/figure2/tRNA_sig_strip_poly.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean%>%
+	filter(sample%>%str_detect('Poly'))%>%
+	group_by(codon)%>%
+	mutate(cmean=mean(signal))%>%
+	ungroup%>%
+	arrange(cmean)%>%
+	mutate(codon = as_factor(codon))%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=codon,color=stageconv[time],y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+
+#df ranking codons by their mean difference from the mean signal at 
+allcodsigmean%>%
+	filter(sample=='Total E13')%>%
+	separate(decoder,c('AA','codon','decod'))%>%
+	group_by(time,sample,codon,decod)%>%
+	group_by(sample)%>%
+	mutate(allmean = mean(signal))%>%
+	group_by(codon)%>%
+	mutate(dev=min(abs(signal-allmean)))%>%
+	arrange(desc(dev))
+
+#This makes it seem like the codons tend to have a high and a low one 
+#but no
+
+pdf('tmp.pdf')
+qplot()
+dev.off()
+
+#
 cdstousetrna<-cds%>%split(.,.$protein_id)%>%.[highprotein_ids]%>%unlist
 
 codons <- getSeq(cdstousetrna,x=FaFile(REF))%>%split(cdstousetrna$protein_id)%>%lapply(.%>%unlist%>%xscat)%>%DNAStringSet%>%vmatchPattern('TCT',.)%>%unlist%>%subset((start %% 3) == 1)
@@ -61,3 +182,4 @@ dev.off()
 normalizePath(plotfile)%>%message
 
 #TODO - make sure strand spec 
+

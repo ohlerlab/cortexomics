@@ -1,3 +1,4 @@
+conflict_prefer('flatten','purrr')
 get_predictions <- function(bestmscountebayes,mscountvoomdesign){
 	#df of predictions from limma model
 	datagroup_names <- mscountvoomdesign%>%.$dataset%>%str_replace('_\\d+$','')%>%unique%>%setNames(.,.)
@@ -211,7 +212,7 @@ test_that("I've identified the cause of this Satb2 diff",{
 })
 
 
-satb2sig <- countsmatnorm[satb2_uids[1],]%>%.[c(1:4,17:20)]
+satb2sig <- countsmatnorm[best_satb2_uid,]%>%.[c(1:4,17:20)]
 satb2sig%>%{mean(.[1:2])-mean(.[3:4])}
 satb2sig%>%{mean(.[5:6])-mean(.[7:8])}
 
@@ -329,11 +330,12 @@ commonyspanplots  <- function(trajectoryplots,breakint=0.25,minrange=NULL){
 	}
 	trajectoryplots
 }
+{
 plotlistlist = list()
 genenamelist = list()
-genes2plot = c('Nes','Flna','Bcl11b','Satb2')
+u = list('Bcl11b'=c(-2,4),'Flna'=c(-4,1),'Nes'=c(-4,1),'Satb2'=c(-1,5))
 for(testname in genes2plot){
-{
+
 assert_that(testname %in% nonredgnames$gene_name)
 testpids <- cds%>%subset(gene_name==testname)%>%.$protein_id%>%unique
 test_uids<-unique(exprdf$uprotein_id)%>%str_subset(testpids%>%paste0(collapse='|'))
@@ -395,17 +397,24 @@ for(testuid in test_uids){
 		ggtitle(assaynames[assay2plot])
 		# facet_wrap( ~ assay,scales='free')+
 	})
-	trajectoryplots<-commonyspanplots(trajectoryplots,breakint=0.25,minrange=8)
+	# trajectoryplots<-commonyspanplots(trajectoryplots,breakint=0.25,minrange=8)
+	trajectoryplots[c(1:3)]%<>%lapply(function(plot) plot+ coord_cartesian(ylim=u[[testname]]))
+	trajectoryplots[c(4)]%<>%lapply(function(plot) plot+ coord_cartesian(ylim=c(-3,2)))
+
 	plotlistlist = append(plotlistlist,list(trajectoryplots))
 	genenamelist = append(genenamelist,testname)
 }
 }
-}
-genenamelist%<>%unlist
-unflatinds = rep(seq_along(plotlistlist),map_dbl(plotlistlist,length))
-plotlistlist = plotlistlist%>%flatten%>%commonyspanplots%>%split(unflatinds)%>%setNames(genenamelist)
+
+
+# genenamelist%<>%unlist
+# unflatinds = rep(seq_along(plotlistlist),map_dbl(plotlistlist,length))
+# plotlistlist = plotlistlist%>%flatten%>%commonyspanplots%>%split(unflatinds)%>%setNames(genenamelist)
+plotlistlist%<>%setNames(genenamelist)
+plotlistlist%>%names
 
 for(testname in genenamelist){
+	# plotlistlist%<>%mapply(HARDCODELIMS,FUN=function(plotlist,lims) plotlist = lapply(plotlist,function(plot) plot+ coord_cartesian(ylim=lims)))
 	trajectoryplot<-ggarrange(plotlist=plotlistlist[[testname]],ncol=4)
 	trajectoryplot<-annotate_figure(trajectoryplot,top  = str_interp('Data vs Linear Model - ${testname}'))
 	pdf(trajfile,w=12,h=4)
@@ -414,6 +423,7 @@ for(testname in genenamelist){
 	system(str_interp('cp ${trajfile} plots/figures/figure2/traject_${testname}.pdf'))
 	message(normalizePath(trajfile))
 	message(normalizePath(str_interp('plots/figures/figure2/traject_${testname}.pdf')))
+}
 }
 
 'plots/trajectorys_splinelimma/'%>%dir.create

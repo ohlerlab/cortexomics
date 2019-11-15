@@ -45,8 +45,10 @@ TEs%<>%select(feature_id = gene_name,everything())
 
 TEs %<>%mutate(type='TE')
 
+# countexprdata%>%saveRDS(here('data/fig1countexprdata.rds'))
+countexprdata <- readRDS(here('data/fig1countexprdata.rds'))
 
-
+fData(countexprdata)$gene_id%>%n_distinct
 
 mscountrows <- (fData(countexprdata)$protein_id %in% ms_id2protein_id$protein_id) & fData(countexprdata)$is_gid_highest
 
@@ -218,11 +220,13 @@ mRNA_TE_tbl <- countvoom$E[fData(countexprdata)$protein_id[fData(countexprdata)$
 
 mRNA_TE_tbl%<>%safe_left_join(x=.,y=counttbl_reps%>%filter(assay=='total')%>%select(protein_id=feature_id,time,highcount)%>%distinct)
 mRNA_TE_tbl%<>%safe_left_join(x=.,y=counttbl_reps%>%filter(assay=='ribo')%>%distinct(protein_id=feature_id,time,highcountribo = highcount))
-mRNA_TE_tbl$highcount = mRNA_TE_tbl$highcount & mRNA_TE_tbl$highcountribo
+# mRNA_TE_tbl$highcount = mRNA_TE_tbl$highcount & mRNA_TE_tbl$highcountribo
 mRNA_TE_tbl$highcount =  mRNA_TE_tbl$highcountribo
 mRNA_TE_tbl%<>%safe_left_join(cds%>%split(.$protein_id)%>%width%>%sum%>%enframe('protein_id','length'),by='protein_id')
 mRNA_TE_tbl%<>%mutate(RPKM = mRNA - log2(length/1e3))
 
+
+mRNA_TE_tbl
 
 mRNA_TE_tbl_cor<-mRNA_TE_tbl%>%filter(highcount)%>%group_by(time)%>%summarise(cor = cor(RPKM,TE))
 
@@ -241,10 +245,6 @@ ggplot(mRNA_TE_tbl%>%arrange(highcount),aes(x=2^RPKM,y=2^TE,color=highcount))+
 	theme_bw()
 dev.off()
 plotfile%>%normalizePath%>%message
-
-
-
-
 
 ribo_TE_tbl <- countvoom$E[fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%as.data.frame%>%
 	rownames_to_column('protein_id')%>%
@@ -279,5 +279,10 @@ ggplot(ribo_TE_tbl%>%arrange(highcount),aes(x=2^RPKM,y=2^TE,color=highcount))+
 dev.off()
 plotfile%>%normalizePath%>%message
 
+fData(countexprdata)$highcount <- ribo_TE_tbl$highcount[fData(countexprdata)%>%.$protein_id%>%match(ribo_TE_tbl$protein_id)]
 
-save.image('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')
+# countexprdata %>% saveRDS(here('data/fig1countexprdata_w_high.rds'))
+
+
+# save.image('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')
+# load('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')

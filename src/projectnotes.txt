@@ -56,6 +56,65 @@ Good morning check: Is everything gitted?
 
 
 
+src/projectnotes.txt
+src/R/Modeling/errornotes.txt
+
+
+
+src/R/Psite_offsets
+src/R/Psite_offsets/segment_counts.R
+
+src/R/Rprofile.R
+src/R/Load_data/integrate_exprdata2.R
+src/R/TE_change/run_xtail.R
+
+#figure 1 scatter plots - homodirectional etc.
+/Users/dharnet/bih_cluster/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Psite_offsets/figure1_foldchangescatters.R
+
+
+src/R/Figures/figure1_scatters.R
+src/R/Psite_offsets/figure1_foldchangescatters.R
+src/R/go_term_funcs.R
+#src/R/Psite_offsets/fig1_go_cats.R
+src/R/Figures/fig1goplots_old.R
+src/R/Psite_offsets/figure1_myribowaltzplots.R
+src/R/Psite_offsets/figS1_river_detecttbl.R
+
+
+#figure 2
+/Users/dharnet/bih_cluster/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Load_data/figure2_TEdist.R
+src/R/Load_data/codon_coverage.R
+#Get the tRNA levels
+/Users/dharnet/bih_cluster/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/tRNA_array_analysis.R
+
+
+
+src/tRNA_array_analysis.R
+
+
+Figure 3 
+src/R/Load_data/load_telley_etal.R
+src/R/Load_data/integrate_exprdata_trajplots.R
+
+
+Figure 4?
+src/R/Modeling/linearspline.R
+src/R/Modeling/linearsplinemathnotes.R
+src/R/Modeling/logspline.R
+
+
+
+
+
+
+
+
+Etc - meetings emails and things
+src/readnumstats.R
+
+
+
+
 
 
 

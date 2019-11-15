@@ -1,5 +1,4 @@
-
-
+timepoints <- c("E13", "E145", "E16", "E175", "P0")
 ################################################################################
 ########We want to show changes in translation, transcription and color them appropriately
 ################################################################################
@@ -32,6 +31,7 @@ foldchangetbl<-bind_rows(
 	techangetbl%>%setNames(timepoints[-1])%>%bind_rows(.id='time')%>%mutate(changetype='translational')
 )
 
+
 stopifnot(all(foldchangetbl%>%colnames%>%`==`(c("time", "uprotein_id", "logFC", "CI.L", "CI.R", "AveExpr",
 "t", "P.Value", "adj.P.Val", "B", "ms_id", "gene_name", "gene_id",
 "changetype"))))
@@ -50,6 +50,11 @@ foldchangetblall_spread<-foldchangetblall%>%select(changetype,time,gene_id,logFC
 
 foldchangetblall_spread%>%mutate(xtailsig=translational_xtail_adj.P.Val<0.05,lTEsig = translational_adj.P.Val<0.05)%>%
 	group_by(xtailsig,lTEsig)%>%tally
+
+
+inclusiontable(foldchangetblall_spread$gene_id,fData(countexprdata)$gene_id)
+inclusiontable(foldchangetblall_spread$gene_id,highcountgenes)
+inclusiontable(foldchangetblall_spread$gene_id,highcountgenes)
 
 'plots/figures/figure1/foldchangecomp_te_xtail_limma.pdf'%>%dirname%>%dir.create(rec=TRUE)
 plotfile <- 'plots/figures/figure1/foldchangecomp.pdf'
@@ -105,31 +110,25 @@ dev.off()
 plotfile%>%normalizePath%>%message
 
 
+catlevels=c("Translational Only", "Transcriptional Only",
+"Concurrent Change", "Compensating Change","No Sig Change")
+
 plotfile <- 'plots/figures/figure1/foldchange_numbers.pdf'
 plotfile%>%dirname%>%dir.create(rec=TRUE)
 pdf(plotfile,w=24*.6,h=6*.6)
-foldchangecatdf%>%group_by(time,sigstatus)%>%
-	# filter(!sigstatus%in%c('No Sig Change','Transcriptional Only'))%>%tally%>%ggplot(aes(x=sigstatus,y=n,fill=sigstatus))+
+foldchangecatdf%>%
+	mutate(sigstatus = sigstatus%>%as_factor%>%fct_relevel(catlevels))%>%
+	group_by(time,sigstatus)%>%
 	filter(!sigstatus%in%c('No Sig Change'))%>%tally%>%ggplot(aes(x=time,y=n,fill=sigstatus))+
+	# filter(!sigstatus%in%c('No Sig Change','Transcriptional Only'))%>%tally%>%ggplot(aes(x=sigstatus,y=n,fill=sigstatus))+
 	stat_identity(geom='bar')+
 	theme_bw()+
 	facet_grid( ~ sigstatus)+
 	scale_fill_manual(values = FCchangecols)+
 	theme(axis.text.x = element_text(angle=45))+
 	guides(fill = guide_legend(override.aes = list(size=10)))
-	# coord_flip()
 dev.off()
 plotfile%>%normalizePath%>%message
-
-
-
-foldchangetblall_spread%>%filter(translational_xtail_adj.P.Val<0.05)
-
-foldchangecatdf%>%head
-
-
-
-
 
 
 
