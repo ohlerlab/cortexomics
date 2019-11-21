@@ -111,46 +111,6 @@ allsegcounts%>%safe_left_join(protid_gid_df)%>%.$gene_id%>%n_distinct
 
 highcountgenes<-allsegcounts_nz$gene_id%>%unique
 
-################################################################################
-########Fix the count expression data
-################################################################################
-	
-
-{
-
-featuredata = rownames(allcountmat)%>%data.frame(protein_id=.)%>%
-	safe_left_join(as.data.frame(mcols(cds))%>%distinct(protein_id,gene_id,transcript_id))%>%
-	safe_left_join(nonredgnames)%>%
-	set_rownames(.$protein_id)
-
-featuredata$is_gid_highest <- data.frame(
-    gid = featuredata$gene_id,
-    pid = featuredata$protein_id,
-    rowmed = allcountmat%>%rowMedians
-  )%>%  
-  mutate( origorder = seq_len(n()))%>%
-  group_by(gid)%>%
-  sample_frac(1)%>%
-  mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
-  ungroup%>%arrange(origorder)%>%
-  .$is_gid_highest
-
-
-featuredata$length = sum(width(cds%>%split(.,.$protein_id)))[featuredata$protein_id]
-
-library(txtplot)
-
-countexprdata <- ExpressionSet(
-	allcountmat,
-	AnnotatedDataFrame(allcountdesign%>%as.data.frame%>%set_rownames(colnames(allcountmat))),
-	AnnotatedDataFrame(featuredata)
-)
-
-countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
-
-}
-
-
 
 
 ################################################################################
@@ -402,6 +362,46 @@ assert_that(identical(c("(Intercept)", "TE", "MS_dev", "ns(time, SPLINE_N)1", "n
 "TE:ns(time, SPLINE_N)2", "TE:ns(time, SPLINE_N)3", "TE:ns(time, SPLINE_N)4",
 "MS_dev:ns(time, SPLINE_N)1", "MS_dev:ns(time, SPLINE_N)2", "MS_dev:ns(time, SPLINE_N)3",
 "MS_dev:ns(time, SPLINE_N)4"),voomeffects))
+
+
+################################################################################
+########Fix the count expression data
+################################################################################
+	
+
+{
+
+featuredata = rownames(allcountmat)%>%data.frame(protein_id=.)%>%
+	safe_left_join(as.data.frame(mcols(cds))%>%distinct(protein_id,gene_id,transcript_id))%>%
+	safe_left_join(nonredgnames)%>%
+	set_rownames(.$protein_id)
+
+featuredata$is_gid_highest <- data.frame(
+    gid = featuredata$gene_id,
+    pid = featuredata$protein_id,
+    rowmed = allcountmat%>%rowMedians
+  )%>%  
+  mutate( origorder = seq_len(n()))%>%
+  group_by(gid)%>%
+  sample_frac(1)%>%
+  mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
+  ungroup%>%arrange(origorder)%>%
+  .$is_gid_highest
+
+
+featuredata$length = sum(width(cds%>%split(.,.$protein_id)))[featuredata$protein_id]
+
+library(txtplot)
+
+countexprdata <- ExpressionSet(
+	allcountmat,
+	AnnotatedDataFrame(allcountdesign%>%as.data.frame%>%set_rownames(colnames(allcountmat))),
+	AnnotatedDataFrame(featuredata)
+)
+
+countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
+
+}
 
 
 

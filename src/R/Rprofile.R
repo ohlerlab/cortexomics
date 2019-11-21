@@ -8,29 +8,15 @@ select<-dplyr::select
 slice<-dplyr::slice
 
 # ###memoise
-# project_cache=here::here('R_cache')
-# if(!exists('project_cache'))project_cache=tempdir()
-# message(system(str_interp('du -h ${project_cache}'),intern=T))
-# mycache=memoise::cache_filesystem(project_cache)
+project_cache=here::here('R_cache')
+if(!exists('project_cache'))project_cache=tempdir()
+message(system(str_interp('du -h ${project_cache}'),intern=T))
+mycache=memoise::cache_filesystem(project_cache)
 
 myclearcache=function() system(str_interp('rm -rf ${project_cache}'))
 
 
 mymemoise <- function(f){
-
-  # #first insert a 
-  # fname = enquo(f)
-
-  # bod <- body(f)
-  # if (trimws(as.character(bod[[1]])) == "{"){
-  #     body(f)[[2]] <- quote(message(paste0('recalculating ',fname,' ...')))
-  #     if (length(bod) > 1) body(f)[3:(1+length(bod))] <- bod[-1]
-  # } else {
-  #     body(f)[[1]] <- as.name('{')
-  #     body(f)[[2]] <- quote(message(paste0('recalculating ',fname,' ...')))
-  #     body(f)[[3]] <- bod
-  # }
-
   if(!is.memoised(f)){
     memoise(f,cache=mycache)
     } else{ 
@@ -772,7 +758,7 @@ get_cds_offsets = function(reads_tr,offsets,compartments){
     .$offset
 }
 
-setGeneric('apply_psite_offset',function(offsetreads,offset) shift(offsetreads,offset))
+setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
 setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
   if(is.character(offset)){
     offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
@@ -784,6 +770,8 @@ setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
   offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
   offsetreads
 })
+
+
 
 fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))

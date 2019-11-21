@@ -10,6 +10,12 @@ GO term plots for groups definedd in fig1
 
 
 So where am I?
+For locations with particularly high spikes, do the locations of the 3' and 5' reads appear independent? Or close to it?
+
+Zoya Ignatova - what does she know about norm?
+
+I guess I can at least re-do the psite adjustment to work better
+
 I want this fucking kinetic modeling to work, at least a bit.
 Last was with optim. I can stitll jussts stick some reegularization in optim, get better fit, I think...
 

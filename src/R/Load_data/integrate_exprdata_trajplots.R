@@ -212,11 +212,6 @@ test_that("I've identified the cause of this Satb2 diff",{
 })
 
 
-satb2sig <- countsmatnorm[best_satb2_uid,]%>%.[c(1:4,17:20)]
-satb2sig%>%{mean(.[1:2])-mean(.[3:4])}
-satb2sig%>%{mean(.[5:6])-mean(.[7:8])}
-
-
 {
 
 prediction_df <- get_predictions(bestmscountebayes,mscountvoomdesign)
@@ -330,10 +325,12 @@ commonyspanplots  <- function(trajectoryplots,breakint=0.25,minrange=NULL){
 	}
 	trajectoryplots
 }
+
 {
 plotlistlist = list()
 genenamelist = list()
 u = list('Bcl11b'=c(-2,4),'Flna'=c(-4,1),'Nes'=c(-4,1),'Satb2'=c(-1,5))
+genes2plot<-names(u)
 for(testname in genes2plot){
 
 assert_that(testname %in% nonredgnames$gene_name)
@@ -379,8 +376,9 @@ for(testuid in test_uids){
 			points = geom_point()
 			linerange=NULL
 		}else{
-			points = geom_point(data=msdf%>%semi_join(ms_id2protein_id%>%filter(gene_name==testname))%>%scaledata('dont unscale'))
+	        points = geom_point(data=msdf%>%filter(uprotein_id%in%testuid)%>%scaledata('dont unscale'))
 			linerange=geom_linerange(color=I('blue'),data=ggdf_msconf%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(y=signal,ymin=CI.L,ymax=CI.R))
+	
 		}
 		ggplot(
 		data = plotdf%>%filter(assay==assay2plot)%>%scaledata(assay2plot),
