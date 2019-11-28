@@ -107,8 +107,9 @@ dbasis %*% yv = dbasis %*% px +  (mybs %*% zv) %.% (mybs %*% px1)
 dbasis %*% yv = dbasis %*% px +  mybs %*%  (zv %.% px1)
 
 #again assume linear independence in the columns of dbasis
-dbasis %*% yv = dbasis %*% px +  mybs %*% zv  %.% mybs %*% zv
+dbasis %*% yv = dbasis %*% px +  mybs %*% px  %.% mybs %*% zv
 
+0_dbasis %*% ms0_yv = dbasis %*% px +  mybs %*% px  %.% mybs %*% zv
 
 
 #what about ks...
@@ -124,7 +125,6 @@ D,1 =D,1 +       D,t   %*% t,D1  %*%   D1,1
 yv = px + invdbasis %*% mybs %*%  (zv %.% px1)
 
 #waht if we assume that zv[1] = 0?
-
 yv = px + invdbasis %*% mybs %*%  (zv %.% px)
 
 
@@ -136,7 +136,9 @@ yv = px + invdbasis %*% mybs %*%  diag_z %*%  px
 
 yv = px + invdbasis %*% mybs %*%  diag_z %*%  px
 
+
 yv =  (1+invdbasis %*% mybs %*%  diag_z) %*% px
+
 
 yv =  (1+invdbasis %*% mybs %*%  diag_z) %*% px
 
@@ -163,3 +165,112 @@ okay well the log spline is working okay now, though the prot trajectory got wei
 I should maybe think about a linear spline
 which means parametrizing the whole thing in terms of the log fold change
 And then the degredation.
+
+
+#Okay so trying for piecewise linear
+problem, when I construct px, how do I do it? The protein implies a given amount of synthesis and degredation.
+But the synthesis depends on the average amount between two points, not the amount. So 4 degrees of freedom, 5 ribo points
+ribo isnt specified.
+
+edbasis = cbind(0,mydbs)
+
+edbasis = cbind(0,mydbs)
+
+
+#This doesn't work cos edbasis not invertible...
+edbasis %*% ms0_yv = edbasis %*% px +  mybs %*% px  %.% mybs %*% zv
+edbasis %*% ms0_yv = edbasis %*% px +  mybs %*% px  %*%  diag_z
+edbasis %*% ms0_yv = edbasis %*% px +  diag_z %*% mybs %*% px
+edbasis %*% ms0_yv = (edbasis +  diag_z %*% mybs )  %*% px  
+
+
+#This somehow doesn't wok....
+#But the one on the right might be no?
+5,6			6			5,6			5,5.    5,6.        6
+
+edbasis %*% ms0_yv = (edbasis +  diag_z %*% mybs )  %*% px
+ginv((edbasis +  diag_z %*% mybs )) %*% edbasis %*% ms0_yv = px
+
+
+myTE=20
+ms0=4000
+ms0_yv <- c(4000,ribo*20)
+ribo
+ntps=length(time)
+diag_z = diag(rep(mydeg,ntps))
+#woooooot this is invertible
+(mydbs) %>% {. %*% ginv(.)}
+(edbasis +  diag_z %*% mybs) %>% {. %*% ginv(.)}
+txtplot(ms0 + ginv((edbasis +  diag_z %*% mybs )) %*% edbasis %*% ms0_yv)
+
+###sooo othat doesn't work
+#Our differnce in dimensionality is not just a nuisanc eheree
+#We can work out our yv given px but this is a problem
+#Because we want a test set of px
+#This is why they haad boundaries mebbe
+#
+
+5,5.      5.     5,6.      5,5.      5,6.      6
+mydbs %*% yv = (edbasis +  diag_z %*% mybs )  %*% px
+yv = ginv(edbasis) %*% ((edbasis +  diag_z %*% mybs )) %*% px
+
+#Maybe I need to fix the bounadary asa well?
+#Like the rate of change at th first boundaary is just 
+#ribo0*myTE - ms0*mydeg
+#synth0 - ms0*mydeg
+
+#aha yes. 
+splfit = lm(ribo ~ 0+mydbs)
+num_ode_res<-spl_getprotdf(splfit,deg = mydeg,rTE=myrTE,orthns_imat=mydbs,logfit=FALSE)
+prot <- num_ode_res$P
+startchange <- num_ode_res$ribo[1]*myrTE - prot[1]*mydeg
+endchange <- num_ode_res$ribo[ntps]*myrTE - prot[5]*mydeg
+px_lm = lm(c(startchange,prot) ~ 0+ rbind(edbasis[1,],mybs))
+px = px_lm$coef
+txtplot(predict(px_lm)[-1])
+txtplot(predict(px_lm)[-1],prot)
+
+
+#but applying this gives us bullshit:
+diag_z = diag(rep(mydeg,nrow(mybs)))
+yv = ginv(mydbs) %*% ((edbasis +  diag_z %*% mybs )) %*% px
+mydbs %*% yv
+txtplot(yv)
+txtplot(yv,ribo)
+
+#what if we instead require non negativity?
+#Nah how. 
+px_lm = lm(c(startchange,prot) ~ 0+ edbasis[1,],mybs)
+px = px_lm$coef
+
+
+
+#One night later I'm an idiot - mybs needs to be one parameter higher than the tp, then it determines
+dP and thus RNA
+
+#Okay sooooo, I wondder if theere's. problem with how I 
+
+################################################################################
+########NOW with loog
+################################################################################
+	
+splfit = lm(log(ribo) ~ 0+mydbs)
+num_ode_res<-spl_getprotdf(splfit,deg = mydeg,rTE=myrTE,orthns_imat=mydbs,logfit=TRUE)
+prot <- num_ode_res$P
+startchange <- (num_ode_res$ribo[1]*myrTE - prot[1]*mydeg) / prot[1]
+txtplot(num_ode_res$ribo)
+txtplot(num_ode_res$P)
+px_lm = lm(c(startchange,log(prot)) ~ 0  + rbind(edbasis[1,],mybs))
+px = px_lm$coef
+
+txtplot(predict(px_lm)[-1])
+txtplot(predict(px_lm)[-1],log(prot))
+#we face the basic prooblem that our method is not propeerly coontraainted.
+
+(mybs %*% px) + log(edbasis%*%(px + mydeg))
+
+(R + log(Ks)) = 
+
+
+
+

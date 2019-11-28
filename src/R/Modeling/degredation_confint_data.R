@@ -32,7 +32,8 @@ source(here('src/R/cortexomics_myfunctions.R'))
 registerDoMC(32)
 
 
-hierarchCIstanfile <- here('src/Stan/degmodel_dataconfint.stan') %T>%{stopifnot(file.exists(.))}
+hierarchCIstanfile <- here('src/Stan/degmodel_dataconfint_hierarch.stan') %T>%{stopifnot(file.exists(.))}
+indivCIstanfile <- here('src/Stan/degmodel_dataconfint.stan') %T>%{stopifnot(file.exists(.))}
 processedtbl<-read_tsv(here('pipeline/exprdata/limma_proDD_CIs.tsv'))
 metainfo<-read_tsv(here('pipeline/exprdata/limma_genemetadata.tsv'))
 
@@ -48,7 +49,6 @@ dir.create('exprdata',showWarnings = FALSE)
 
 # processedtbl %<>% select(gene_name, everything())
 # processedtbl
-processedtbl
 
 test_that("we have datathat looksl ike the old but with confidence intervals",{
   expect_gt(nrow(processedtbl),10)
@@ -103,7 +103,6 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
     aperm(c(1,2))%>%
     identity
     # {2^.}
-  exportenv()
 
   #Use gene lengths to get DENSITY - we care about this, not the total counts
   if(lengthnorm) ribo_array%<>%sweep(2,STATS=log2(genelengths[g2fit]/1e3),FUN='-')
@@ -129,37 +128,52 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
   dimnames(standata$MS_tau)=list(tps,unique(g2fit))
   dimnames(standata$ribo)=list(tps,unique(g2fit))
   dimnames(standata$ribo_tau)=list(tps,unique(g2fit))
+  
+  time=1:length(tps)
+  timeknots <- time[c(-1,-length(time))]
+  mybs <- cbind(1,ibs(time, knots = timeknots,degree = 1, intercept = TRUE))
+  mydbs = bs(time, knots = timeknots,degree = 1, intercept = TRUE)
 
+  standata<-list(
+    G=length(g2fit),          #  genes
+    T=length(tps),          #  timepoints
+    lMS=MS_array,  # mass spec data mean
+    lMS_tau=MS_tau,  # mass spec data precision
+    lribo=ribo_array, # lriboseq (synthesis) data mean
+    lribo_tau=ribo_tau, # lriboseq (synthesis) data sd
+    mybs=mybs,
+    mydbs=mydbs
+  )
   standata
 }
-
 # test_that("the model Im using reliably converges for easy genes - those that are increasing",{
   #pick such a set of genes
-  msincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
-  riboincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
-  low_variance <-   processedtbl%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%pluck('lowvar')
-  not_missing <- processedtbl%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%.$missing%>%`!`
+  msincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  riboincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  low_variance <-   exprdata%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
+  not_missing <- exprdata%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
 
-hierarchpars <- c('hmu_lrTE','hsig_lrTE','hmu_ldeg','hsig_ldeg')
-pars<-hierarchpars
-
-
-  test_genes <- msincreasing & riboincreasing & low_variance &  not_missing
+  test_genes <- msincreasing & riboincreasing & low_variance &   not_missing
   
   map(list(msincreasing,riboincreasing,low_variance, not_missing,test_genes),table)
 
-  test_gene_names <- unique(processedtbl$gene_name)[test_genes]
 
-  #(c("Clpp", "Eif2b5", "Rpl8", "Psmb1", "Cops3", "Pold2", "Pnn","Scamp1", "Ktn1", "Sorbs1", "Mms19", "Pikfyve", "Ndufa10", "Itga6","Celf3", "Ncbp1", "Actb", "Acbd6", "Gpc1", "Sox5", "Kmt2d", "Sorl1","Ddx17", "Kif13b"))
+  test_gene_names<-names(test_genes)[test_genes]
+
   #run the model on them
 
 
-  #testsetstandata <- get_standata_confint(test_gene_names[1:4],genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
+  #see if they converge
 
-  genelengths <- metainfo%>%{setNames(.$width,.$gene_name) }
-
+  expect_true(all(is_convergent))
+# })
 
 {
+
+
+
+
+
 #Funciton to fit linear and nonlinear model with stan
 get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter=200, n_chains=4)
 {
@@ -172,6 +186,7 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
   #delete the rds file
   stanfile%>%str_replace('.stan','.rds')%>%{suppressWarnings(file.remove(.))}
   # stanfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
+  system(str_interp('rm -rf ${tmpdir}'))
   dir.create(rec=TRUE,tmpdir)
 
   stopifnot(file.copy(stanfile,tmpdir))
@@ -188,15 +203,19 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
 
   setwd(tmpdir)
 
-  ngenes <- standata$MS%>%ncol
+  ngenes <- standata$G
   
   initvals = list(
-    list(
-      rTE = array(rep(1,  ngenes),dim=ngenes),
-      mRNA = 2^standata$ribo[1,],
-      ldeg = array( rep(log(0.9),ngenes) ,dim=ngenes),
-      prot0 = array(2^standata$MS[1,],dim=ngenes)
-    ))
+      cM = standata$lribo,
+      Kd = array( rep(4,ngenes) ,dim=ngenes),#i.e. a 3 fold reduction due to degredation per tp
+      prot0 = array(standata$lMS[1,],dim=ngenes)
+  )
+
+  initvals$lKs = initvals$prot0*initvals$Kd / initvals$cM[1]
+
+
+  initvals=list(initvals)
+
   exportenv()
   initvals = rep(initvals,  n_chains)
   stanfit <- rstan::stan(file=modelcopy,
@@ -216,6 +235,7 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
             )
   
   chainfiles <- Sys.glob(file.path(tmpdir,'*.csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
+  message(tmpdir)
   stopifnot(length(chainfiles)==n_chains)
   file.path(sampledir,basename(chainfiles))%>%file.remove
 
@@ -231,29 +251,34 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
   list(fit=stanfit,chainfiles= chainfiles)
 
 }
+
 #get teh data
-testsetstandata <- get_standata_confint(c('Satb2','Flna')[1],genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
+testsetstandata <- get_standata_confint(c('Satb2','Flna',test_gene_names),genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
+
 #see if they converge
 testhierarchfit <- get_stanfit(
   testsetstandata,
-  hierarchCIstanfile,
-  pars=NULL,iter=1e3,n_chains=8,
+  indivCIstanfile,
+  pars=NULL,iter=400,n_chains=4,
   modelsamplefile='stansamples/testhierarch.csv',
   sampledir=here('pipeline/stansamples')
 )
+
+testindivfit<-get_stanfit(
+  testsetstandata,
+  indivCIstanfile,
+  pars=NULL,iter=400,n_chains=4,
+  modelsamplefile='stansamples/testhierarch.csv',
+  sampledir=here('pipeline/stansamples')
+)
+
 }
 
-
-
-
-install.packages("deSolve")
-closed.sir.model <- function (t, x, params) {
- 
-}
-
-
+select<-dplyr::select
 
 testhierarchfit[[1]]%>%summary%>%.[[1]]%>%head
+
+
   parsum<-testhierarchfit[[1]]%>%
     summary%>%
     .$summary%>%
@@ -264,9 +289,12 @@ testhierarchfit[[1]]%>%summary%>%.[[1]]%>%head
     # filter(par%>%str_detect('rTE'))
     parsum$par%>%unique
 
-  parsum%>%filter(is.na(gene))
 
-  parsum%>%filter(gene==1)%>%filter(parameter=='mRNA')
+parsum%>%filter(is.na(gene))
+parsum%>%filter(parameter=='lKs')
+parsum%>%filter(parameter=='Kd')
+
+parsum%>%filter(gene==1)%>%filter(parameter=='mRNA')
   standata$ribo[,1]
   parsum%>%filter(gene==2)%>%filter(parameter=='mRNA')
   standata$ribo[,2]

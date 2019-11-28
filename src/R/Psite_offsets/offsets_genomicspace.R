@@ -48,10 +48,10 @@ for(fname in lsf.str('package:dplyr')) assign(fname,get(fname,'package:dplyr'))
 
 
 argv <- c(
-	bam = here('pipeline/star/data/E13_ribo_2/E13_ribo_2.bam')%T>%{stopifnot(file.exists(.))},
+	bam = here('pipeline/star/data/E13_ribo_1/E13_ribo_1.bam')%T>%{stopifnot(file.exists(.))},
 	gtf = here('pipeline/my_gencode.vM12.annotation.gtf'),
 	REF = here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'),
-	outfolder = here('pipeline/seqshift_reads/data/E13_ribo_2/')
+	outfolder = here('pipeline/seqshift_reads/data/E13_ribo_1/')
 )
 
 sample_params<-here::here('src/sample_parameter.csv')%>%fread%>%filter(assay=='ribo')%>%.$sample_id
@@ -773,7 +773,7 @@ get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim)
 
 c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly)
 
-psite_model <- Psite_model$new(bestscores,seqshiftmodel = map(modellist,2),referencefasta=REF,compartments)psite_model
+psite_model <- Psite_model$new(bestscores,seqshiftmodel = map(modellist,2),referencefasta=REF,compartments)
 
-psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))
-save.image('offsetsgenomicspace.RData')
+# psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))
+# save.image('offsetsgenomicspace.RData')

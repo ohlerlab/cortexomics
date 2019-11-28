@@ -1,50 +1,178 @@
+library(readxl)
+library(tidyverse)
+################################################################################
+########Reading the tRNA data
+################################################################################
+hkgenes2use<-c("5S rRNA",'18S rRNA')
 
-#Notes - I want to pull out the 2 normalized values per probe from each 
-readxl::excel_sheets(here('ext_data/tRNA_data/*Rep*/*')%>%Sys.glob%>%.[[1]])
-alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))
+alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))%>%str_subset('/Total')
 
-allread <- alltRNAreps%>%
-	str_subset('.xlsx$')%>%
-	setNames(.,basename(.))%>%
-	lapply(.%>%readxl::read_xlsx(.,sheet='Data pre-processing'))
+#data is pulled from a combination of report and 'test/'ctrl' status
+datasources <- tibble(file=c(alltRNAreps,alltRNAreps[1]),case=c(rep('Test',length(alltRNAreps)),'Control'))
 
-testcolind = allread[[1]]%>%colnames%>%`==`('Test(normalization)')%>%which
-ctlcolind = allread[[1]]%>%colnames%>%`==`('Control(normalization)')%>%which
+datasources%<>%mutate(sample = 
+ifelse(case=='Test',
+	str_extract(basename(file),regex('.*(?= VS )')),
+	str_extract(file,regex('(?<= VS ).*(?=.xlsx)'))
+)
+)
 
-startsamp<-allread['Total E145 VS Total E13.xlsx']%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!ctlcolind,!!ctlcolind+1))%>%
-	mutate(sample=str_extract(file,regex('(?<= VS ).*(?=.xlsx)')))
+#Now iterate over these
+exprdf<-map2(datasources$file,datasources$case,.f=function(file,case){
+	excel_sheets(file)
+	hksheet <- readxl::read_xlsx(file,sheet='Choose Housekeeping Genes')
+	hks2use_rows <- which(hksheet[[1]][1:4] %in% hkgenes2use)
+	casecol <- if(case=='Test') 4 else 27
 
-othersamps<-allread%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!testcolind,!!testcolind+1))%>%
-	mutate(sample=str_extract(file,regex('.*(?= VS )')))
 
-allcodonsig <- list(startsamp,othersamps)%>%lapply(set_colnames,c('file','decoder','rep1','rep2','sample'))%>%bind_rows%>%
-	gather(rep,signal,-file,-sample,-decoder)%>%group_by(file,sample,decoder,rep)%>%slice(1)
+	hknormfacts <- list(rep1=mean(as.numeric(hksheet[[casecol]][hks2use_rows])),rep2=mean(as.numeric(hksheet[[casecol+1]][hks2use_rows])))
+	# calibfactrow <- which(hksheet[[1]]=="Calibration factor")
+	calibfactrow <- which(hksheet[[1]]=="PPC")
+	ppcnormfacts <- list(rep1=mean(as.numeric(hksheet[[casecol]][calibfactrow])),rep2=mean(as.numeric(hksheet[[casecol+1]][calibfactrow])))
 
+	exprsheet <- if(case=='Test') 'Test Sample Data' else 'Control Sample Data' 
+
+	message(file)	
+	suppressMessages({exprsheet<-read_xlsx(file,sheet=exprsheet)})
+
+	exprdf = exprsheet[c(-1),1:4]%>%as.data.frame%>%head(-2)%>%set_colnames(c('decoder','well','rep1','rep2'))
+	exprdf
+
+})
+
+allcodonsig<- exprdf%>%setNames(datasources$sample)%>%bind_rows(.id='sample')
 allcodonsig%<>%mutate(codon = decoder%>%str_replace('-\\d+$',''))
 allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
 allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
+suppressMessages({allcodonsig$rep1%<>%as.numeric})
+suppressMessages({allcodonsig$rep2%<>%as.numeric})
+allcodonsig <- gather(allcodonsig,rep,signal,rep1:rep2)
+#get normfacts
+#normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(signal[decoder%in%hkgenes2use]))
+#Now normalize
+allcodonsig %<>% group_by(sample,rep) %>% mutate(signal = signal - mean(signal[decoder%in%hkgenes2use]))
+
+# #=IF(ISERROR(AVERAGE(D9:D11));"";AVERAGE(D9:D11))
+
+# #D17 this is a lookup - it gets the value in A17, (PPC), looks it up in the test sheet
+# #Then 
+# IF($A17="";"";
+# 	IF(
+# 		VLOOKUP($A17;'Test Sample Data'!$A$3:$V$194;D$16+2;FALSE)=0;
+# 		"";
+# 		VLOOKUP($A17;'Test Sample Data'!$A$3:$V$194;D$16+2;FALSE)
+# 	)
+# )
+
+# #D18 Tis seems totally pointless - guess it's form other tables where it matters
+# =IF(ISERROR(AVERAGE('Choose Housekeeping Genes'!D$17));"";AVERAGE('Choose Housekeeping Genes'!D$17))
+
+# #D19 IPC overall averag, sums rows
+# =IF(ISNUMBER(D18);
+# 	AVERAGE(
+# 		'Choose Housekeeping Genes'!$D$17:$W$17;
+# 		'Choose Housekeeping Genes'!$AA$17:$AT$17);
+# 	"")
+
+# #forCalibration factor D20 - (a subtraction) use the correction factor, or 0 if it's not calculable
+# IF(
+# 	ISNUMBER('Choose Housekeeping Genes'!D$18-'Choose Housekeeping Genes'!D$19);
+# 	'Choose Housekeeping Genes'!D$18-'Choose Housekeeping Genes'!D$19;
+# 	0
+# )
+
+# #here's the excel formula dictating their numbers, refers to calibration factor on D/E20
+# #This is pre normalization
+# IF(
+# 	SUM('Test Sample Data'!C$3:C$194)>10;
+# 	IF(
+# 		AND(
+# 			ISNUMBER('Test Sample Data'!C3);
+# 			'Test Sample Data'!C3<35;
+# 			'Test Sample Data'!C3>0
+# 		);
+# 		'Test Sample Data'!C3-'Choose Housekeeping Genes'!D$20;35-'Choose Housekeeping Genes'!D$20
+# 	);""
+# )
+
+# #the housekeeping norms have some tortured logic to deal with missing info
+# =IF($A9="";"";IF(VLOOKUP($A9;'Choose Housekeeping Genes'!$A$3:$W$5;D$8+3;FALSE)=0;"";IF(ISNUMBER(VLOOKUP($A9;'Choose Housekeeping Genes'!$A$3:$W$5;D$8+3;FALSE));VLOOKUP($A9;'Choose Housekeeping Genes'!$A$3:$W$5;D$8+3;FALSE);"")))
+
+# #Meanwhile the actual housekeeping gene average is here
+# '=IF(ISERROR(AVERAGE(D9:D11));"";AVERAGE(D9:D11))'
+
+# #which is used for The final number - after calibration using PPC, they subtrat 
+# =IF(ISNUMBER(C3-'Choose Housekeeping Genes'!D$12);C3-'Choose Housekeeping Genes'!D$12;"")
+
+
+# #Get the control values for each one
+# #Now get the actual values for each one
+# #Deal with the missing values
+# #Produce output of the form
+# set_colnames,c('file','decoder','rep1','rep2','sample')
+
+
+# #Notes - I want to pull out the 2 normalized values per probe from each 
+# tRNArepsheetnames <- c("Instructions", "Transcript table", "Test Sample Data", "Control Sample Data",
+# "Choose Housekeeping Genes", "Data pre-processing", "All expressed genes",
+# "Scatter Plot", "Volcano Plot", "up_Bar Graph", "down_Bar Graph"
+# )
+
+# readxl::excel_sheets(here('ext_data/tRNA_data/*Rep*/*')%>%Sys.glob%>%.[[1]])%>%dput
+
+# allread <- alltRNAreps%>%
+# 	str_subset('.xlsx$')%>%
+# 	str_subset(neg=TRUE,'\\$')%>%
+# 	setNames(.,basename(.))%>%
+# 	lapply(.%>%readxl::read_xlsx(.,sheet='Data pre-processing'))
+
+# testcolind = allread[[1]]%>%colnames%>%`==`('Test(normalization)')%>%which
+# ctlcolind = allread[[1]]%>%colnames%>%`==`('Control(normalization)')%>%which
+
+# startsamp<-allread['Total E145 VS Total E13.xlsx']%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!ctlcolind,!!ctlcolind+1))%>%
+# 	mutate(sample=str_extract(file,regex('(?<= VS ).*(?=.xlsx)')))
+
+# othersamps<-allread%>%map_df(.id='file',.%>%tail(-1)%>%select(1,!!testcolind,!!testcolind+1))%>%
+# 	mutate(sample=str_extract(file,regex('.*(?= VS )')))
+
+# allcodonsig <- list(startsamp,othersamps)%>%lapply(set_colnames,c('file','decoder','rep1','rep2','sample'))%>%bind_rows%>%
+# 	gather(rep,signal,-file,-sample,-decoder)%>%group_by(file,sample,decoder,rep)%>%slice(1)
+
+# allcodonsig%<>%mutate(codon = decoder%>%str_replace('-\\d+$',''))
+# allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
+# allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
 
 
 
 allcodsigmean <- allcodonsig%>%
 	filter(iscodon)%>%
 	group_by(time,sample,codon,decoder)%>%
-	summarise(signal=mean(as.numeric(signal)))
+	summarise(signal=mean(na.rm=T,as.numeric(signal)))
 
-allcodonsig%>%filter(between(as.numeric(signal),11.8956,11.8957))
-allcodonsig%>%filter(between(as.numeric(signal),11.8956,11.8957))%>%.$file%>%unique
+allcodsigmean_isomerge<-allcodsigmean%>%
+	filter(sample%>%str_detect('Total'))%>%
+	group_by(time,sample,codon)%>%
+	summarise(signal = -log2(sum(2^(-signal))))
 
-alltRNAreps%>%str_subset('Poly P0 VS Poly E13.xlsx')%>%read_xlsx(sheet='Data pre-processing')
+stop()
 
-	filter(signal>12.0166,signal<12.0167)%>%as.data.frame%>%
 
-allcodonsig%>%.$signal%>%table%>%sort%>%tail
-	filter(signal>12.0166,signal<12.0167)%>%as.data.frame
+# alltRNAreps%>%str_subset('Poly P0 VS Poly E13.xlsx')%>%read_xlsx(sheet='Data pre-processing')
 
-allcodsigmean$signal%>%table%>%sort%>%tail
+	# filter(signal>12.0166,signal<12.0167)%>%as.data.frame%>%
 
+# allcodonsig%>%.$signal%>%table%>%sort%>%tail
+	# filter(signal>12.0166,signal<12.0167)%>%as.data.frame
+
+# allcodsigmean$signal%>%table%>%sort%>%tail
+
+
+################################################################################
+########Now plot it
+################################################################################
+	
 #how each decoder
-plotfile<-'plots/figures/figure2/tRNA_sig_strip.pdf'
+plotfile<-'plots/figures/figure2/tRNA_sig_strip_allnorm.pdf'
 pdf(plotfile,w=9,h=16)
 allcodsigmean%>%
 	group_by(decoder)%>%
@@ -54,10 +182,10 @@ allcodsigmean%>%
 	filter(sample%>%str_detect('Total'))%>%
 	group_by(codon)%>%
 	# group_by(decoder,)
-	ggplot(data=.,aes(x=decoder,color=stageconv[time],y=signal))+
+	ggplot(data=.,aes(x=decoder,color=time,y=signal))+
 	geom_point()+
 	scale_color_manual(values=stagecols)+
-	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	scale_y_continuous(breaks=seq(0,30,by=2.5))+
 	coord_flip()+
 	theme_bw()
 	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
@@ -65,7 +193,9 @@ allcodsigmean%>%
 dev.off()
 normalizePath(plotfile)
 
+
 allcodsigmean%>%.$codon%>%str_subset('Asp-')%>%unique
+
 
 #group them on same row
 plotfile<-'plots/figures/figure2/tRNA_sig_strip.pdf'
@@ -88,7 +218,6 @@ allcodsigmean%>%
 	# facet_grid(time ~ . )
 dev.off()
 normalizePath(plotfile)
-
 
 
 #group them on same row
@@ -112,6 +241,30 @@ allcodsigmean%>%
 	# facet_grid(time ~ . )
 dev.off()
 normalizePath(plotfile)
+
+
+#group them on same row
+plotfile<-'plots/figures/figure2/isomerge_tRNA_sig_strip_poly.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean_isomerge%>%
+	filter(sample%>%str_detect('Total'))%>%
+	group_by(codon)%>%
+	mutate(cmean=mean(signal))%>%
+	ungroup%>%
+	arrange(cmean)%>%
+	mutate(codon = as_factor(codon))%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=codon,color=time,y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+
 
 #df ranking codons by their mean difference from the mean signal at 
 allcodsigmean%>%

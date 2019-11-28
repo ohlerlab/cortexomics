@@ -9,9 +9,6 @@ MAPQTHRESH <- 200
 
 allTEchangedf<-read_tsv('tables/manuscript/go_all_highcount_updown.tsv')
 
-itimes = TEs$time%>%unique
-itime=itimes[1]
-
 gnamehighcountdf<-ribo_TE_tbl%>%filter(highcount)%>%distinct(protein_id,time)%>%left_join(ms_id2protein_id%>%distinct(protein_id,gene_name))
 
 techanges <- Sys.glob('pipeline/xtail/*.txt')%>%setNames(.,basename(.))%>%map_df(.%>%fread%>%select(feature_id,log2fc,adj_p_value,gene_name),.id='time')

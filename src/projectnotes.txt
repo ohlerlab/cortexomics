@@ -10,6 +10,8 @@ GO term plots for groups definedd in fig1
 
 
 So where am I?
+Codon occ - plots look nice cos... normalizing by cds cov? Or normalizing by 
+
 For locations with particularly high spikes, do the locations of the 3' and 5' reads appear independent? Or close to it?
 
 Zoya Ignatova - what does she know about norm?
@@ -106,13 +108,16 @@ src/R/Load_data/integrate_exprdata_trajplots.R
 Figure 4?
 src/R/Modeling/linearspline.R
 src/R/Modeling/linearsplinemathnotes.R
+
+#Currently the state of the art - this model now works okay, 
 src/R/Modeling/logspline.R
 
+#now being implemented in this script, which is calling hierarch and non hierarch version
+degredation_confint_data.R
 
 
 
-
-
+#Question for the modeling - does it converge, for say, flna?
 
 
 Etc - meetings emails and things

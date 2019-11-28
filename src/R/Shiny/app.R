@@ -2,6 +2,7 @@
 #install.packages('tidyverse')
 
 suppressMessages(library(magrittr))
+suppressMessages(library(shiny))
 suppressMessages(library(stringr))
 suppressMessages(library(ggpubr))
 suppressMessages(library(data.table))
@@ -11,18 +12,25 @@ suppressMessages(library(dplyr))
 suppressMessages(library(here))
 library(conflicted)
 library(ggplot2)
+library(rsconnect)
 conflict_prefer("filter",'dplyr')
 conflict_prefer("last",'dplyr')
 conflict_prefer("setdiff",'dplyr')
 
+if(file.exists('trajplotobjects.Rdata')){
+  datafile <- 'trajplotobjects.Rdata'
+}else{
+  # datafile <- here('data/trajplotobjects.Rdata')
+    datafile <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/trajplotobjects.Rdata'
 
-# load(file='/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/trajplotobjects.Rdata')
+}
+if(!exists('exprdf')) load(file=datafile)
 #todo stick gene name on this
 
 {
 make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdmat,exprdf,msrescale2lfq,best_uprotein_ids,prediction_df,tpnames,assaynames){
   plotlistlist = list()
-  genenamelist = list()
+  # genenamelist = list()
   
   u = list('Bcl11b'=c(-2,4),'Flna'=c(-4,1),'Nes'=c(-4,1),'Satb2'=c(-1,5))
   
@@ -104,7 +112,7 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
     trajectoryplots%<>%lapply(function(plot) plot+ coord_cartesian(ylim=c(myymin,myymax)))
 
     plotlistlist = append(plotlistlist,list(trajectoryplots))
-    genenamelist = append(genenamelist,gene2plot)
+    # genenamelist = append(genenamelist,gname)
   }
   
 
@@ -134,9 +142,9 @@ ui <- fluidPage(
     # Sidebar panel for inputs ----
     sidebarPanel(
 
-  # selectInput('gene2plot', 'Gene For Plotting', genechoices, selected = 'Satb2', multiple = FALSE,
+  # selectInput('genes2plot', 'Gene For Plotting', genechoices, selected = 'Satb2', multiple = FALSE,
   #     selectize = TRUE, width = NULL, size = NULL)
-    textInput('gene2plot', 'Gene For Plotting', value = "Satb2 Flna", width = NULL,placeholder=NULL),
+    textInput('genes2plot', 'Gene For Plotting', value = "Satb2 Flna", width = NULL,placeholder=NULL),
     sliderInput("ExprYmax", "Ymax",
                        min = -10, max = 10, value = 4),
     sliderInput("ExprYmin", "Ymin",
@@ -147,13 +155,14 @@ ui <- fluidPage(
     mainPanel(
       # Output: Histogram ----
       # plotOutput(outputId = "trajplot",height = plotHeight)
-      plotOutput(outputId = "trajplot",height = '1000px')
+      # plotOutput(outputId = "trajplot",height = '1000px')
+      uiOutput("ui")
     )
   )
 )
 
 
-plotable_genes = exprdf$gene_name
+plotable_genes = exprdf$gene_name%>%unique
 conflict_prefer("Position",'ggplot2')
 
 
@@ -174,29 +183,51 @@ if(!shiny::isRunning()) { print(make_traj_plot_p(c('Satb2','Flna'),myymin=-3,myy
 splitgenes <- .%>%str_split(' ')%>%unlist%>%setdiff(c('',' '))
 # Define server logic required to draw a histogram ----
 server <- function(input, output) {
-  plotHeight <- function() {
-  
-  reactive(
-        length(splitgenes(input$genes2plot)))
-      }
+ 
+  output$ui <- renderUI({
+ 
+    output$trajplot <- renderPlot({
+      
+        genes2plot <- input$genes2plot
+        genes2plot %<>% splitgenes
 
-  output$trajplot <- renderPlot({
-    
-    genes2plot <- input$gene2plot
-    genes2plot %<>% splitgenes
+        if(! all(genes2plot %in% plotable_genes)){
+              nonfoundgenes <- genes2plot%>%setdiff(plotable_genes)
+              nonfoundgenes <- paste(sep=',',nonfoundgenes)
+              nonfoundgenecol <- paste0(nonfoundgenes,collapse='')
+              othergenes <- sample(unique(plotable_genes))
+              alternativelist <- othergenes[head(order((adist(toupper(nonfoundgenes[1]),toupper(othergenes)))),n=5)]
+              alternativelist <- paste0(paste0(alternativelist,' ?\n'),collapse='')
+              notfoundtext <- str_interp('Genes ${nonfoundgenecol} Not Found. By ${nonfoundgenes[1]} Did you mean...\n${alternativelist}\n (Case sensitive matching)')
 
-    if(! all(genes2plot %in% plotable_genes)){
-          nonfoundgenes <- genes2plot%>%setdiff(plotable_genes)
-          nonfoundgenes <- paste(sep=',',nonfoundgenes)
-          print(qplot(1,1,label=str_interp('Genes ${nonfoundgenes} Not Found'),geom='text'))              
-    }else{
-      print(make_traj_plot_p(genes2plot,myymin=input$ExprYmin,myymax=input$ExprYmax))                   
-    }
+              print(qplot(1,1,label=notfoundtext,geom='text',size=I(10))+theme_bw())
+              # renderText(notfoundtext)
+
+        }else{
+          print(suppressWarnings({make_traj_plot_p(genes2plot,myymin=input$ExprYmin,myymax=input$ExprYmax)}))                   
+        }
+      # browser()
+    })
+    message(names(input))
+    message('......')
+    plotn=length(splitgenes(input$genes2plot))
+    message(plotn)
+    if(! all(splitgenes(input$genes2plot) %in% plotable_genes)) plotn=2
+    message(splitgenes(input$genes2plot))
+    tagList(
+      # plotOutput("trajplot", width = '100%', height = 300*plotn) ,## nn is my scaling factor,
+      plotOutput("trajplot", width = '100%', height = 200*plotn) ## nn is my scaling factor
+    )
 
   })
-
+  message('done')
 
 }
 
 shinyApp(ui, server)
+
+#https://www.shinyapps.io/admin/#/dashboard - see for auth
+# appfolder <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Shiny/'
+# shiny::runApp(appfolder)
+# rsconnect::deployApp(appfolder,appFiles=c('app.R','trajplotobjects.Rdata'),appTitle='Cortexomics Trajectories',appName='cortex_traj')
 

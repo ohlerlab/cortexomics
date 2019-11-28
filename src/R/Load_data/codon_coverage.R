@@ -16,6 +16,19 @@ require(txtplot)
 require(Rsamtools)
 #coverageplots
 
+shiftmodel <- 'pipeline/seqshift_reads/data/P0_ribo_1/seqshiftmodel.rds'
+if(!file.exists(shiftmodel)){
+	message('no psite model found')
+	psite_model <- NULL
+}else{
+	psite_model <- readRDS(shiftmodel)
+}
+
+displaystagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
+stageconv = names(displaystagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
+stagecols <- displaystagecols%>%setNames(names(stageconv))
+
+
 CODOONSOFINTEREST<-DNAStringSet(c('TCA','TCG','TCC','TCT'))
 codons2scan <- c(CODOONSOFINTEREST,reverseComplement(CODOONSOFINTEREST))
 # codons2scan <- c(CODOONSOFINTEREST,(CODOONSOFINTEREST))
@@ -100,20 +113,33 @@ fpsitelist <- mclapply(bams2scan,mymemoise(getreadfps))
 fpsitelist%<>%setNames(bams2scan%>%basename%>%str_replace('\\.\\w+$',''))
 
 #codons2scan='GTC'%>%setNames(.,.)
+conflict_prefer('lag','dplyr')
+
+tmp<-sort(cds2use[c(1,666)])%>%lapply(.%>%head(2)%>%.[,NULL])%>%GRangesList
+ext_grl(tmp,1,fixend='start')
+
+cds2useext <- ext_grl(sort(cds2use),45,fixend='start')%>%ext_grl(45,fixend='end')
+
+#####
+################################################################################
+########
+################################################################################
+
 
 #Now run through the bam file and get a profile for each codon
 {
 # profilemats_unproc<-lapply(psitelist,function(psites){
-fprofilemats_unproc<-mclapply(mc.cores=20,fpsitelist,mymemoise(function(psites){
+fprofilemats_unproc<-mclapply(mc.cores=1,fpsitelist,mymemoise(function(psites){
 	#
-	cdscounts_densitys <- countOverlaps(cds2use,psites)
+	cdscounts <- countOverlaps(cds2useext,psites)
+	zerocds <- names(cdscounts)[cdscounts < 32]
 	#
 	stopifnot(all(names(cdscounts_densitys)==names(cds2use)))
-	#	
-	cdscounts_densitys <- cdscounts_densitys%>%divide_by(sum(width(cds2use)))%>%setNames(names(cds2use))
+	#
+	cdscounts_densitys <- cdscounts%>%divide_by(sum(width(cds2use)))%>%setNames(names(cds2use))
 	#
 
-	mclapply(mc.cores=1,codons2scan,function(codon){
+	mclapply(mc.cores=20,codons2scan,function(codon){
 		#
 		message(codon)
 		#
@@ -122,13 +148,13 @@ fprofilemats_unproc<-mclapply(mc.cores=20,fpsitelist,mymemoise(function(psites){
 		lapply(widths,function(length_i){
 			#
 			pospsites<-psites%>%subset(length==length_i)%>%subset(strand=='+')
-			negpsites<-psites%>%subset(length==length_i)%>%subset(strand=='-')%>%head(1)
+			negpsites<-psites%>%subset(length==length_i)%>%subset(strand=='-')
 			#
 			poswinds<-codmatchwindows%>%subset(strand=='+')#%>%resize(.,width(.-((FLANKCODS-3)*3)),'center')
 			negwinds<-codmatchwindows%>%subset(strand=='-')#%>%resize(.,width(.-((FLANKCODS-3)*3)),'center')
 			#
-			pospsites%>%coverage%>%.[poswinds]%>%length%>%divide_by(1e3)
-			negpsites%>%coverage%>%.[negwinds]%>%length%>%divide_by(1e3)
+			# pospsites%>%coverage%>%.[poswinds]%>%length%>%divide_by(1e3)
+			# negpsites%>%coverage%>%.[negwinds]%>%length%>%divide_by(1e3)
 			#
 			profiles <- 
 			c(
@@ -151,15 +177,22 @@ fprofilemats_unproc<-mclapply(mc.cores=20,fpsitelist,mymemoise(function(psites){
 			# profilemat <- profilemat[	!profilemat[,1]%>%map_lgl(is.nan),]
 			# profilemat <- profilemat[	profilemat%>%apply(1,function(x) all((is.finite(x))) ) ,]
 			
+		
+			# sapply(i:n_col,function(i) profiles[as(rep(i,np),'IntegerList')]%>%sum%>%add(1)%>%log)
+			#now rather than covert to a matrix, we can do this to 
+			profiles <- profiles[!windnames%in%zerocds]
+			normdensities <- cdscounts_densitys[windnames[!windnames%in%zerocds]]
+			
 			np<-length(profiles)
 			n_col<-length(profiles[[1]])
 
-			# sapply(i:n_col,function(i) profiles[as(rep(i,np),'IntegerList')]%>%sum%>%add(1)%>%log)
-			#now rather than covert to a matrix, we can do this to 
 			logsumpvect<-sapply(1:n_col,function(i){
-				profiles[as(rep(i,np),'IntegerList')]%>%sum%>%add(1)%>%log%>%sum
+				# i=1
+				profiles[as(rep(i,np),'IntegerList')]%>%sum%>%divide_by(normdensities)%>%mean(na.rm=TRUE)
 				# profiles[as(rep(i,np),'IntegerList')]%>%sum%>%sum
 			})
+			if(any(!is.finite(logsumpvect)))
+
 			# logsumpvect%T>%txtplot(xlab=as.character((-3*FLANKCODS):(2+3*FLANKCODS)),width=100)
 
 			# rustsumvect<-sapply(1:n_col,function(i){
@@ -177,17 +210,31 @@ fprofilemats_unproc<-mclapply(mc.cores=20,fpsitelist,mymemoise(function(psites){
 }))%>%bind_rows(.id='sample')
 }
 
+################################################################################
+########
+################################################################################
+	
+stopifnot(all(is.finite(fprofilemats_unproc$signal)))
+
+if(all(fprofilemats_unproc$sample %in% 1:100)) fprofilemats_unproc$sample %<>% {names(fpsitelist)[as.numeric(.)]}
+
 fprofilemats_unproc$codon%>%n_distinct
 codons2scan%>%n_distinct
 fprofilemats_unproc$position%>%unique
 
 # codonprofiles <- fprofilemats_unproc%>%map_depth(4,enframe,'position','signal')%>%map_depth(3,1)%>%map_depth(2,bind_rows,.id='readlen')%>%map_depth(1,bind_rows,.id='codon')%>%bind_rows(.id='sample')
 codonprofiles<-fprofilemats_unproc
+codonprofiles%<>%filter(!codon %in% c('TAG','TAA','TGA'))
 codonprofiles%<>%mutate(position = position - 1 - (FLANKCODS*3))
 codonprofiles%<>%group_by(readlen)%>%filter(any(signal!=0))
 if(!str_detect(codonprofiles$readlen,'rl')) codonprofiles$readlen%<>%as.numeric(.)%>%names(widths)[.]
 codonprofiles%<>%group_by(readlen,codon,sample)%>%mutate(signal = signal / median(signal))
+stopifnot(codonprofiles$signal%>%is.finite%>%all)
 
+################################################################################
+########Plot occupancies
+################################################################################
+	
 #plotting variance amongst codons at each point.
 codonprofiles%>%
 	ungroup%>%
@@ -203,13 +250,13 @@ codonprofiles%>%
 	filter(readlen=='rl27')%>%
 	identity%>%
 	# .$position%>%unique
-	filter(between(position,-30,2))%>%
+	filter(between(position,-24,0))%>%
 	arrange(position)%>%
 	{txtplot(x=.$position,y=.$sdsig)}
 
+	{txtplot(x=.$position,y=.$sdsig)}
 
 
-psite_model$offsets
 
 codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
 codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
@@ -222,10 +269,12 @@ fprofilemats_unproc$codon%>%str_subset('GTC')%>%unique
 fprofilemats_unproc$codon%>%n_distinct
 codons2scan%>%n_distinct
 
+
+samplestage <- unique(codonprofiles$sample)%>%{setNames(stageconv[str_replace(.,'_.*?_.*?$','')],.)}
 pdf('tmp.pdf',w=24,h=14)
 codonprofiles%>%
-	filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
-	# filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
+	# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
+	filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
 	ungroup%>%
 	mutate(codon = as_factor(codon))%>%
 	# filter(sample%>%str_detect(c('ribo')))%>%
@@ -239,7 +288,8 @@ codonprofiles%>%
 		geom_vline(data=filter(codonproftppos,codon%in%.$codon),aes(xintercept=tppos),linetype=2)+
 		coord_cartesian(xlim=c(-39,12))+
 		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
-		# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -3, xmax = 5, ymin = 0 ,ymax = Inf))+
+		geom_vline(data=offsets,aes(xintercept= -offset-2-6),color=I('green'),linetype=2)+
+		# geom_rect(data=offsets,color=I('black'),alpha = I(0.1),aes(x=NULL,y=NULL,xmin= -8-offset, xmax = -offset, ymin = 0 ,ymax = Inf))+
 		theme_bw())}
 dev.off()
 normalizePath('tmp.pdf')
@@ -268,13 +318,281 @@ codonprofiles%>%
 dev.off()
 normalizePath('tmp.pdf')
 
-profilemats_unproc[[1]][[1]][[1]][[1]]
-
-profilemats_unproc%>%saveRDS('data/codon_profilemats_unproc.rds')
+profilemats_unproc%>%saveRDS('data/fprofilemats_unproc.rds')
 
 profilemats <- profilemats_unproc%>%setNames(.,bams[1:length(.)])
 
-# stop()
+cdswidths<-cds%>%split(.,.$protein_id)%>%width%>%sum
+longestcdsids<-enframe(cdswidths,'protein_id','length')%>%left_join(cds%>%mcols%>%as_tibble%>%distinct(protein_id,gene_id))%>%group_by(gene_id)%>%slice(which.max(length))%>%.$protein_id
+cds_noov<-cds%>%subset(protein_id%in%longestcdsids)
+cds_noov%<>%split(.,.$protein_id)
+# cds_noov<-cds_noov%>%subset(strand=='+')%>%split(.,.$protein_id)%>%head(10)%>%lapply(head,1)%>%GRangesList%>%unlist%>%resize(3)
+oligonucleotideFrequency(getSeq(FaFile(REF),cds_noov),3,step=3)
+
+
+################################################################################
+########Codon optimality scores based on 
+################################################################################
+	
+codonfreqs<-oligonucleotideFrequency(extractTranscriptSeqs(FaFile(REF),cds_noov),3,step=3)
+rownames(codonfreqs)<-names(cds_noov)
+overallcodonfreqs<-codonfreqs%>%colSums
+bestcds<- cds%>%subset(protein_id%in%best_protein_ids)%>%split(.,.$protein_id)
+usedcodonfreqs<-oligonucleotideFrequency(extractTranscriptSeqs(FaFile(REF),bestcds),3,step=3)%>%set_rownames(names(bestcds))
+codon_is_optimal <- overallcodonfreqs%>%enframe('codon','freq')%>%
+	mutate(AA=as.character(translate(DNAStringSet(codon))))%>%
+	group_by(AA)%>%mutate(optimal = freq==max(freq))%>%
+	{setNames(.$optimal,.$codon)}
+
+optimalcodons <- names(codon_is_optimal)[codon_is_optimal]
+
+pc_optcodons <- ((usedcodonfreqs[,optimalcodons]%>%rowSums)/(usedcodonfreqs%>%rowSums))%>%setNames(rownames(usedcodonfreqs))%>%enframe('protein_id','pc_opt')
+
+  exprs(countexprdata)
+
+usedcodonfreqs[1:3,]%>%as.data.frame%>%rownames_to_column("protein_id")%>%gather(codon,protein_id)%>%
+	left_join(tRNA_occ_df%>%distinct(codon,time,tRNA_expr=signal,occupancy))%>%
+	group_by(time,protein_id)%>%
+	summarise(occupancy=mean(occupancy),tRNA_expr=mean(tRNA_expr))
+
+tRNA_occ_df
+codons4occ <- tRNA_occ_df$codon%>%unique%>%setdiff(c('TAG','TAA','TGA'))
+
+cdsexprvals <- (2^mscountvoom$E[,1:10])%>%{rownames(.)%<>%str_replace('_\\d+$','');.}
+cdsexprvals %>% as.data.frame%>% rownames_to_column('protein_id')%>%gather(sample,signal,-protein_id)
+
+##Score for cds at particular time points
+times<-tRNA_occ_df$time%>%unique%>%setNames(.,.)
+itime <- times[1]
+
+
+
+timeoccscores <- map_df(.id='time',times,function(itime){
+	timeoccvect <- tRNA_occ_df%>%filter(time==itime)%>%mutate(occupancy=occupancy-median(na.rm=T,occupancy))%>%{setNames(.$occupancy,.$codon)[codons4occ]}
+	(t(usedcodonfreqs[,codons4occ])*(timeoccvect))%>%colMeans%>%enframe('protein_id','occ_score')
+})
+
+timeSigscores <- map_df(.id='time',times,function(itime){
+	timeoccvect <- tRNA_occ_df%>%filter(time==itime)%>%mutate(signal=signal-median(na.rm=T,signal))%>%{setNames(.$signal,.$codon)[codons4occ]}
+	(t(usedcodonfreqs[,codons4occ])*(timeoccvect))%>%colMeans(na.rm=T)%>%enframe('protein_id','tRNA_expr_score')
+})
+
+score_techange_df<-timeoccscores%>%left_join(timeSigscores)%>%left_join(ms_id2protein_id%>%distinct(protein_id,gene_name))%>%
+	left_join(allTEchangedf)
+
+occchange_vs_te_df <- score_techange_df%>%
+	group_by(up,down,protein_id)%>%
+	# filter(time!='P0')%>%
+	# group_slice(1:2)%>%
+	nest%>%
+	mutate(occhange = map_dbl(data,~{lm(data=.,occ_score ~ seq_along(time))$coef[2]}))%>%
+	mutate(tps = map_dbl(data,nrow))%>%
+	select(-data)
+
+tRNAchange_vs_te_df <- score_techange_df%>%
+	group_by(up,down,protein_id)%>%
+	# filter(time!='P0')%>%
+	# group_slice(1:2)%>%
+	nest%>%
+	mutate(tRNA_score_change = map_dbl(data,~{lm(data=.,tRNA_expr_score ~ seq_along(time))$coef[2]}))%>%
+	mutate(tps = map_dbl(data,nrow))%>%
+	select(-data)
+
+pdf('plots/figures/figure2/te_change_vs_occscorechange.pdf')
+occchange_vs_te_df%>%
+	filter(!(up&down))%>%
+	mutate(TEchange_class = case_when(
+		up==1 ~ 'up',
+		down==1 ~ 'down',
+		TRUE ~ 'neither'
+	))%>%
+	ggplot(.,aes(x=occhange,color=TEchange_class))+geom_density(alpha=I(0.01))+theme_bw()+scale_x_continuous('Predicted Elongation Rate Change - Riboseq Occ')
+dev.off()
+normalizePath('plots/figures/figure2/te_change_vs_occscorechange.pdf')
+
+
+occchange_vs_te_df%>%filter(!down)%>%{split(.$occhange,.$up)}%>%{t.test(.[[1]],.[[2]])}
+occchange_vs_te_df%>%filter(!up)%>%{split(.$occhange,.$down)}%>%{t.test(.[[1]],.[[2]])}
+
+
+pdf('plots/figures/figure2/te_change_vs_tRNAscorechange.pdf')
+tRNAchange_vs_te_df%>%
+	filter(!(up&down))%>%
+	# filter(time!='P0')%>%
+	mutate(TEchange_class = case_when(
+		up==1 ~ 'up',
+		down==1 ~ 'down',
+		TRUE ~ 'neither'
+	))%>%
+	ggplot(.,aes(x=tRNA_score_change,color=TEchange_class))+geom_density(alpha=I(0.01))+theme_bw()+scale_x_continuous('Predicted Change in tRNA Abundance Score')
+dev.off()
+normalizePath('plots/figures/figure2/te_change_vs_tRNAscorechange.pdf')
+
+tRNAchange_vs_te_df%>%filter(!down)%>%{split(.$tRNA_score_change,.$up)}%>%{t.test(.[[1]],.[[2]])}
+tRNAchange_vs_te_df%>%filter(!up)%>%{split(.$tRNA_score_change,.$down)}%>%{t.test(.[[1]],.[[2]])}
+
+
+
+
+
+#occ scores of things that change TE
+pdf('tmp.pdf')
+score_techange_df%>%
+	filter(time=='E13')%>%
+	filter(!(up&down))%>%
+	mutate(TEchange_class = case_when(
+		up==1 ~ 'up',
+		down==1 ~ 'down',
+		TRUE ~ 'neither'
+	))%>%
+	ggplot(.,aes(x=log(occ_score),color=TEchange_class))+geom_density(alpha=I(0.01))+theme_bw()
+dev.off()
+normalizePath('tmp.pdf')
+
+allTEchangedf
+
+
+###Do optimized looking CDS tend to have higher TE?
+abste_opt_df<-bestmscountebayes$coef[,'TE']%>%enframe('uprotein_id','TE')%>%mutate(protein_id=uprotein_id%>%str_replace('_\\d+$',''))%>%
+	left_join(pc_optcodons)
+
+
+cor.test(abste_opt_df$TE,pc_optcodons$pc_opt)
+txtplot(abste_opt_df$TE,pc_optcodons$pc_opt,width=100,pch='.')
+#No.
+
+#Do 
+
+
+#Are occupancy and global frequency correlated?
+tRNA_occ_df%>%
+	left_join(enframe(overallcodonfreqs,'codon','freq'))%>%
+	split(.,.$time)%>%
+	map(~ cor.test(.$freq,.$occupancy))
+
+#Are 
+tRNA_occ_df%>%
+	left_join(enframe(codon_is_optimal,'codon','optimality'))%>%
+	mutate(AA=as.character(translate(DNAStringSet(codon))))%>%
+	group_by(AA)%>%
+	filter(n()>1)%>%
+	mutate(least_occ=occupancy ==min(occupancy))%>%
+	split(.,.$time)%>%
+	map(~ identity(table(.$least_occ,.$optimality)))
+
+
+
+
+
+tRNA_occ_df
+
+#codon_optimality_scores
+dim(usedcodonfreqs) / dim(usedcodonfreqs[,optimalcodons]) %>%rowSums))%>%table
+(usedcodonfreqs%>%rowSums / (usedcodonfreqs[,optimalcodons]%>%rowSums))%>%table
+
+
+
+################################################################################
+########Now combine the tRNA and codon occupancy info
+################################################################################ head(allcodsigmean_isomerge)
+
+
+#allcodsigmean_isomerge<-
+allcodsigmean%>%
+	filter(sample%>%str_detect('Total'))%>%
+	# group_by(time,sample,codon)%>%
+	# summarise(signal = -log2(sum(2^(-signal))))
+	group_by(time,sample,codon,decoder)%>%
+	nest%>%
+	mutate(medsig = map_dbl(data,~median(.$signal)))%>%
+	group_by(codon)%>%
+	slice(which.max(medsig))%>%
+	unnest
+
+#get occupancies
+codonoccs<-codonprofiles%>%inner_join(offsets)%>%
+	filter(position <= -offset, position >= -offset-8)%>%
+	# filter(position <= -offset, position >= -offset-5)%>%
+	# filter(position <= -offset-3, position >= -offset-5)%>%
+	filter(readlen%in%c('rl29'))%>%
+	ungroup%>%
+	mutate(time=str_extract(sample,'[^_]+'))%>%
+	group_by(time,codon)%>%
+	summarise(occupancy=mean(signal,na.rm=T))
+#Now merge with the tRNA data
+tRNA_occ_df<-allcodsigmean_isomerge%>%
+	mutate(codon=str_replace(codon,'\\w+\\-',''))%>%
+	left_join(codonoccs)
+
+normtRNA_occ_df<-tRNA_occ_df%>%
+	group_by(codon)%>%
+	# mutate(signal = signal-mean(signal),occupancy=occupancy-mean(occupancy))
+	mutate(signal = signal-mean(signal),occupancy=occupancy-occupancy[time=="E13"])
+
+normtRNA_occ_df%>%
+	# filter(! sample %>% str_detect('13')) %>% 
+	# filter(! sample %>% str_detect('P0')) %>% 
+	{cor.test(.$occupancy,.$signal,use='complete',method='pearson')}
+
+
+pdf('tmp.pdf',w=24,h=14)
+tRNA_occ_df%>%
+	# filter(codon%>%str_detect(c('TTC|GTC|CAC|AAC|ATG')))%>%
+	# filter(time%>%str_detect("E13"))%>%
+	{
+	#
+	labelpos = group_by(.,codon)%>%summarise(occupancy=mean(occupancy),signal=mean(signal))
+	#
+	# filter(codon%>%str_detect("ATG"))%>%
+	ggplot(.,aes(x=signal,y=occupancy,color=time,group=codon))+
+	geom_point(size=8)+
+	geom_line(color=I('grey'))+
+	facet_wrap(nrow=3,time ~ . )+
+	scale_color_manual(values=stagecols)+
+	geom_text(show.legend=F,data=labelpos,aes(label=codon,color=NULL),size=9)+
+	scale_x_continuous(name='Summed tRNA Expression')
+}
+dev.off()
+normalizePath('tmp.pdf')
+
+tRNA_occ_df %>% {cor.test(.$occupancy,.$signal,use='complete')}
+tRNA_occ_df%>%filter(time=='P0') %>% {cor.test(.$occupancy,.$signal,use='complete')}
+
+tRNA_occ_df%>%
+	filter(! codon %>% str_detect('AAC')) %>% 
+	{cor.test(.$occupancy,.$signal,use='complete')}
+
+normtRNA_occ_df%>%filter(signal==0)
+
+
+
+##Plot of change over time
+pdf('tmp.pdf',w=24,h=14)
+normtRNA_occ_df%>%
+	usedcodonfreqs
+	# filter(! sample %>% str_detect('E13')) %>% 
+	# filter(! sample %>% str_detect('P0')) %>% 
+	# filter(codon%>%str_detect(c('TTC|GTC|CAC|AAC|ATG')))%>%
+	# filter(time%>%str_detect("E13"))%>%
+	{
+	#
+	labelpos = group_by(.,codon)%>%summarise(occupancy=mean(occupancy),signal=mean(signal))
+	#
+	# filter(codon%>%str_detect("ATG"))%>%
+	ggplot(.,aes(x=signal,y=occupancy,color=time,group=codon))+
+	geom_point(size=8)+
+	# geom_line(color=I('grey'))+
+	# facet_wrap(nrow=3,time ~ . )+
+	scale_color_manual(values=stagecols)+
+	# geom_text(show.legend=F,data=labelpos,aes(label=codon,color=NULL),size=9)+
+	scale_x_continuous(name='Summed tRNA Expression - Median')+
+	scale_y_continuous(name='Summed Occupancy - Median')+
+	theme_bw()
+}
+dev.off()
+normalizePath('tmp.pdf')
+
+	{cor.test(.$occupancy,.$signal,use='complete')}
 
 # codonstbl<-read.table('https://raw.githubusercontent.com/zhanxw/anno/master/codon.txt')
 # codonstbl%>%write_tsv('ext_data/codons.txt')
@@ -307,11 +625,6 @@ codonprofmat%<>%ungroup
 
 require(plotly)
 
-displaystagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
-stageconv = names(displaystagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
-stagecols <- displaystagecols%>%setNames(names(stageconv))
-samplestage <- unique(codonprofmat$sample)%>%{setNames(stageconv[str_replace(.,'_.*?_.*?$','')],.)}
-
 samplestage[codonprofmat$sample]%>%unique
 
 highcod = 'AAC'
@@ -334,7 +647,7 @@ normalizePath('tmp.pdf')
 
 
 
-
+save.image('data/codon_coverage.Rdata')
 
 
 #' Convert from Rle to one column matrix

@@ -21,7 +21,7 @@ suppressMessages(library(limma))
 message('...done')
 
 setwd(here())
-
+# BiocManager::install('doMC')
 source(here('src/R/cortexomics_myfunctions.R'))
 
 # message('temp commented out')
@@ -38,7 +38,6 @@ source(here('src/R/Modeling/stan_predict_impute.R'))
 hierarchstanfile <- file.path(root,'src/Stan/degmodel_hierarch.stan') %T>%{stopifnot(file.exists(.))}
 indivfitstanfile <- file.path(root,'src/Stan/degmodel_simple.stan') %T>%{stopifnot(file.exists(.))}
 linearstanfile <- file.path(root,'src/Stan/degmodel_simple_linear.stan')%T>%{stopifnot(file.exists(.))}
-
 
 #Funciton to fit linear and nonlinear model with stan
 get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
@@ -87,19 +86,22 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
   list(fit=stanfit,chainfiles= chainfiles)
 
 }
-stop()
+
+library(testthat)
 
 test_that("the model Im using reliably converges for easy genes - those that are increasing",{
   #pick such a set of genes
-  msincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
-  riboincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%pluck('is_increasing')
-  low_variance <-   exprdata%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%pluck('lowvar')
-  not_missing <- exprdata%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%.$missing%>%`!`
+  msincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  riboincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  low_variance <-   exprdata%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
+  not_missing <- exprdata%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
 
   test_genes <- msincreasing & riboincreasing & low_variance &   not_missing
   
   map(list(msincreasing,riboincreasing,low_variance, not_missing,test_genes),table)
 
+
+  test_genes[test_genes]
 
   #run the model on them
 
@@ -108,6 +110,8 @@ test_that("the model Im using reliably converges for easy genes - those that are
 
   expect_true(all(is_convergent))
 })
+
+
 
 
 # stop()

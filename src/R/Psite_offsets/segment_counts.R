@@ -72,14 +72,6 @@ exons <- gtf_gr%>%subset(type=='exon')
 cds <- gtf_gr%>%subset(type=='CDS')
 	
 
-if(!file.exists(shiftmodel)){
-	message('no psite model found')
-	psite_model <- NULL
-}else{
-	psite_model <- readRDS(shiftmodel)
-}
-
-
 # cds	%>%split(.,.$protein_id)%>%head(2)%>%lapply(head,2)%>%GRangesList%>%unlist%>%{.[isfpmost(.)]%<>%clip_start(5);.}
 
 

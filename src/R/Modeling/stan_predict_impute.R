@@ -192,7 +192,7 @@ get_standata<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
      # gene_name=gnamei,
      MS=MS_array,
      # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
-     ribo =riboarray 
+     ribo =riboarray
   )
   dimnames(standata$MS)=list(paste0('rep',1:3),tps,unique(g2fit))
   dimnames(standata$ribo)=list(tps,unique(g2fit))

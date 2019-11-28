@@ -10,6 +10,7 @@ library(nlme)
 # library(nlmeODE)
 library(BiocParallel)
 library(splines2)
+library(conflicted)
 
 conflict_prefer("last", "dplyr")
 
@@ -282,65 +283,29 @@ dbasis_ribolinlim = rbind(
   mydddbs_lims
 )
 
+
+
 ################################################################################
 ########Test data
 ################################################################################
 
-spl_getprotdf<-function(
-splfit,
-splinedf =  4,
-deg = 0.1,
-rTE = 10,
-orthns_imat,
-ms0ratio = 1,
-logfit=TRUE
- ) {
-  ntps <- length(predict(splfit,orthns_imat))
-
-   trans = if(logfit) exp else identity
-
-  dPdt <- function(itime, state, parameters){
-   trans = if(logfit) exp else identity
-   dPdt <- with(as.list(c(state,parameters)) ,{
-     mRNA <- trans(c(orthns_imat[itime,]) %*% scoefs)
-     mRNA <- max(0,mRNA)
-     (rTE * mRNA) - (deg*P)
-   })
-   list(dPdt)
-  }
-
-   
-  stopifnot(splinedf %in% 1:100)
-  splineribo <- trans(predict(splfit,orthns_imat))
-
-  #set up the actual ode
-  state<-c('P'= min(
-    ((rTE*splineribo[1])/deg),
-    # ((rTE*splineribo[1])/0.1)
-    Inf
-  ))
 
 
-  state = state*ms0ratio
-  parameters = list(rTE=rTE,bounds=c(1,ntps),deg=deg,df=splinedf,scoefs = coef(splfit),orthns_imat=orthns_imat)%>%as.list
-  Pdf = ode(y = state, times = 1:ntps, func = dPdt, parms = parameters)
-  data.frame(ribo = splineribo,P=Pdf[,2],time=1:length(splineribo))
 
-
-}
-
+nnls<-nnls::nnls
 predict.nnls <- function(nnls,A){
   A %*% coef(nnls)
 }
-
+library(lsei)
 dim(mydbs)
 dim(mybs)
 ribo <- ribo%>%rpois(length(.),.)
 splfit <- (nnls(mydbs,ribo))
 txtplot(mydbs %*% coef(splfit))
 
-splfit <- (nnls(dbasis_ribolinlim,c(ribo,0,0)))
-txtplot(dbasis_ribolinlim %*% coef(splfit))
+
+# splfit <- (nnls(dbasis_ribolinlim,c(ribo,0,0,0,0)))
+# txtplot(dbasis_ribolinlim %*% coef(splfit))
 
 stopifnot(!any(is.na(splfit$coef)))
 mydeg = 0.6
@@ -373,10 +338,10 @@ basis_with_divs = rbind(
 
 stop()
 
-
-
-
 mypx_lm = lm(c(num_ode_res$P) ~ 0 + mybs,weights = c(rep(1,length(num_ode_res$P))))
+
+mypx_lm = lm(c(num_ode_res$P)-min(num_ode_res$P) ~ 0 + mybs[,-1],weights = c(rep(1,length(num_ode_res$P))))
+
 
 limbasis = basis_ribolinlim
 prot = num_ode_res$P
@@ -428,34 +393,151 @@ txtplot((mybs %*% mypx))
 
 #yv given px
 yv = matrix(mypx[-1]) + invmydbs %*% ((mybs %*% mypx)  * (mybs %*% degzv)) 
-
+est = mydbs %*% yv
+est/(ribo)
+mean(est/(ribo))
 #so what's px given yv AND m0?
-mydbs (yv) = mydbs mypx[-1] + mybs mypx * mybs (degzv)
+# mydbs (yv) = mydbs mypx[-1] + mybs mypx * mybs (degzv)
 #turn that haamardd prodduce in to a maaatrix mult
-mydbs (yv) = mydbs mypx[-1] + mybs Ideg mypx 
+# mydbs (yv) = mydbs mypx[-1] + mybs Ideg mypx 
 
-#now make things conformable? things go wrong here...
-0mydbs (0yv) = 0mydbs mypx + mybs Ideg mypx  
-0mydbs (0yv) = (0mydbs + mybs Ideg)  mypx  
-#now flip
-mypv = inv(0mydbs + mybs Ideg) 0mydbs 0yv
-mypv[-1] = inv(0mydbs + mybs Ideg) 0mydbs 0yv
-
-
-cbind(mydbs) %*% c(myyv)
-Ideg = diag(mydeg,ncol(mybs))
-mypx = ginv( mydbs + (mybs %*% Ideg) ) cbind(1,mydbs) 0yv
-
-#but non conf.
+# #now make things conformable? things go wrong here...
+# 0mydbs (0yv) = 0mydbs mypx + mybs Ideg mypx  
+# 0mydbs (0yv) = (0mydbs + mybs Ideg)  mypx  
+# #now flip
+# mypv = inv(0mydbs + mybs Ideg) 0mydbs 0yv
+# mypv[-1] = inv(0mydbs + mybs Ideg) 0mydbs 0yv
 
 
+# cbind(mydbs) %*% c(myyv)
+# Ideg = diag(mydeg,ncol(mybs))
+# mypx = ginv( mydbs + (mybs %*% Ideg) ) cbind(1,mydbs) 0yv
+
+# #but non conf.
 
 
 
-dP(t) = Ks R(t) + Kd P(t)
+#################################################################
+########Linear?
+################################################################################
+library(MASS) 
+library(deSolve) 
+# install.packages('txtplot')
+library(splines2)
+library(txtplot)
 
-#You would think thi sis the same - nope
-# yv = tail(matrix(mypx),-1) + invmydbs %*% ((mybs %*% mypx)  * (mybs %*% zv)) 
+flankn=1
+ribo <-c(rep(100,flankn),200,400,800,400,200,rep(100,flankn))
+time = 1:length(ribo)
+
+
+library(splines)
+library(splines2)
+library(splines)
+library(tidyverse)
+library(magrittr)
+timeknots <- time[c(-1,-length(time))]
+mybsdf1 <- cbind(1,ibs(time, knots = timeknots,degree = 1, intercept = TRUE))
+mydbsdf1 = bs(time, knots = timeknots,degree = 1, intercept = TRUE)
+
+
+dim(mybsdf1);dim(mydbsdf1)
+mybsdf1%>%{ginv(.)%*%.}%>%round(10)%>%{.-diag(ncol(.))}%>%abs%>%max
+mydbsdf1%>%{ginv(.)%*%.}%>%round(10)%>%{.-diag(ncol(.))}%>%abs%>%max
+stopifnot(!any(mydbsdf1<0))
+stopifnot((!all(mydbsdf1[1,]==0)))
+
+invmydbsdf1 = ginv(mydbsdf1)
+mydbsdf1_lims  = cbind(mydbsdf1) %>% {.[c(1,nrow(.)),]}
+#this is all unncessary with piecewise linear but meh
+myddbs_lims  = cbind(0,0,iSpline(time,length(time)-1,derivs=2)*0)%>%{.[c(1,nrow(.)),]}
+mydddbs_lims  = cbind(0,0,iSpline(time,length(time)-1,derivs=3)*0)%>%{.[c(1,nrow(.)),]}
+# mydbsdf1_ddlims = cbind(mSpline(time,length(time)-1,derivs=2))%>%{.[c(1,nrow(.)),]}
+dim(myddbs_lims)
+library(tidyverse)
+
+dzv=lm( rep(1,nrow(mydbsdf1)) ~ 0+mydbsdf1)%>%.$coef%>%round(10)%>%replace_na(0)
+zv=lm( rep(1,nrow(mybsdf1)) ~ 0+mybsdf1)%>%.$coef%>%round(10)%>%replace_na(0)
+
+
+
+dim(mybsdf1);dim(mydbsdf1);
+dim(mybsdf1);dim(myddbs_lims);length(mydddbs_lims)
+
+
+basis_ribolinlim = rbind(
+  mybsdf1,
+  myddbs_lims,
+  mydddbs_lims
+)
+
+dbasis_ribolinlim = rbind(
+  mydbsdf1,
+  myddbs_lims,
+  mydddbs_lims
+)
+
+extnum = nrow(limbasis) - length(prot)
+
+txtplot(prot)
+txtplot(ribo)
+
+
+
+mypx_lm = lm(prot ~ 0+mybsdf1[,-1])
+
+
+
+
+spl_getprotdf<-function(
+splfit,
+splinedf =  4,
+deg = 0.1,
+rTE = 10,
+orthns_imat,
+ms0ratio = 1,
+logfit=TRUE
+ ) {
+  ntps <- length(predict(splfit,orthns_imat))
+
+   trans = if(logfit) exp else identity
+
+  dPdt <- function(itime, state, parameters){
+   trans = if(logfit) exp else identity
+   dPdt <- with(as.list(c(state,parameters)) ,{
+     mRNA <- trans(c(orthns_imat[itime,]) %*% scoefs)
+     # mRNA <- max(0,mRNA)
+     (rTE * mRNA) - (deg*P)
+   })
+   list(dPdt)
+  }
+
+   
+  stopifnot(splinedf %in% 1:100)
+  splineribo <- trans(predict(splfit,orthns_imat))
+
+
+  #set up the actual ode
+  state<-c('P'= min(
+    ((rTE*splineribo[1])/deg),
+    # ((rTE*splineribo[1])/0.1)
+    Inf
+  ))
+
+  state = state*ms0ratio
+  parameters = list(rTE=rTE,bounds=c(1,ntps),deg=deg,df=splinedf,scoefs = coef(splfit),orthns_imat=orthns_imat)%>%as.list
+  Pdf = ode(y = state, times = 1:ntps, func = dPdt, parms = parameters)
+  data.frame(ribo = splineribo,P=Pdf[,2],time=1:length(splineribo))
+
+
+}
+
+
+
+
+
+yv = matrix(mypx[-1]) + invmydbs %*% ((mybs %*% mypx))  * (mybs %*% degzv)
+
 #how about also no!
 # yv = tail(matrix(mypx),-1) + ((invmydbs %*%mybs %*% mypx)  * (invmydbs %*% mybs %*% zv)) 
 est = mydbs %*% yv
@@ -465,6 +547,18 @@ mean(est/(ribo))
 # dbasis %*% yv = dbasis %*% px +  mybs %*% zv  %.% mybs %*% zv
 #estimate using spline of P
 
+
+dbasis %*% yv = dbasis %*% px +  mybs %*% px  %.% mybs %*% zv
+
+#we need to think about the protein fold change.
+P = mybs %*% px
+dP = mydbs %*% px
+
+#fold change given 
+dP/P = mydbs %*% px / mybs %*% px
+mydbs %*% px / mybs %*% px = 
+
+# 
 
 
 
