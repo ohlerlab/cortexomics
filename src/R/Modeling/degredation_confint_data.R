@@ -63,7 +63,7 @@ test_that("we have datathat looksl ike the old but with confidence intervals",{
 g2fit="Satb2"
 
 get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
-  
+  require(splines2)
   MS_array <- exprdata%>%
     filter(gene_name%in%g2fit)%>%
     filter(assay=='MS')%>%
@@ -148,10 +148,10 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
 }
 # test_that("the model Im using reliably converges for easy genes - those that are increasing",{
   #pick such a set of genes
-  msincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
-  riboincreasing <- exprdata%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
-  low_variance <-   exprdata%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
-  not_missing <- exprdata%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
+  msincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  riboincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  low_variance <-   processedtbl%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
+  not_missing <- processedtbl%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
 
   test_genes <- msincreasing & riboincreasing & low_variance &   not_missing
   
@@ -178,6 +178,7 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
 get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter=200, n_chains=4)
 {
   require(tools)
+
 
   ##First copy the model file to a new folder
 
@@ -216,10 +217,13 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
 
   initvals=list(initvals)
 
-  exportenv()
   initvals = rep(initvals,  n_chains)
-  stanfit <- rstan::stan(file=modelcopy,
-          model_name=basename(tmpdir),
+
+  imodel_name <- basename(tmpdir)
+
+
+  stanfit <- stan(file=modelcopy,
+          model_name=imodel_name,
           # model_name=modelnm,seed=1,
           data=standata,
               control=list(adapt_delta=0.99,max_treedepth=20),save_dso=FALSE,
@@ -252,42 +256,64 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
 
 }
 
-#get teh data
-testsetstandata <- get_standata_confint(c('Satb2','Flna',test_gene_names),genelengths,processedtbl,lengthnorm=TRUE,assay2get='ribo')
+{
+  require(BiocParallel)
+  # BiocManager::install('batchtools')
+  param<- BatchtoolsParam(workers=4, cluster="sge", resources=list(queue='all'))
+  sge_template <- '~/tmp.tmpl' 
+  param$template%>%readLines%>%str_replace(regex('\\#\\$ -q .*'),'')%>%cat(file=sge_template,sep='\n')
+  param<- BatchtoolsParam(workers=100, cluster="sge", resources=list(queue='all'),template=sge_template)
+  #bplapply(BPPARAM=param
+}
+
+genelengths = metainfo$width%>%setNames(metainfo$gene_name)
+splitdata <- lapply(c('Satb2','Flna',test_gene_names),get_standata_confint,genelengths,processedtbl,lengthnorm=T,assay2get='ribo')
+stop()
+
+indivclustfits<-bplapply(BPPARAM=param,splitdata[1],get_stanfit=get_stanfit,indivCIstanfile=indivCIstanfile,function(gsetstandata,get_stanfit,indivCIstanfile){
+  require(rstan)
+  require(tools)
+  require(magrittr)
+  require(tidyverse)
+  #get teh data  #
+  testindivfit<-get_stanfit(
+    gsetstandata,
+    indivCIstanfile,
+    pars=NULL,iter=400,n_chains=4,
+    modelsamplefile='stansamples/testhierarch.csv',
+    sampledir=here('pipeline/stansamples')
+  )
+})
+
 
 #see if they converge
 testhierarchfit <- get_stanfit(
   testsetstandata,
-  indivCIstanfile,
   pars=NULL,iter=400,n_chains=4,
   modelsamplefile='stansamples/testhierarch.csv',
   sampledir=here('pipeline/stansamples')
 )
 
-testindivfit<-get_stanfit(
-  testsetstandata,
-  indivCIstanfile,
-  pars=NULL,iter=400,n_chains=4,
-  modelsamplefile='stansamples/testhierarch.csv',
-  sampledir=here('pipeline/stansamples')
-)
+
+
+
+
 
 }
 
-select<-dplyr::select
-
 testhierarchfit[[1]]%>%summary%>%.[[1]]%>%head
 
+parsum%>%filter(is.na(gene))
 
-  parsum<-testhierarchfit[[1]]%>%
-    summary%>%
-    .$summary%>%
-    as.data.frame%>%
-    rownames_to_column('par')%>%
-    mutate(ppar=parse_stan_pars(par))%>%unnest
-    # filter(is.na(time),is.na(gene))%>%
-    # filter(par%>%str_detect('rTE'))
-    parsum$par%>%unique
+parsum<-testhierarchfit[[1]]%>%
+  summary%>%
+  .$summary%>%
+  as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppar=parse_stan_pars(par))%>%unnest
+  # filter(is.na(time),is.na(gene))%>%
+  # filter(par%>%str_detect('rTE'))
+  parsum$par%>%unique
 
 
 parsum%>%filter(is.na(gene))

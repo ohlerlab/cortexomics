@@ -211,7 +211,7 @@ fprofilemats_unproc<-mclapply(mc.cores=1,fpsitelist,mymemoise(function(psites){
 }
 
 ################################################################################
-########
+########PRocess these
 ################################################################################
 	
 stopifnot(all(is.finite(fprofilemats_unproc$signal)))
@@ -232,7 +232,7 @@ codonprofiles%<>%group_by(readlen,codon,sample)%>%mutate(signal = signal / media
 stopifnot(codonprofiles$signal%>%is.finite%>%all)
 
 ################################################################################
-########Plot occupancies
+########Plot occupancies at codon level
 ################################################################################
 	
 #plotting variance amongst codons at each point.
@@ -327,11 +327,12 @@ longestcdsids<-enframe(cdswidths,'protein_id','length')%>%left_join(cds%>%mcols%
 cds_noov<-cds%>%subset(protein_id%in%longestcdsids)
 cds_noov%<>%split(.,.$protein_id)
 # cds_noov<-cds_noov%>%subset(strand=='+')%>%split(.,.$protein_id)%>%head(10)%>%lapply(head,1)%>%GRangesList%>%unlist%>%resize(3)
+
 oligonucleotideFrequency(getSeq(FaFile(REF),cds_noov),3,step=3)
 
 
 ################################################################################
-########Codon optimality scores based on 
+########Codon optimality scores based on codon frequencies, gene expression levels
 ################################################################################
 	
 codonfreqs<-oligonucleotideFrequency(extractTranscriptSeqs(FaFile(REF),cds_noov),3,step=3)
@@ -358,8 +359,65 @@ usedcodonfreqs[1:3,]%>%as.data.frame%>%rownames_to_column("protein_id")%>%gather
 tRNA_occ_df
 codons4occ <- tRNA_occ_df$codon%>%unique%>%setdiff(c('TAG','TAA','TGA'))
 
-cdsexprvals <- (2^mscountvoom$E[,1:10])%>%{rownames(.)%<>%str_replace('_\\d+$','');.}
-cdsexprvals %>% as.data.frame%>% rownames_to_column('protein_id')%>%gather(sample,signal,-protein_id)
+cdsexprvals <- (2^bestmscountvoom$E[,T])%>%{rownames(.)%<>%str_replace('_\\d+$','');.}
+
+#length norm them
+cdsexprvals <- cdsexprvals / fData(countexprdata)$length[match(rownames(cdsexprvals),fData(countexprdata)$protein_id)]
+
+
+cdsexprdf<- cdsexprvals[,1:20] %>% as.data.frame%>% rownames_to_column('protein_id')%>%gather(sample,signal,-protein_id)%>%
+	separate(sample,c('time','assay','rep'))%>%group_by(protein_id,time,assay)%>%summarise(signal=mean(signal))%>%
+	filter(assay=='ribo')%>%
+	spread(time,signal)%>%
+	arrange(match(protein_id,rownames(usedcodonfreqs)))
+
+weighted_codon_usage <- lapply(times,function(itime)(usedcodonfreqs[,]*cdsexprdf[[itime]])%>%colSums%>%{./sum(.)}%>%enframe('codon','weightedusage'))%>%bind_rows(.id='time')
+
+tRNA_abchange <- tRNA_occ_df%>%
+	group_by(codon)%>%
+	filter(!is.na(signal))%>%
+	nest%>%
+	mutate(abundancechange = map_dbl(data,~{lm(data=.,signal ~ seq_along(time))$coef[2]}))
+
+usage_v_abundance_df <- weighted_codon_usage%>%filter(time=='E13')%>%ungroup%>%select(-time)%>%left_join(tRNA_abchange%>%select(codon,abundancechange))%>%
+	filter(!is.na(abundancechange),!is.na(weightedusage))
+
+wus_tab_cors<-usage_v_abundance_df%>%
+	filter(!codon%in%c('TAG','TAA','TGA'))%>%
+	nest%>%mutate(cor = map_dbl(data,~ cor(.$abundancechange,.$weightedusage)))
+
+wus_tab_cors$pval <- usage_v_abundance_df%>%	filter(!codon%in%c('TAG','TAA','TGA'))%>%{cor.test(.$abundancechange,.$weightedusage)}%>%.$p.value
+
+pdf('tmp.pdf')
+usage_v_abundance_df%>%
+	filter(!codon%in%c('TAG','TAA','TGA'))%>%
+	{
+		print(
+			qplot(data=.,x=.$abundancechange,y=.$weightedusage,label=codon,geom='blank')+
+				scale_x_continuous('tRNA Abundance Signal Slope E13 - P0')+
+				scale_y_continuous('RiboExpression Weighted E13 ')+
+				geom_smooth(method='lm')+
+				# facet_grid(tRNA_time~.)+
+				geom_text()+
+				geom_text(data=wus_tab_cors,aes(x=0,y=0,label=paste0('r = ',round(cor,2))))+
+				theme_bw()
+			)
+	}
+dev.off()
+normalizePath('tmp.pdf')
+
+
+
+
+
+
+weighted_codon_usage%>%filter(time=='E13')%>%ungroup%>%select(-time)%>%left_join(tRNA_occ_df%>%filter(time=='P0')%>%ungroup%>%select(-time))%>%{txtplot(.$signal,.$weighted_codon_usage)}
+tRNA_occ_df%>%filter(time=='P0')%>%.$signal
+
+timeoccscores <- map_df(.id='time',times,function(itime){
+	timeoccvect <- tRNA_occ_df%>%filter(time==itime)%>%mutate(occupancy=occupancy-median(na.rm=T,occupancy))%>%{setNames(.$occupancy,.$codon)[codons4occ]}
+	(t(usedcodonfreqs[,codons4occ])*(timeoccvect))%>%colMeans%>%enframe('protein_id','occ_score')
+})
 
 ##Score for cds at particular time points
 times<-tRNA_occ_df$time%>%unique%>%setNames(.,.)
@@ -431,7 +489,10 @@ normalizePath('plots/figures/figure2/te_change_vs_tRNAscorechange.pdf')
 tRNAchange_vs_te_df%>%filter(!down)%>%{split(.$tRNA_score_change,.$up)}%>%{t.test(.[[1]],.[[2]])}
 tRNAchange_vs_te_df%>%filter(!up)%>%{split(.$tRNA_score_change,.$down)}%>%{t.test(.[[1]],.[[2]])}
 
+###So is this the same genes???
 
+tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{txtplot(.$tRNA_score_change,.$occhange)}
+tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{cor.test(.$tRNA_score_change,.$occhange)}
 
 
 
@@ -481,24 +542,16 @@ tRNA_occ_df%>%
 	map(~ identity(table(.$least_occ,.$optimality)))
 
 
-
-
-
-tRNA_occ_df
-
-#codon_optimality_scores
-dim(usedcodonfreqs) / dim(usedcodonfreqs[,optimalcodons]) %>%rowSums))%>%table
-(usedcodonfreqs%>%rowSums / (usedcodonfreqs[,optimalcodons]%>%rowSums))%>%table
-
-
-
 ################################################################################
 ########Now combine the tRNA and codon occupancy info
 ################################################################################ head(allcodsigmean_isomerge)
 
 
-#allcodsigmean_isomerge<-
-allcodsigmean%>%
+glutRNAabund<-allcodsigmean_isomerge%>%filter(codon%>%str_detect('CTC'))%>%.$signal
+valtRNAabund<-allcodsigmean_isomerge%>%filter(codon%>%str_detect('AAC'))%>%.$signal
+stopifnot(valtRNAabund<glutRNAabund)
+
+allcodsigmean_isomerge<-allcodsigmean%>%
 	filter(sample%>%str_detect('Total'))%>%
 	# group_by(time,sample,codon)%>%
 	# summarise(signal = -log2(sum(2^(-signal))))
@@ -519,6 +572,7 @@ codonoccs<-codonprofiles%>%inner_join(offsets)%>%
 	mutate(time=str_extract(sample,'[^_]+'))%>%
 	group_by(time,codon)%>%
 	summarise(occupancy=mean(signal,na.rm=T))
+
 #Now merge with the tRNA data
 tRNA_occ_df<-allcodsigmean_isomerge%>%
 	mutate(codon=str_replace(codon,'\\w+\\-',''))%>%
@@ -569,7 +623,7 @@ normtRNA_occ_df%>%filter(signal==0)
 ##Plot of change over time
 pdf('tmp.pdf',w=24,h=14)
 normtRNA_occ_df%>%
-	usedcodonfreqs
+	
 	# filter(! sample %>% str_detect('E13')) %>% 
 	# filter(! sample %>% str_detect('P0')) %>% 
 	# filter(codon%>%str_detect(c('TTC|GTC|CAC|AAC|ATG')))%>%

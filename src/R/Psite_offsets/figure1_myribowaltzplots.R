@@ -149,11 +149,12 @@ cdstouse <- cds%>%subset(protein_id%in%highprotein_ids)
 firstcds <- cdstouse%>%subset(strand=='+')%>%split(.,.$protein_id)%>%.[as(rep(1,length(.)),'IntegerList')]%>%unlist
 lastcds <- cdstouse%>%subset(strand=='+')%>%split(.,.$protein_id)%>%revElements%>%.[as(rep(1,length(.)),'IntegerList')]%>%unlist
 
-startwindows <- firstcds%>%resize(50,'start')%>%resize(50+20,'end')%>%head(10)
-endwindows <- lastcds%>%resize(50,'end')%>%resize(50+20,'start')%>%head(10)
-
+startwindows <- firstcds%>%resize(50,'start')%>%resize(50+20,'end')
+endwindows <- lastcds%>%resize(50,'end')%>%resize(50+20,'start')
+endwindows%>%length
 
 bams <- here('pipeline/star/data/*/*.bam')%>%Sys.glob%>%str_subset(neg=TRUE,'transcript')%>%str_subset('_ribo_|total')
+ribobams<-bams%>%str_subset('ribo')
 
 allpsitedfs <- mclapply(mc.cores=20,bams,function(bam){
 
@@ -188,7 +189,7 @@ allpsitedfs <- mclapply(mc.cores=20,bams,function(bam){
 	allpsites
 })
 allpsitedfs%<>%setNames(bams)
-allpsitedfs%<>%.[bams%>%str_subset('ribo')]
+allpsitedfs%<>%.[ribobams]
 allpsitedfs_bind <- allpsitedfs%>%bind_rows
 allpsitedfs_bind$bam%>%unique
 allpsitedfs_bind %<>% mutate(stage=str_extract(bam,'[^_]+'))
@@ -264,42 +265,102 @@ dev.off()
 normalizePath(plotfile)%>%message
 }
 
-# cds2use < cds%>%split(.,.$protein_id)%>%sample(50)
-cds2use <- cds%>%split(.,.$protein_id)
-p2trdf<-with(cds,data_frame(protein_id,transcript_id))%>%distinct
-cdstrs<-data_frame(protein_id=names(cds2use))%>%safe_left_join(p2trdf)%>%.$transcript_id
-exons2use <- exons%>%split(.,.$transcript_id)%>%.[cdstrs]
-names(exons2use)<-names(cds2use)
+# # cds2use < cds%>%split(.,.$protein_id)%>%sample(50)
+# cds2use <- cds%>%split(.,.$protein_id)
+# p2trdf<-with(cds,data_frame(protein_id,transcript_id))%>%distinct
+# cdstrs<-data_frame(protein_id=names(cds2use))%>%safe_left_join(p2trdf)%>%.$transcript_id
+# exons2use <- exons%>%split(.,.$transcript_id)%>%.[cdstrs]
+# names(exons2use)<-names(cds2use)
 
 
-exons2use <- sort(exons2use)
-exons2use <- exons2use%>%resize_grl(9,'end')
-exons2use <- exons2use%>%resize_grl(9,'start')
+# exons2use <- sort(exons2use)
+# exons2use <- exons2use%>%resize_grl(9,'end')
+# exons2use <- exons2use%>%resize_grl(9,'start')
 
 
 
-cdstousetrna<-cds%>%split(.,.$protein_id)%>%.[highprotein_ids]%>%unlist
+# cdstousetrna<-cds%>%split(.,.$protein_id)%>%.[highprotein_ids]%>%unlist
 
-codons <- getSeq(cdstousetrna,x=FaFile(REF))%>%split(cdstousetrna$protein_id)%>%lapply(.%>%unlist%>%xscat)%>%DNAStringSet%>%vmatchPattern('TCT',.)%>%unlist%>%subset((start %% 3) == 1)
+# codons <- getSeq(cdstousetrna,x=FaFile(REF))%>%split(cdstousetrna$protein_id)%>%lapply(.%>%unlist%>%xscat)%>%DNAStringSet%>%vmatchPattern('TCT',.)%>%unlist%>%subset((start %% 3) == 1)
 
-codonsgr <- GRanges(names(codons),codons)%>%mapFromTranscripts(cdstousetrna%>%split(.,.$protein_id))
+# codonsgr <- GRanges(names(codons),codons)%>%mapFromTranscripts(cdstousetrna%>%split(.,.$protein_id))
 
-codonsgr_exp <- codonsgr%>%resize(3+9+9,'center')
+# codonsgr_exp <- codonsgr%>%resize(3+9+9,'center')
 
 
-signalovercodons<-bams%>%str_subset('ribo')%>%mclapply(function(bam){
-	riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=MAPQTHRESH,which=codonsgr_exp)
-	reads <- readGAlignments(bam,param=riboparam)
-	mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
-	#reads <- reads%>%subset(width==27)
-	reads <- reads%>%subset(width %in% psite_model$offsets$length)
-	mcols(reads)$length <- width(reads)
-	reads%<>%subset(!is.na(cdsshift))
-	psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
-	mcols(psites)$length <- mcols(reads)$length
-	startwindpsites <- psites%>%mapToTranscripts(codonsgr_exp)
-	start(startwindpsites)
+# signalovercodons<-ribobams%>%mclapply(function(bam){
+# 	riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=MAPQTHRESH,which=codonsgr_exp)
+# 	reads <- readGAlignments(bam,param=riboparam)
+# 	mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
+# 	#reads <- reads%>%subset(width==27)
+# 	reads <- reads%>%subset(width %in% psite_model$offsets$length)
+# 	mcols(reads)$length <- width(reads)
+# 	reads%<>%subset(!is.na(cdsshift))
+# 	psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
+# 	mcols(psites)$length <- mcols(reads)$length
+# 	startwindpsites <- psites%>%mapToTranscripts(codonsgr_exp)
+# 	start(startwindpsites)
+# })
+
+
+################################################################################
+########Check if the different stop codon classes look different
+################################################################################
+	
+stopcodontypes <- lastcds%>%resize(3,'end')%>%strandshift(3)%>%getSeq(FaFile(REF),.)%>%as.character%>%setNames(lastcds$protein_id)
+endwindowtypes<-endwindows%>%split(.,stopcodontypes[.$protein_id])%>%.[c('TAA','TAG','TGA')]
+endwindowtypes%>%lapply(length)
+stoptypes<-names(endwindowtypes)
+
+typesepallpsitedfs <- mclapply(mc.cores=20,ribobams[],function(bam){
+	stoptype=names(endwindowtypes)[1]
+	lapply(names(endwindowtypes),function(stoptype){
+		endwindowsi<-endwindowtypes[[stoptype]]
+
+		ovcounts <- summarizeOverlaps(endwindowsi,BamFile(bam))
+
+		highreads <- assay(ovcounts)[1:length(endwindowsi)] %>%as.vector%>%`>`(10)
+
+		highwinds <- c(endwindowsi)[highreads]
+
+		riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=MAPQTHRESH,which=highwinds)
+		reads <- readGAlignments(bam,param=riboparam)
+		mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
+
+		#reads <- reads%>%subset(width==27)
+		reads <- reads%>%subset(width %in% psite_model$offsets$length)
+		mcols(reads)$length <- width(reads)
+		reads%<>%subset(!is.na(cdsshift))
+		psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
+		mcols(psites)$length <- mcols(reads)$length
+		#
+		endwindpsites <- psites%>%mapToTranscripts(highwinds%>%tail(sum(highreads)))
+		endwindpsites$length <- psites$length[endwindpsites$xHits]
+		endwindpsites<-endwindpsites%>%as.data.frame%>%group_by(start,length)%>%tally%>%ungroup%>%mutate(section='STOP',start=start-51) 
+		allpsites<-rbind(endwindpsites)
+		allpsites%<>%mutate(section=factor(section,unique(section)),bam=basename(bam))
+		message('done')
+		message(bam)
+		allpsites
+	})	
 })
+typesepallpsitedfs%<>%setNames(ribobams[])
+# typesepallpsitedfs%<>%.[ribobams]
+typesepallpsitedfs_bind <- typesepallpsitedfs%>%lapply(bind_rows,.id='stoptype')%>%bind_rows
+typesepallpsitedfs_bind %<>% mutate(stage=str_extract(bam,'[^_]+'))
+if(all(typesepallpsitedfs_bind$stoptype%in%1:100)) typesepallpsitedfs_bind$stoptype = stoptypes[as.numeric(typesepallpsitedfs_bind$stoptype)]
+typesepallpsitedfs_bind$section='STOP'
+totalcounts<-typesepallpsitedfs_bind%>%group_by(stage,section,start)%>%tally%>%.$n%>%sum
+typesepallpsitedfs_bind$bam%<>%str_replace('.bam$','')
 
-
+plotfile<-'plots/figures/figure2/fig2_myribowaltz_stop_stageov_stoptypesep.pdf'%T>%pdf(h=4,w=8)
+qplot(data=typesepallpsitedfs_bind%>%filter(section=='STOP',as.numeric(start) > -10,start<10)%>%group_by(stoptype,bam,section,start)%>%tally%>%mutate(n=n/totalcounts),color=bam,x=start,y=n,geom='line')+
+	scale_x_continuous(name='position',limits=c(-9,9),minor_breaks=number_ticks,breaks=partial(number_ticks,n=3))+
+	# scale_color_discrete(guide=TRUE)+
+	facet_grid( stoptype ~ section)+
+	scale_color_manual(values=bamcols)+
+	scale_y_continuous(name='normalized bin count')+
+	theme_bw()
+dev.off()
+normalizePath(plotfile)%>%message
 

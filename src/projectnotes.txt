@@ -9,8 +9,8 @@ GO term plots for groups definedd in fig1
 
 
 
-So where am I?
-Codon occ - plots look nice cos... normalizing by cds cov? Or normalizing by 
+Questions
+Do the peaks over codons vary according to 
 
 For locations with particularly high spikes, do the locations of the 3' and 5' reads appear independent? Or close to it?
 
@@ -115,6 +115,8 @@ src/R/Modeling/logspline.R
 #now being implemented in this script, which is calling hierarch and non hierarch version
 degredation_confint_data.R
 
+#oookay. 
+Now the task is to get 
 
 
 #Question for the modeling - does it converge, for say, flna?

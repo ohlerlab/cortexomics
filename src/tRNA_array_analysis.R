@@ -1,14 +1,17 @@
 library(readxl)
 library(tidyverse)
+
 ################################################################################
 ########Reading the tRNA data
 ################################################################################
 hkgenes2use<-c("5S rRNA",'18S rRNA')
 
-alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))%>%str_subset('/Total')
+alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))%>%str_subset('/[PT8][^/]+$')
 
 #data is pulled from a combination of report and 'test/'ctrl' status
-datasources <- tibble(file=c(alltRNAreps,alltRNAreps[1]),case=c(rep('Test',length(alltRNAreps)),'Control'))
+datasources <- tibble(file=c(alltRNAreps,alltRNAreps[1]),
+	case=c(rep('Test',length(alltRNAreps)),'Control')
+)
 
 datasources%<>%mutate(sample = 
 ifelse(case=='Test',
@@ -41,6 +44,7 @@ exprdf<-map2(datasources$file,datasources$case,.f=function(file,case){
 })
 
 allcodonsig<- exprdf%>%setNames(datasources$sample)%>%bind_rows(.id='sample')
+
 allcodonsig%<>%mutate(codon = decoder%>%str_replace('-\\d+$',''))
 allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
 allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
@@ -50,9 +54,14 @@ allcodonsig <- gather(allcodonsig,rep,signal,rep1:rep2)
 #get normfacts
 #normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(signal[decoder%in%hkgenes2use]))
 #Now normalize
+
 allcodonsig %<>% group_by(sample,rep) %>% mutate(signal = signal - mean(signal[decoder%in%hkgenes2use]))
 
-# #=IF(ISERROR(AVERAGE(D9:D11));"";AVERAGE(D9:D11))
+
+
+
+#
+ #=IF(ISERROR(AVERAGE(D9:D11));"";AVERAGE(D9:D11))
 
 # #D17 this is a lookup - it gets the value in A17, (PPC), looks it up in the test sheet
 # #Then 
@@ -149,10 +158,41 @@ allcodsigmean <- allcodonsig%>%
 	group_by(time,sample,codon,decoder)%>%
 	summarise(signal=mean(na.rm=T,as.numeric(signal)))
 
+allcodsigmean%<>%mutate(fraction=str_extract(sample,'\\w+'))
+
+allcodsigmean%>%filter(fraction=='Poly')
+
+allcodsigmean%>%group_by(codon,time)%>%mutate(ispolyenriched=signal==max(signal[fraction=='Poly']))
+
+
+
+
+allcodsigmean%>%filter(codon=='Val-AAC')
+
+(2^(-8.33))
+(2^(-35.33))
+
+log2((2^(-8.33)) / 
+(2^(-35.33)))
+
+
+log2(2^(-8.33))
+log2(2^(-35.33))
+
+-log2(2^(-8.33))
+-log2(2^(-35.33))
+
 allcodsigmean_isomerge<-allcodsigmean%>%
 	filter(sample%>%str_detect('Total'))%>%
 	group_by(time,sample,codon)%>%
-	summarise(signal = -log2(sum(2^(-signal))))
+	# group_by(decoder)%>%group_slice(1)%>%
+	summarise(signal = -log2(sum(2^(-signal),na.rm=T)))
+
+
+
+allcodsigmean_isomerge%>%filter(codon=='Val-AAC')
+
+
 
 stop()
 

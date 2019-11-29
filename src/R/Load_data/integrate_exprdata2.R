@@ -510,6 +510,7 @@ mscountebayes%>%topTable(coef=12:15,number=Inf)%>%rownames_to_column('uprotein_i
 	.$uprotein_id
 
 #And redo the model with the best pairs
+bestmscountvoom <- mscountvoom[best_uprotein_ids,]
 bestmscountebayes <- eBayes(lmFit(mscountvoom[best_uprotein_ids,]))
 best_protein_ids = best_uprotein_ids%>%str_replace('_\\d+$','')
 # satb2ids %in% best_protein_ids

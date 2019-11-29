@@ -515,10 +515,13 @@ data = alltestdata$data[[1]]
 ################################################################################
 
 {
+  require(BiocParallel)
+  BiocManager::install('batchtools')
   param<- BatchtoolsParam(workers=1, cluster="sge", resources=list(queue='all'))
   sge_template <- '~/tmp.tmpl' 
   param$template%>%readLines%>%str_replace(regex('\\#\\$ -q .*'),'')%>%cat(file=sge_template,sep='\n')
   param<- BatchtoolsParam(workers=100, cluster="sge", resources=list(queue='all'),template=sge_template)
+  #bplapply(BPPARAM=param
 }
 library(GenomicRanges)
 #result <- bplapply(BPPARAM=param, c('1:1','1:3'), function(x)GenomicRanges::GRanges(x) )
