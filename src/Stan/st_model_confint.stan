@@ -11,9 +11,9 @@ data {
 
 
 parameters {
-  vector[G] lKs;
+  vector[G] l_st; // the steady state
   matrix<lower=0>[T,G] cM;  // vector of fold changes due to synthesis
-  vector<lower=0,upper=60>[G] Kd;  //amount degraded each tp - log scale
+  vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
   vector<lower= 0>[G] prot0; // initial amount of protein
 }
 
@@ -21,7 +21,13 @@ transformed parameters {
     matrix [T,G] cv; // vector of fold changes including deg
     matrix [T,G] prot; // amounts of protein
     matrix [T,G] mRNA; // amounts of mRNA
+    vector[G] Kd; // the degred
+    vector[G] lKd; // the log degrad
+    vector[G] lKs; // the (log) synthesis constant
 
+    lKd = log2(log(2)) -  l_pihalf;
+    Kd = exp(log(2)*lKd);
+    lKs = l_st -  lKd ;
 
     for(g in 1:G){
       cv[,g] = cM[,g] - Kd[g];

@@ -48,7 +48,7 @@ get_limmafit_predvals <- function(limmafit,designmatrix){
 get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
   filter(parameter=='prot')%>%select(time,value,sample,gene)
 
-parse_stan_pars<-function(stanpars,indnames=c()){
+parse_stan_pars<-function(stanpars,indnames=c('time','gene')){
   if(any(str_detect(stanpars,'\\['))){
     stopifnot(max(str_count(stanpars,','))==1)
     parsedpars<-stanpars%>%str_match('([^\\[]+)\\[?(\\d*),?(\\d*)\\]?')%>%as.data.frame%>%
@@ -66,14 +66,15 @@ parse_stan_pars<-function(stanpars,indnames=c()){
   n_inds <- length(colnames(parsedpars))-1
 
     parsedpars[,-1]%>%.[,]%>%apply(1,function(x){k = keep(x,~ . !='');c(rep(NA,n_inds-length(k)),k)})%>%t%>%
-            set_colnames(c('time','gene'))%>%
+            set_colnames(indnames)%>%
             as.data.frame%>%
             map_df(.,as.integer)%>%
           mutate(parameter=parsedpars[,1])%>%
-      select(parameter,time,gene)%>%
+      select(parameter,!!!indnames)%>%
       split(.,seq_len(nrow(.)))
 
 }
+
 
 
 vparse_stan_pars<-function(stanpars,indnames=c()){

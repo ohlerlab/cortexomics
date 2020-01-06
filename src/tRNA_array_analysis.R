@@ -1,9 +1,14 @@
 library(readxl)
+library(here)
+library(magrittr)
 library(tidyverse)
+library(conflicted)
 
 ################################################################################
 ########Reading the tRNA data
 ################################################################################
+source(here('src/R/Rprofile.R'))
+
 hkgenes2use<-c("5S rRNA",'18S rRNA')
 
 alltRNAreps <- Sys.glob(here('ext_data/tRNA_data/*Rep*/*'))%>%str_subset('/[PT8][^/]+$')
@@ -21,7 +26,7 @@ ifelse(case=='Test',
 )
 
 #Now iterate over these
-exprdf<-map2(datasources$file,datasources$case,.f=function(file,case){
+trnaexprdf<-map2(datasources$file,datasources$case,.f=function(file,case){
 	excel_sheets(file)
 	hksheet <- readxl::read_xlsx(file,sheet='Choose Housekeeping Genes')
 	hks2use_rows <- which(hksheet[[1]][1:4] %in% hkgenes2use)
@@ -43,9 +48,10 @@ exprdf<-map2(datasources$file,datasources$case,.f=function(file,case){
 
 })
 
-allcodonsig<- exprdf%>%setNames(datasources$sample)%>%bind_rows(.id='sample')
+allcodonsig<- trnaexprdf%>%setNames(datasources$sample)%>%bind_rows(.id='sample')
 
-allcodonsig%<>%mutate(codon = decoder%>%str_replace('-\\d+$',''))
+codonfromdecoder = .%>%str_replace('-\\d+$','')%>%str_extract('')
+allcodonsig%<>%mutate(anticodon = decoder%>%str_replace('-\\d+$',''))
 allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
 allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
 suppressMessages({allcodonsig$rep1%<>%as.numeric})
@@ -58,6 +64,44 @@ allcodonsig <- gather(allcodonsig,rep,signal,rep1:rep2)
 allcodonsig %<>% group_by(sample,rep) %>% mutate(signal = signal - mean(signal[decoder%in%hkgenes2use]))
 
 
+allcodsigmean <- allcodonsig%>%
+	filter(iscodon)%>%
+	group_by(time,sample,anticodon,decoder)%>%
+	summarise(signal=mean(na.rm=T,as.numeric(signal)))
+#
+allcodsigmean%<>%mutate(fraction=str_extract(sample,'\\w+'))
+#
+allcodsigmean_isomerge<-allcodsigmean%>%
+	# filter(sample)%>%
+	# filter(sample%>%str_detect('Poly'))%>%
+	# mutate(AA = GENETIC_CODE[codon]%>%qs('S+'))%>%
+	mutate(fraction = str_extract(sample,'\\w+'))%>%
+	group_by(fraction,time,sample,anticodon)%>%
+	summarise(signal = log2(sum(2^(-signal),na.rm=T)))
+	# spread(fraction,signal)
+#
+allcodsigmean_isomerge%>%filter(anticodon=='Val-AAC')
+glutRNAabund<-allcodsigmean_isomerge%>%filter(anticodon%>%str_detect('CTC'))%>%.$signal
+valtRNAabund<-allcodsigmean_isomerge%>%filter(anticodon%>%str_detect('AAC'))%>%.$signal
+#
+
+#add codon info
+allcodsigmean%<>%mutate(codon = str_extract(anticodon,'[^-]+$')%>%DNAStringSet%>%
+		reverseComplement%>%
+		as.character%>%qs('S+'))
+allcodsigmean_isomerge%<>%mutate(codon = str_extract(anticodon,'[^-]+$')%>%DNAStringSet%>%
+		reverseComplement%>%
+		as.character%>%qs('S+'))
+allcodsigmean%<>%mutate(AA = GENETIC_CODE[str_extract(codon,'[^\\-]+$')]%>%qs('S+'))
+allcodsigmean_isomerge%<>%mutate(AA = GENETIC_CODE[str_extract(codon,'[^\\-]+$')]%>%qs('S+'))
+#
+allcodsigmean%>%mutate(as.character(translate(DNAStringSet(codon))))%>%head(1)%>%{stopifnot(.$anticodon=='Ala-AGC' & (.$codon=='GCT'))}
+allcodsigmean_isomerge%>%mutate(as.character(translate(DNAStringSet(codon))))%>%head(1)%>%{stopifnot(.$anticodon=='Ala-AGC' & (.$codon=='GCT'))}
+#
+glutRNAabund<-allcodsigmean_isomerge%>%filter(codon%>%str_detect('CTC'))%>%.$signal
+valtRNAabund<-allcodsigmean_isomerge%>%filter(codon%>%str_detect('AAC'))%>%.$signal
+stopifnot(valtRNAabund<glutRNAabund)
+#
 
 
 #
@@ -151,130 +195,50 @@ allcodonsig %<>% group_by(sample,rep) %>% mutate(signal = signal - mean(signal[d
 # allcodonsig%<>%mutate(iscodon = str_detect(decoder,'\\w+-\\w+-\\d$'))
 # allcodonsig%<>%mutate(time = sample%>%str_extract('(?<= ).*$'))
 
-
-
-allcodsigmean <- allcodonsig%>%
-	filter(iscodon)%>%
-	group_by(time,sample,codon,decoder)%>%
-	summarise(signal=mean(na.rm=T,as.numeric(signal)))
-
-allcodsigmean%<>%mutate(fraction=str_extract(sample,'\\w+'))
-
-allcodsigmean%>%filter(fraction=='Poly')
-
-allcodsigmean%>%group_by(codon,time)%>%mutate(ispolyenriched=signal==max(signal[fraction=='Poly']))
-
-
-
-
-allcodsigmean%>%filter(codon=='Val-AAC')
-
-(2^(-8.33))
-(2^(-35.33))
-
-log2((2^(-8.33)) / 
-(2^(-35.33)))
-
-
-log2(2^(-8.33))
-log2(2^(-35.33))
-
--log2(2^(-8.33))
--log2(2^(-35.33))
-
-allcodsigmean_isomerge<-allcodsigmean%>%
-	filter(sample%>%str_detect('Total'))%>%
-	group_by(time,sample,codon)%>%
-	# group_by(decoder)%>%group_slice(1)%>%
-	summarise(signal = -log2(sum(2^(-signal),na.rm=T)))
-
-
-
-allcodsigmean_isomerge%>%filter(codon=='Val-AAC')
-
-
-
-stop()
-
-
-# alltRNAreps%>%str_subset('Poly P0 VS Poly E13.xlsx')%>%read_xlsx(sheet='Data pre-processing')
-
-	# filter(signal>12.0166,signal<12.0167)%>%as.data.frame%>%
-
-# allcodonsig%>%.$signal%>%table%>%sort%>%tail
-	# filter(signal>12.0166,signal<12.0167)%>%as.data.frame
-
-# allcodsigmean$signal%>%table%>%sort%>%tail
-
-
 ################################################################################
 ########Now plot it
 ################################################################################
-	
+stagecolsdisplay <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
+stageconv = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
+stagecols <- stagecolsdisplay%>%setNames(c('E13','E145','E16','E175','P0'))
 #how each decoder
-plotfile<-'plots/figures/figure2/tRNA_sig_strip_allnorm.pdf'
+plotfile<-'plots/figures/figure2/trna_codons/trna_sig_total_alldecod.pdf'
 pdf(plotfile,w=9,h=16)
 allcodsigmean%>%
 	group_by(decoder)%>%
 	mutate(dmean=mean(signal))%>%
-	group_by(codon)%>%arrange(dmean)%>%
+	group_by(anticodon)%>%
+	arrange(dmean)%>%
 	mutate(decoder = as_factor(decoder))%>%
 	filter(sample%>%str_detect('Total'))%>%
-	group_by(codon)%>%
+	group_by(anticodon)%>%
 	# group_by(decoder,)
-	ggplot(data=.,aes(x=decoder,color=time,y=signal))+
+	ggplot(data=.,aes(x=decoder,color=time,y= - signal))+
 	geom_point()+
 	scale_color_manual(values=stagecols)+
-	scale_y_continuous(breaks=seq(0,30,by=2.5))+
+	scale_y_continuous(name='- deltaCt',breaks=seq(0,-30,by= - 5))+
 	coord_flip()+
 	theme_bw()
 	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
 	# facet_grid(time ~ . )
 dev.off()
 normalizePath(plotfile)
-
-
-allcodsigmean%>%.$codon%>%str_subset('Asp-')%>%unique
-
-
-#group them on same row
-plotfile<-'plots/figures/figure2/tRNA_sig_strip.pdf'
+#
+#how each decoder
+plotfile<-'plots/figures/figure2/trna_codons/trna_sig_poly_alldecod.pdf'
 pdf(plotfile,w=9,h=16)
 allcodsigmean%>%
-	filter(sample%>%str_detect('Total'))%>%
-	group_by(codon)%>%
-	mutate(cmean=mean(signal))%>%
-	ungroup%>%
-	arrange(cmean)%>%
-	mutate(codon = as_factor(codon))%>%
-	# group_by(decoder,)
-	ggplot(data=.,aes(x=codon,color=stageconv[time],y=signal))+
-	geom_point()+
-	scale_color_manual(values=stagecols)+
-	scale_y_continuous(breaks=seq(0,20,by=2.5))+
-	coord_flip()+
-	theme_bw()
-	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
-	# facet_grid(time ~ . )
-dev.off()
-normalizePath(plotfile)
-
-
-#group them on same row
-plotfile<-'plots/figures/figure2/tRNA_sig_strip_poly.pdf'
-pdf(plotfile,w=9,h=16)
-allcodsigmean%>%
+	group_by(decoder)%>%
+	mutate(dmean=mean(signal))%>%
+	group_by(anticodon)%>%arrange(dmean)%>%
+	mutate(decoder = as_factor(decoder))%>%
 	filter(sample%>%str_detect('Poly'))%>%
-	group_by(codon)%>%
-	mutate(cmean=mean(signal))%>%
-	ungroup%>%
-	arrange(cmean)%>%
-	mutate(codon = as_factor(codon))%>%
+	group_by(anticodon)%>%
 	# group_by(decoder,)
-	ggplot(data=.,aes(x=codon,color=stageconv[time],y=signal))+
+	ggplot(data=.,aes(x=decoder,color=time,y= -signal))+
 	geom_point()+
 	scale_color_manual(values=stagecols)+
-	scale_y_continuous(breaks=seq(0,20,by=2.5))+
+	scale_y_continuous(name='- deltaCt',breaks=seq(0,-30,by= - 5))+
 	coord_flip()+
 	theme_bw()
 	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
@@ -283,18 +247,61 @@ dev.off()
 normalizePath(plotfile)
 
 
-#group them on same row
-plotfile<-'plots/figures/figure2/isomerge_tRNA_sig_strip_poly.pdf'
+plotfile<-'plots/figures/figure2/trna_codons/trna_sig_total_mergedecod.pdf'
 pdf(plotfile,w=9,h=16)
 allcodsigmean_isomerge%>%
 	filter(sample%>%str_detect('Total'))%>%
-	group_by(codon)%>%
+	group_by(anticodon)%>%
 	mutate(cmean=mean(signal))%>%
 	ungroup%>%
 	arrange(cmean)%>%
-	mutate(codon = as_factor(codon))%>%
+	mutate(anticodon = as_factor(anticodon))%>%
 	# group_by(decoder,)
-	ggplot(data=.,aes(x=codon,color=time,y=signal))+
+	ggplot(data=.,aes(x=anticodon,color=stageconv[time],y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(name='- deltaCt',breaks=-seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+#
+plotfile<-'plots/figures/figure2/trna_codons/trna_sig_poly_mergedecod.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean_isomerge%>%
+	filter(sample%>%str_detect('Poly'))%>%
+	group_by(anticodon)%>%
+	mutate(cmean=mean(signal))%>%
+	ungroup%>%
+	arrange(cmean)%>%
+	mutate(anticodon = as_factor(anticodon))%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=anticodon,color=stageconv[time],y=signal))+
+	geom_point()+
+	scale_color_manual(values=stagecols)+
+	scale_y_continuous(name='- deltaCt',breaks=-seq(0,20,by=2.5))+
+	coord_flip()+
+	theme_bw()
+	# theme(axis.text.x=element_text(angle=45,vjust=.5,size=6))
+	# facet_grid(time ~ . )
+dev.off()
+normalizePath(plotfile)
+
+
+#group them on same row
+plotfile<-'plots/figures/figure2/trna_codons/isomerge_tRNA_sig_strip_poly.pdf'
+pdf(plotfile,w=9,h=16)
+allcodsigmean_isomerge%>%
+	filter(sample%>%str_detect('Total'))%>%
+	group_by(anticodon)%>%
+	mutate(cmean=mean(signal))%>%
+	ungroup%>%
+	arrange(cmean)%>%
+	mutate(anticodon = as_factor(anticodon))%>%
+	# group_by(decoder,)
+	ggplot(data=.,aes(x=anticodon,color=time,y=signal))+
 	geom_point()+
 	scale_color_manual(values=stagecols)+
 	scale_y_continuous(breaks=seq(0,20,by=2.5))+
@@ -306,73 +313,184 @@ dev.off()
 normalizePath(plotfile)
 
 
-#df ranking codons by their mean difference from the mean signal at 
-allcodsigmean%>%
-	filter(sample=='Total E13')%>%
-	separate(decoder,c('AA','codon','decod'))%>%
-	group_by(time,sample,codon,decod)%>%
-	group_by(sample)%>%
-	mutate(allmean = mean(signal))%>%
-	group_by(codon)%>%
-	mutate(dev=min(abs(signal-allmean)))%>%
-	arrange(desc(dev))
 
-#This makes it seem like the codons tend to have a high and a low one 
-#but no
 
-pdf('tmp.pdf')
-qplot()
+
+
+
+
+################################################################################
+########Codon optimality scores based on codon frequencies, gene expression levels
+################################################################################
+cdswidths<-cds%>%split(.,.$protein_id)%>%width%>%sum
+longestcdsids<-enframe(cdswidths,'protein_id','length')%>%left_join(cds%>%mcols%>%as_tibble%>%distinct(protein_id,gene_id))%>%group_by(gene_id)%>%slice(which.max(length))%>%.$protein_id
+cds_noov<-cds%>%subset(protein_id%in%longestcdsids)
+cds_noov%<>%split(.,.$protein_id)
+# cds_noov<-cds_noov%>%subset(strand=='+')%>%split(.,.$protein_id)%>%head(10)%>%lapply(head,1)%>%GRangesList%>%unlist%>%resize(3)
+
+times <- names(stagecols)%>%setNames(.,.)
+library(Rsamtools)
+codonfreqs<-mymemoise(oligonucleotideFrequency)(extractTranscriptSeqs(FaFile(REF),cds_noov),3,step=3)
+rownames(codonfreqs)<-names(cds_noov)
+overallcodonfreqs<-codonfreqs%>%colSums
+bestcds<- cds%>%subset(protein_id%in%best_protein_ids)%>%split(.,.$protein_id)
+usedcodonfreqs<-mymemoise(oligonucleotideFrequency)(extractTranscriptSeqs(FaFile(REF),bestcds),3,step=3)%>%set_rownames(names(bestcds))
+codon_is_optimal <- overallcodonfreqs%>%enframe('codon','freq')%>%
+	mutate(AA=as.character(translate(DNAStringSet(codon))))%>%
+	group_by(AA)%>%mutate(optimal = freq==max(freq))%>%
+	{setNames(.$optimal,.$codon)}
+
+optimalcodons <- names(codon_is_optimal)[codon_is_optimal]
+pc_optcodons <- ((usedcodonfreqs[,optimalcodons]%>%rowSums)/(usedcodonfreqs%>%rowSums))%>%setNames(rownames(usedcodonfreqs))%>%enframe('protein_id','pc_opt')
+
+
+
+
+cdsexprvals <- (2^bestmscountvoom$E[,T])%>%{rownames(.)%<>%str_replace('_\\d+$','');.}
+
+#length norm themj
+cdsexprvals <- cdsexprvals / fData(countexprdata)$length[match(rownames(cdsexprvals),fData(countexprdata)$protein_id)]
+
+
+cdsexprdf<- cdsexprvals[,1:20] %>% as.data.frame%>% rownames_to_column('protein_id')%>%gather(sample,signal,-protein_id)%>%
+	separate(sample,c('time','assay','rep'))%>%group_by(protein_id,time,assay)%>%summarise(signal=mean(signal))%>%
+	filter(assay=='ribo')%>%
+	spread(time,signal)%>%
+	arrange(match(protein_id,rownames(usedcodonfreqs)))
+
+weighted_codon_usage <- lapply(times,function(itime)(usedcodonfreqs[,]*cdsexprdf[[itime]])%>%colSums%>%{./sum(.)}%>%enframe('codon','weightedusage'))%>%bind_rows(.id='time')
+
+tRNA_abchange <- allcodsigmean_isomerge%>%
+	group_by(fraction,codon)%>%
+	filter(!is.na(signal))%>%
+	filter(is.finite(signal),!is.na(signal))%>%
+	nest%>%
+	mutate(abundancechange = map_dbl(data,~{lm(data=.,signal ~ seq_along(time))$coef[2]}))
+
+usage_v_abundance_df <- weighted_codon_usage%>%filter(time=='E13')%>%ungroup%>%select(-time)%>%left_join(tRNA_abchange%>%filter(is.finite(abundancechange))%>%select(fraction,codon,abundancechange))%>%
+	filter(!is.na(abundancechange),!is.na(weightedusage))
+
+wus_tab_cors<-usage_v_abundance_df%>%
+	filter(!codon%in%c('TAG','TAA','TGA'))%>%
+	group_by(fraction)%>%
+	nest%>%mutate(
+		cor = map_dbl(data,~ cor(.$abundancechange,.$weightedusage)),
+		pval = map_dbl(data,~ cor.test(.$abundancechange,.$weightedusage)$p.value)
+	)
+
+
+fractions<-c('Poly','Total')
+for(ifraction in fractions){
+plotfile <- str_interp('plots/figures/figure2/trna_codons/trna_abchange_exprusage_${ifraction}.pdf')
+pdf(plotfile)
+usage_v_abundance_df%>%
+	filter(!codon%in%c('TAG','TAA','TGA'))%>%
+	filter(fraction == ifraction )%T>%{message(nrow(.))}%>%
+	nest%>%
+	mutate(labl = paste0(
+		'r = ',map_dbl(data,~cor(.$abundancechange,.$weightedusage))%>%round(3),'\n',
+		'p = ',map_dbl(data,~cor.test(.$abundancechange,.$weightedusage)$p.value%>%round(3))
+	))%>%
+	unnest%>%
+	{
+		print(
+			qplot(data=.,x=.$abundancechange,y=.$weightedusage,label=codon,geom='blank')+
+				scale_x_continuous('tRNA Abundance Signal Slope E13 - P0')+
+				scale_y_continuous('RiboExpression Weighted E13 ')+
+				geom_text(data=distinct(.,labl),hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))+
+				geom_smooth(method='lm')+
+				# facet_grid(tRNA_time~.)+
+				geom_text()+
+				geom_text(data=wus_tab_cors,aes(x=0,y=0,label=paste0('r = ',round(cor,2))))+
+				theme_bw()
+			)
+	}
 dev.off()
-
-#
-cdstousetrna<-cds%>%split(.,.$protein_id)%>%.[highprotein_ids]%>%unlist
-
-codons <- getSeq(cdstousetrna,x=FaFile(REF))%>%split(cdstousetrna$protein_id)%>%lapply(.%>%unlist%>%xscat)%>%DNAStringSet%>%vmatchPattern('TCT',.)%>%unlist%>%subset((start %% 3) == 1)
-
-codonsgr <- GRanges(names(codons),codons)%>%mapFromTranscripts(cdstousetrna%>%split(.,.$protein_id))%>%subset(strand=='+')
-
-codonsgr_exp <- codonsgr%>%resize(3+9+9,'center')
-
-
-signalovercodons<-bams%>%str_subset('ribo')%>%mclapply(function(bam){
-	riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=MAPQTHRESH,which=codonsgr_exp)
-	reads <- readGAlignments(bam,param=riboparam)
-	mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
-	#reads <- reads%>%subset(width==27)
-	reads <- reads%>%subset(width %in% psite_model$offsets$length)
-	mcols(reads)$length <- width(reads)
-	reads%<>%subset(!is.na(cdsshift))
-	psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
-	mcols(psites)$length <- mcols(reads)$length
-	startwindpsites <- psites%>%mapToTranscripts(codonsgr_exp)
-	start(startwindpsites)
-})
-
-codplotdf <- signalovercodons%>%
-	lapply(table)%>%
-	setNames(basename(bams%>%str_subset('ribo')))%>%
-	map_df(.id='bam',enframe,'pos','count')%>%
-	group_by(bam)%>%
-	mutate(count=count/sum(count))
+message(normalizePath(plotfile))
+}
 
 
 
 
 
-stagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
-stageconv = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
-bamcols <- bams%>%basename%>%str_extract('[^_]+')%>%stageconv[.]%>%stagecols[.]%>%setNames(basename(bams))
-
-
-plotfile<-'plots/TCT_ribo_cov.pdf'%T>%pdf(h=4,w=8)
-qplot(data=codplotdf,color=bam,x=as.numeric(pos)-10,y=count,geom='line')+
-	scale_x_continuous(name='Position Relative to TCT')+
-	# scale_color_discrete(guide=TRUE)+
-	scale_color_manual(values=bamcols)+
-	scale_y_continuous(name='Relative P Site Density')+
-	theme_bw()
+#are and global frequency correlated? - AA level?
+pdf('plots/figures/figure2/trna_codons/AAusage_vs_summed_tRNAab.pdf')
+allcodsigmean_isomerge%>%
+	left_join(enframe(usedcodonfreqs%>%colSums,'codon','freq'))%>%
+	group_by(fraction,time,AA)%>%
+	# slice(which.max(signal))%>%
+	# slice(which.max(freq))%>%
+	summarise(signal = log2(sum(2^signal)),freq=sum(freq))%>%
+	# summarise(signal = mean(signal),freq=sum(freq))%>%
+	group_by(fraction,time)%>%
+	nest%>%
+	mutate(labl = paste0(
+		'r = ',map_dbl(data,~cor(use='complete',.$freq,.$signal))%>%round(3),'\n',
+		'p = ',map_dbl(data,~cor.test(use='complete',.$freq,.$signal)$p.value%>%round(3))
+	))%>%
+	unnest%>%
+	{ggplot(.,aes(x=signal,y=freq))+geom_point()+facet_grid(time~fraction)+
+		theme_bw()+geom_text(data=distinct(.,time,fraction,labl),hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))}+
+	ggtitle('Amino acid usage frequency vs summed tRNA abundance')
 dev.off()
-normalizePath(plotfile)%>%message
+normalizePath('plots/figures/figure2/trna_codons/AAusage_vs_summed_tRNAab.pdf')
 
-#TODO - make sure strand spec 
+#Are occupancy and global frequency correlated? - AA level??
+pdf('plots/figures/figure2/trna_codons/AAweightedusage_vs_summed_tRNAab.pdf')
+allcodsigmean_isomerge%>%
+	left_join(weighted_codon_usage)%>%
+	group_by(fraction,time,AA)%>%
+	summarise(signal = log2(sum(2^signal)),weightedusage=sum(weightedusage))%>%
+	filter(is.finite(signal))%>%
+	group_by(fraction,time)%>%
+	nest%>%
+	mutate(labl = paste0(
+		'r = ',map_dbl(data,~cor(use='complete',.$weightedusage,.$signal))%>%round(3),'\n',
+		'p = ',map_dbl(data,~cor.test(use='complete',.$weightedusage,.$signal)$p.value%>%round(3))
+	))%>%
+	unnest%>%
+	{ggplot(.,aes(x=signal,y=weightedusage))+geom_point()+facet_grid(time~fraction)+
+		theme_bw()+geom_text(data=distinct(.,time,fraction,labl),hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))}+
+	ggtitle('Amino acid expr weighted usage frequency vs summed tRNA abundance')
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/AAweightedusage_vs_summed_tRNAab.pdf')
+
+
+#Are occupancy and global signal correlated?
+pdf('plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf')
+allcodsigmean_isomerge%>%
+	mutate(signal = signal)%>%
+	left_join(enframe(usedcodonfreqs%>%colSums,'codon','freq'))%>%
+	filter(is.finite(signal))%>%
+	group_by(fraction,time)%>%
+	nest%>%
+	mutate(labl = paste0(
+		'r = ',map_dbl(data,~cor(use='complete',.$freq,.$signal))%>%round(3),'\n',
+		'p = ',map_dbl(data,~cor.test(use='complete',.$freq,.$signal)$p.value%>%round(3))
+	))%>%
+	unnest%>%
+	{ggplot(.,aes(x=signal,y=freq))+geom_point()+facet_grid(time~fraction)+
+		theme_bw()+geom_text(data=distinct(.,time,fraction,labl),hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))}+
+		ggtitle('Codon usage frequency vs summed tRNA abundance')
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf')
+
+#Are occupancy and global signal correlated?
+pdf('plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf')
+allcodsigmean_isomerge%>%
+	mutate(signal = signal)%>%
+	left_join(weighted_codon_usage)%>%
+	filter(is.finite(signal))%>%
+	group_by(fraction,time)%>%
+	nest%>%
+	mutate(labl = paste0(
+		'r = ',map_dbl(data,~cor(use='complete',.$weightedusage,.$signal))%>%round(3),'\n',
+		'p = ',map_dbl(data,~cor.test(use='complete',.$weightedusage,.$signal)$p.value%>%round(3))
+	))%>%
+	unnest%>%
+	{ggplot(.,aes(x=signal,y=weightedusage))+geom_point()+facet_grid(time~fraction)+
+		theme_bw()+geom_text(data=distinct(.,time,fraction,labl),hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))}+
+		ggtitle('Codon usage frequency vs summed tRNA abundance')
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf')
 

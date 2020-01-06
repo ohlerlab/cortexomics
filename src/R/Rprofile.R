@@ -1,11 +1,19 @@
 library(GenomicRanges)
+library(Biostrings)
+library(checkmate)
 library(memoise)
 library(assertthat)
 library(stringr)
+library(tidyverse)
+library(magrittr)
+library(checkmate)
+library(conflicted)
+
 
 filter<-dplyr::filter
 select<-dplyr::select
 slice<-dplyr::slice
+qs<-checkmate::qassert
 
 # ###memoise
 project_cache=here::here('R_cache')
@@ -23,10 +31,15 @@ mymemoise <- function(f){
       f
   }
 }
+addfileinf <- function(file){
+  attr(file,'fileinfo')<-file.info(file)
+  file
+}
 
 if(!interactive()) mymemoise=identity
   gigsused <- function(x)system(paste0("cat /proc/",Sys.getpid(),"/status | grep VmSize"),intern=TRUE)%>%str_extract('\\d+')%>%as.numeric%>%divide_by(1e6)
   message('memory in use ',gigsused())
+
 
 # rm(foomat)
 # gc(reset=TRUE,full=TRUE)
@@ -46,6 +59,12 @@ if(!interactive()) mymemoise=identity
 # foo
 
 # mymemoise(function(x,.foo=foo)
+
+safe_filter <- function(...){
+  filtered = filter(...)
+  assert_that(nrow(filtered)>0)
+  filtered
+}
 
 #' safe_left_join
 #' @description left join that fails if a row in x is either duplicated or
@@ -97,8 +116,13 @@ is_out_of_bounds <- function(gr,si = seqinfo(gr)){
   start(gr)<1 | is_offchr(gr,si) 
 }
 
-get_all_obsizes <- function(){.GlobalEnv%>%names%>%discard(~is.function(get(.)))%>%setNames(.,.)%>%map(~object_size(get(.)))}
+get_all_obsizes <- function(){.GlobalEnv%>%names%>%discard(~is.function(get(.)))%>%setNames(.,.)%>%map(~object.size(get(.)))}
 
+allobjsizes<-get_all_obsizes()
+allobjsizes%<>%enframe
+allobjsizes$value%<>%unlist
+allobjsizes$value%<>%divide_by(1e6)
+allobjsizes%>%arrange(desc(value))
 # obsizes <- get_all_obsizes()
 
 # obsizes%>%enframe('object','size')%>%mutate(size=as.numeric(size)/1e6)%>%arrange(desc(size))
@@ -760,6 +784,7 @@ get_cds_offsets = function(reads_tr,offsets,compartments){
 
 setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
 setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
+  browser()
   if(is.character(offset)){
     offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
   } 
@@ -770,8 +795,6 @@ setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
   offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
   offsetreads
 })
-
-
 
 fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
@@ -839,6 +862,31 @@ group_slice<-function(dt,v){
   out=inner_join(dt,groups)
   out
 }
+
+
+
+#' slice by - common operation to get the first group according ot a set of variables
+#' 
+#' get N groups.
+#' #' 
+#' @param dt - a grouped tbl
+#' @param v - a vector for slicing
+#' @examples e.g. - an example
+#' this 
+#' @return returns 
+#' @export 
+
+slice_by<-function(dt,...,n=1){
+  dots = enquos(...)
+  n= eval_tidy(dots[[length(dots)]])
+  dots = dots[-length(dots)]
+  ogrps = group_vars(dt)
+  ogrpsq<-syms(ogrps)
+  dt%>%ungroup%>%inner_join(ungroup(dt)%>%distinct(!!!dots)%>%slice(n),by=map_chr(dots,quo_text))%>%group_by(!!!ogrpsq)
+}
+
+
+
 
 
 make_lfc_trajplot<-function(lfc_tbl_plot){

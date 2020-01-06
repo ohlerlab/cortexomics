@@ -274,3 +274,49 @@ txtplot(predict(px_lm)[-1],log(prot))
 
 
 
+
+thalf = log(2)/deg
+deg = log(2)/thalf
+
+#what if we parametrize instead with
+steady = Ks/deg
+
+
+
+
+dP = R Ks - deg P
+dP/deg = R Ks / deg - P
+dP/deg = R steady - P
+dP/deg = R steady - P
+dP/deg = R steady - P
+dP/deg + P = R steady
+R steady = dP/deg + P
+log(R steady) = log( dP/deg + P )
+log(R) + log(steady) = log(dP/deg + P)
+log(R)  = log(dP/deg + P) - log(steady)
+log(R)  = log(P * dlP/deg + P) - log(steady)
+log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+
+#IF deg is high then
+log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+		~= log(P * (0 + 1)) - log(steady)
+		~= log(P) - log(steady)
+
+#But if deg is low then
+log(R)  = log(P) + log(dlP/deg + 1) - log(steady)
+log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+
+
+#or with half life
+log(R)  = log(P * (dlP*thalf/log(2)) + 1) - log(steady)
+
+log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
+
+#
+log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
+
+#
+log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
+
+

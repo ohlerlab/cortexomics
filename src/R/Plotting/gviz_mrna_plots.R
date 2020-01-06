@@ -24,7 +24,7 @@ mapToTranscriptsGR <- function(gr,transcriptgr,trcol = 'transcript_id'){
 ###input files
 
 ########
-annofile <- '/fast/projects/cubit/0.12.0/static_data/annotation/GENCODE/M12/GRCm38/gencode.vM12.annotation.gtf'
+annofile <- here('pipeline/my_gencode.vM12.annotation.gtf')
 assert_that(file.exists(annofile))
 annotation <- annofile%>% {rtracklayer::import(.)}
 annotation = annofile %>% import

@@ -1,3 +1,4 @@
+
 conflict_prefer('flatten','purrr')
 get_predictions <- function(bestmscountebayes,mscountvoomdesign){
 	#df of predictions from limma model
@@ -13,26 +14,10 @@ get_predictions <- function(bestmscountebayes,mscountvoomdesign){
 	prediction_df%<>%separate(datagroup,c('time','assay'))
 }
 
-
-# maxwidth <- max(trajectoryplots_range_widths)
-# ymaxs_exp <- trajectoryplots_range_centers + (maxwidth/2) 
-# ymins_exp <- trajectoryplots_range_centers - (maxwidth/2) 
-# ymins_exp_breaks <- ymins_exp%>%divide_by(breakint)%>%floor%>%multiply_by(breakint)
-# ymaxs_exp_breaks <- ymaxs_exp%>%divide_by(breakint)%>%floor%>%multiply_by(breakint)
- 
-
 ####Now we select the 
-
-
-
-
 uprotein_ms_diffs <- contrasts.fit(bestmscountebayes,contrasts = timeMSeffect[,2:5])%>%topTable(coef=which(tps=='P0')-1,number=1e9,confint=0.95)%>%as.data.frame%>%
 	rownames_to_column('uprotein_id')%>%safe_left_join(ms_id2protein_id%>%distinct(ms_id,gene_name,gene_id,uprotein_id))%>%group_by(gene_id)%>%
 	mutate(bestprotmatch = abs(logFC) == min(abs(logFC)))
-
-
-testtp='E175'
-
 
 ms_genes_w_sig_TE <- lapply(tps[-1],function(testtp){
 	eBayes(contrasts.fit(lmFit(mscountvoom[best_uprotein_ids,]),contrasts = timeTEeffect[,2:5]))%>%topTable(coef=which(tps==testtp)-1,number=1e9,confint=0.95)%>%rownames_to_column('uprotein_id')%>%
@@ -214,7 +199,8 @@ test_that("I've identified the cause of this Satb2 diff",{
 
 {
 
-prediction_df <- get_predictions(bestmscountebayes,mscountvoomdesign)
+# prediction_df <- get_predictions(bestmscountebayes,mscountvoomdesign)
+
 # countpred_df <- get_predictions(countebayes,mscountvoomdesign%>%filter(assay!='MS'))
 
 #process our mass spec data for plotting
@@ -226,6 +212,7 @@ msdf%<>%select(uprotein_id,protein_id,dataset,signal,time,rep=replicate)%>%mutat
 stopifnot(!ms_id2protein_id$uprotein_id%>%anyDuplicated)
 msdf$signal%<>%log2
 
+
 countsmatnorm <- allcountmat %>% {sweep(.,2,STATS = DESeq2::estimateSizeFactorsForMatrix(.),FUN='/')}
 countsmatnorm <- mscountvoom$E[best_uprotein_ids,]
 exprdf <- countsmatnorm%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,signal,-uprotein_id)%>%as_tibble
@@ -234,47 +221,15 @@ exprdf%<>%separate(dataset,c('time','assay','rep'))%>%left_join(ms_id2protein_id
 
 
 
-#Extract confidence inttervals for effects
-time_eff_contrasts <- contrastmatall
-effects<-colnames(time_eff_contrasts)
-istimete<-colnames(time_eff_contrasts)%>%str_detect('TE_')
-time_eff_contrasts[,istimete] %<>%add( time_eff_contrasts[,'TE'])
-istimeMSde<-colnames(time_eff_contrasts)%>%str_detect('MS_dev.')
-time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'TE'])
-time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'TE'])
-time_eff_contrasts[,istimeMSde] %<>% add(time_eff_contrasts[,'MS_dev'])
-time_eff_contrasts%<>%.[,istimete | istimeMSde]
-timeeffnames<-colnames(time_eff_contrasts)%>%setNames(.,.)
 
-time_eff_contrastsdf<-	lapply(timeeffnames,function(effect){
-	message(effect)
-	topTable(contrasts.fit(bestmscountebayes,time_eff_contrasts[,effect]),coef=1,number=Inf,confint=.95)%>%
-	as.data.frame%>%rownames_to_column('uprotein_id')
-})%>%bind_rows(.id='effect')
-time_eff_contrastsdf%<>%separate(effect,c('assay','time'))
-time_eff_contrastsdf%>%head
 
-#Extract confidence intervals for time points
-datagroup_names <- mscountvoomdesign%>%.$dataset%>%str_replace('_\\d+$','')%>%unique%>%setNames(.,.)
-sample_contrasts<-bestmscountebayes$design%>%unique%>%set_rownames(datagroup_names)%>%t
-#add in TE to these
-datagroup_names = c(datagroup_names,paste0(tps,'_','TE'))%>%setNames(.,.)
-sample_contrasts%<>%cbind(timeTEeffect%>%{.['TE',]<-1;.})
-colnames(sample_contrasts)<-datagroup_names
-datagroup<-datagroup_names[1]
-prediction_df<-	lapply(datagroup_names,function(datagroup){
-	message(datagroup)
-	# prediction_ob$coef
-	topTable(contrasts.fit(bestmscountebayes,sample_contrasts[,datagroup,drop=F]),coef=1,number=Inf,confint=.95)%>%
-	as.data.frame%>%rownames_to_column('uprotein_id')
-})%>%bind_rows(.id='datagroup')
-prediction_df%<>%as_tibble
-prediction_df%<>%separate(datagroup,c('time','assay'))
+
 
 stopifnot(!any(prediction_df$assay%>%unique%>%is_in(tps)))
 
+#scale factor for the mass spec
 msrescale2lfq<-(postmeanmat%>%colMedians(na.rm=T)%>%median) - (mscountvoom$E[,21:25]%>%colMedians%>%median)
-# msrescale2lfq<-0
+
 }
 
 test_that("predictions look sane!",{
@@ -405,6 +360,9 @@ for(testuid in test_uids){
 }
 
 
+
+
+
 # genenamelist%<>%unlist
 # unflatinds = rep(seq_along(plotlistlist),map_dbl(plotlistlist,length))
 # plotlistlist = plotlistlist%>%flatten%>%commonyspanplots%>%split(unflatinds)%>%setNames(genenamelist)
@@ -433,7 +391,7 @@ for(testname in genenamelist){
 
 
 test_that('the linear modeling with the MS confidence intervals seems to have worked',{
-	stop() # not convinced this is the case, e.g. Spr, they seem way to wide
+	# stop() # not convinced this is the case, e.g. Spr, they seem way to wide
 	# I should plot the count only confidence interavls to see....
 })
 
@@ -463,11 +421,8 @@ ntp=n_distinct(allms$time)
 
 cds%>%mcols%>%data.frame%>%distinct(gene_id,gene_name,transcript_id,protein_id)%>%saveRDS('pipeline/allids.txt')
 allids <- readRDS('pipeline/allids.txt')
-ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
+# ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
 satb2ids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$protein_id
-
-allmscountmat[satb2ids,]
-timeeffect[satb2ids[1],]
 
 
 

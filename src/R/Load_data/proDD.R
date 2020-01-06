@@ -42,8 +42,7 @@ posteriors <- sample_protein_means(X, params, verbose=TRUE)
 proddtest <- proDD::test_diff(posteriors[['E13']],posteriors[['P0']])
 
 
-save.image('proDD_fit.RData')
-
+# save.image('proDD_fit.RData')
 # load('proDD_fit.RData')
 
 

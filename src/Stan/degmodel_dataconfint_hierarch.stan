@@ -33,7 +33,7 @@ transformed parameters {
 
     prot = mybs[,2:T+1] * cv + rep_matrix(prot0,T)'; // get the full protein trajectory
 
-    mRNA = prot + log(mydbs * cM) - rep_matrix(lKs,T)'; // get the mRNA trajectory this implies
+    mRNA = prot + log2(mydbs * cM) - rep_matrix(lKs,T)'; // get the mRNA trajectory this implies
 
 }
 
@@ -50,8 +50,8 @@ model{
   hsig_lrTE ~ gamma(2,1./20.);
 
   lKs ~ normal(hmu_lrTE,hsig_lrTE);
-  log(Kd) ~ normal(hmu_ldeg,hsig_ldeg);
-  target += -log(Kd);
+  log2(Kd) ~ normal(hmu_ldeg,hsig_ldeg);
+  target += -log2(Kd);
 
   for(t in 1:T){
       lribo[t] ~ normal(mRNA[t],lribo_tau[t]);

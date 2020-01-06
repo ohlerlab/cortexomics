@@ -1,0 +1,122 @@
+Current task:
+  ☐ Go term matrix to analyze the quality of the clustering
+
+
+optimal vs suboptimal correlates with ranking in the genome.
+
+
+
+All Tasks:
+    
+    Fig1:
+       ✔ Try some norm to make metagene plot less spiky @done (19-12-12 14:58)
+         ☐ Look at base pairs inside reads, get the frequency. For bps that differ in frequency, attempt to clip, declip
+         Look at cut site frequencies for fp and tp
+         find 4mers that differ in the frequency of positioing of certain reads.
+         Use these to reposition
+
+       ☐ Clip, declip the riboseq?
+       Fix scales on map plots
+
+    Fig2:
+      DEXseq for translation
+      
+      ☐ Mordret et al 2019 errors and translation
+          ☐ Check if the Occupancy/A site stuff has any correspondance to their data.
+             ☐ Mean occupancy for each one vs their error rates
+             ☐ Mean tRNA for each one vs their error rates
+             Do the above for both the yeast and the bacterial
+
+       Check if codon optimality is 
+
+
+      ☐ Graph poly vs Total
+        Figure out if I can select the best tRNA using this data
+
+
+
+      Figure out if I can see poly tRNAs being more reflective of optimization
+
+      Try the Poly tRNA measurements 
+      ☐ Finalize Figure design.
+      ☐ Remember transcriptional as well as translational.
+Fig3:
+    The various effects are stored in kind of irreglar objects, could be neater
+    but need to mix the data CIs and the effect preds fro trajectory plots
+    split integrate script into pre-post xtail I think
+
+Coverage plots:
+     ☐ Get the simplest possible one of our Satb2 Locus working
+       ☐ See if putting it on the shiny app is practical
+         ☐ Check how much memory needed
+         ☐ Check the time needed to draw the plot
+             ☐ Put in option to draw it, rather than autogen.
+
+
+App:
+  ☐ Is the normal assumption even that valid for the dropout???
+    Show cluster membership on the app
+
+    PCA:
+      pca without the MS?
+      project CLUTO on to hierarch?
+      ☐ Do I need to account for covariance in the uncertainties?
+
+
+      ☐ Stepwise PCA better?
+
+    Clustering:
+      Illustrate effect of uncertainty , MSdev massive effects, on clustering
+      Stan clusters - naive bayes works fine
+        But that's not the same as the timeless model, which is just TAN (tree augmented nb), if there's one histone mark
+         BUT using timeless would anyway give us dumb answers cos it doesn't know about uncertainty in the data.
+           So we'd like to use a classifier that does!
+           Lets see. We have.....
+           My stan naive bayes
+           But it can't deal with uncertainty, probalby would make it slow. What if we make it?
+           It seems like rather than having a normally distributed 'true data' variable that we sample from our data uncertanties, only to get it's pdf, we should be able to multiply the uncertainties...
+           Indeed this - https://www.johndcook.com/blog/2012/10/29/product-of-normal-pdfs/
+           Will I think do the trick.
+      ✔ Try the simple RNA vs RNA+RIBO+MS experiment @done (19-12-13 17:11)
+
+      ✔ Does the clustering actually capture the different levels accurately? Or is it just capturing transcription? @done (19-12-13 17:11)
+              I THINK this is cos 
+      ☐ Does Fuzzy clustering help?
+          ☐ Does it give different results from previous method?
+          ☐ Via GO-term entropy, for instance?
+
+      ☐ Set up the GO-term, entropy thing.
+
+      Same thing but for Telley et al's stuff?
+Quant:
+  ☐ Mappability effect?
+  ☐ New psite offsets?
+
+Maintainance:
+    ☐ Order the scripts, so dependencies are clear, in the projectnotes file.
+    ☐ metainfo - use it!
+        ☐ Get a column in there showing how much dropout there is.
+    ☐ Working backwards form the output of the integrate script, clean it up
+      ☐ make use of your printsel function
+      ☐ Function that gets the effects from limma models
+
+
+
+Modeling:
+    ☐ Get fully sampled model fits for all of the genes
+    Mail Najda
+    ✔ Think about, rather than equ and decay, equ EXPR and time to reach equilibrium. @done (19-12-09 13:30)
+    ☐ Implement a model based on half life and eq expression.
+
+
+
+
+Communication:
+    Nadja:
+       ✔ Write summary email @done (19-12-05 10:49)
+       ☐ Reply
+
+
+    Reading:
+      ☐ Re-read paper on translational repression complex in cortex. Their papers generally.
+      ☐ Clustering lineara mixedd models on splines.

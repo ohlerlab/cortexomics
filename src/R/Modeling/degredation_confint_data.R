@@ -24,7 +24,7 @@ message('...done')
 setwd(here())
 
 source(here('src/R/cortexomics_myfunctions.R'))
-
+source(here('src/R/Rprofile.R'))
 # message('temp commented out')
 
 #processedexprdatafile=here('pipeline/exprdata/transformed_data.txt')
@@ -34,6 +34,11 @@ registerDoMC(32)
 
 hierarchCIstanfile <- here('src/Stan/degmodel_dataconfint_hierarch.stan') %T>%{stopifnot(file.exists(.))}
 indivCIstanfile <- here('src/Stan/degmodel_dataconfint.stan') %T>%{stopifnot(file.exists(.))}
+indivCI_lin_stanfile <- here('src/Stan/degmodel_dataconfint_linear.stan') %T>%{stopifnot(file.exists(.))}
+st_indivCI_stanfile <- 'src/Stan/st_model_confint.stan'
+
+
+
 processedtbl<-read_tsv(here('pipeline/exprdata/limma_proDD_CIs.tsv'))
 metainfo<-read_tsv(here('pipeline/exprdata/limma_genemetadata.tsv'))
 
@@ -64,6 +69,8 @@ g2fit="Satb2"
 
 get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='ribo'){
   require(splines2)
+  stopifnot(g2fit%in%exprdata$gene_name)
+
   MS_array <- exprdata%>%
     filter(gene_name%in%g2fit)%>%
     filter(assay=='MS')%>%
@@ -134,7 +141,10 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
   mybs <- cbind(1,ibs(time, knots = timeknots,degree = 1, intercept = TRUE))
   mydbs = bs(time, knots = timeknots,degree = 1, intercept = TRUE)
 
+  gsetname <- if(length(g2fit)==1)g2fit[1] else paste0('gset',substr(digest::digest(letters,len=10),1,10))
+  
   standata<-list(
+    gsetname=gsetname,
     G=length(g2fit),          #  genes
     T=length(tps),          #  timepoints
     lMS=MS_array,  # mass spec data mean
@@ -148,40 +158,44 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
 }
 # test_that("the model Im using reliably converges for easy genes - those that are increasing",{
   #pick such a set of genes
-  msincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
-  riboincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
-  low_variance <-   processedtbl%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
-  not_missing <- processedtbl%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
+  # msincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='MS')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  # riboincreasing <- processedtbl%>%group_by(gene_name,assay,time)%>%summarise(signal=median(na.omit(signal)))%>%filter(assay=='ribo')%>%group_by(gene_name)%>%summarise(is_increasing=signal[time=='E13'] < (signal[time=='P0']-2) )%>%{setNames(.$is_increasing,.$gene_name)}
+  # low_variance <-   processedtbl%>%group_by(gene_name,assay,time)%>%filter(assay=='MS')%>%summarise(coeffvar = sd(signal)/mean(signal))%>%ungroup%>%mutate(coeffvar = rank(coeffvar)/length(coeffvar))%>%group_by(gene_name,assay)%>%summarise(lowvar = all(coeffvar<0.8))%>%{setNames(.$lowvar,.$gene_name)}
+  # not_missing <- processedtbl%>%group_by(gene_name,assay)%>%filter(assay=='MS')%>%summarise(missing = any(is.na(signal)))%>%{setNames(!.$missing,.$gene_name)}
 
-  test_genes <- msincreasing & riboincreasing & low_variance &   not_missing
+  # test_genes <- msincreasing & riboincreasing & low_variance &   not_missing
   
-  map(list(msincreasing,riboincreasing,low_variance, not_missing,test_genes),table)
+  # map(list(msincreasing,riboincreasing,low_variance, not_missing,test_genes),table)
 
 
-  test_gene_names<-names(test_genes)[test_genes]
-
-  #run the model on them
-
-
-  #see if they converge
-
-  expect_true(all(is_convergent))
+  # expect_true(all(is_convergent))
 # })
 
-{
 
 
-
-
+stanpars_to_list <- function(stanparvect){
+  #get the dimensions of each of the parameters
+  iparnames <- stanparvect%>%names
+  parnames <- iparnames%>%str_remove('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')
+  parinds <- iparnames%>%str_extract('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')%>%str_extract_all(regex('\\d+'))%>%map(as.numeric)
+  parinds <- parinds%>%split(parnames)%>%map(.%>%simplify2array%>%t)
+  stanlist <- parinds%>%map(.%>%apply(2,max)%>%replace_na(1)%>%array(NA,dim=.))
+  #
+  parname<-'cM'
+  for(parname in unique(parnames)){
+    stanlist[[parname]][parinds[[parname]]] <- stanparvect[parnames==parname]
+  }
+  stanlist
+}
 
 #Funciton to fit linear and nonlinear model with stan
-get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter=200, n_chains=4)
+get_stanfit <- function(standata,stanfile,pars=NA,sampledir,iter=200, n_chains=4,stanpars_to_list=stanpars_to_list)
 {
+
+stanpars_to_list(paramvals[[1]]%>%.[1,]%>%names)
+
   require(tools)
-
-
   ##First copy the model file to a new folder
-
   tmpdir <- file.path(tempdir(),tempfile())
   stopifnot(file.exists(stanfile))
   #delete the rds file
@@ -189,39 +203,42 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
   # stanfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
   system(str_interp('rm -rf ${tmpdir}'))
   dir.create(rec=TRUE,tmpdir)
-
+  #
   stopifnot(file.copy(stanfile,tmpdir))
   modelcopy=file.path(tmpdir,basename(stanfile))
   stopifnot(file.exists(modelcopy))
   message(normalizePath(stanfile))
   message(normalizePath(modelcopy))
   # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tmpdir))
-
   message(paste0('fitting model ',basename(tmpdir),' on ',standata$G,' genes'))
   # modelsamplefile<-paste0('stansamples_',basename(tmpdir),'_',basename(stanfile),'_modsamples')
-  #
-
-
-  setwd(tmpdir)
-
   ngenes <- standata$G
-  
-  initvals = list(
-      cM = standata$lribo,
-      Kd = array( rep(4,ngenes) ,dim=ngenes),#i.e. a 3 fold reduction due to degredation per tp
-      prot0 = array(standata$lMS[1,],dim=ngenes)
-  )
-
-  initvals$lKs = initvals$prot0*initvals$Kd / initvals$cM[1]
-
-
-  initvals=list(initvals)
-
+  #
+  message('optimizing with newton to get initial values')
+  optpars<-optimizing(stan_model(stanfile),data=standata,algorithm = c("Newton"),hessian=FALSE)
+  #
+  stanparvect <- optpars$theta_tilde
+  # initvals = list(
+  #     cM = pmax(standata$lribo,0.01),
+  #     Kd = array( rep(4,ngenes) ,dim=ngenes),#i.e. a 3 fold reduction due to degredation per tp
+  #     prot0 = array(standata$lMS[1,],dim=ngenes)
+  # )
+   #
+  # initvals$lKs = (2^initvals$prot0)*initvals$Kd / (2^standata$lribo[1,])
+  #
+  initvals=list(optpars$theta_tilde[1,]%>%stanpars_to_list)
+  #
   initvals = rep(initvals,  n_chains)
-
+  #
+  #model name
   imodel_name <- basename(tmpdir)
-
-
+  #path of sample files and model
+  modelfilename<-tools::file_path_sans_ext(basename(stanfile))
+  samplefilepath <- file.path(sampledir,paste0(modelfilename,'_',standata$gsetname))
+  #get chain files, clear old ones
+  chainfiles <- paste0(samplefilepath,'_',1:n_chains,'.csv')
+  try({file.remove(chainfiles)})
+  #fit model
   stanfit <- stan(file=modelcopy,
           model_name=imodel_name,
           # model_name=modelnm,seed=1,
@@ -235,25 +252,10 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
               cores=n_chains,
               verbose=FALSE,
               save_warmup=FALSE,
-              sample_file=basename(modelsamplefile)
+              sample_file=samplefilepath
             )
-  
-  chainfiles <- Sys.glob(file.path(tmpdir,'*.csv'))%>%str_subset(file_path_sans_ext(basename(modelsamplefile)))
-  message(tmpdir)
-  stopifnot(length(chainfiles)==n_chains)
-  file.path(sampledir,basename(chainfiles))%>%file.remove
-
-  chainfilesout <- file.path(sampledir,basename(chainfiles))
-
-  stopifnot(file.copy(chainfiles,chainfilesout))
-  stopifnot(file.exists(chainfilesout))
-
-  file.remove(chainfiles,modelcopy)
-  list.files(tmpdir)
-  system(str_interp('rmdir ${tmpdir}'))
-
+  stopifnot(all(file.exists(chainfiles)))
   list(fit=stanfit,chainfiles= chainfiles)
-
 }
 
 {
@@ -262,29 +264,185 @@ get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir,iter
   param<- BatchtoolsParam(workers=4, cluster="sge", resources=list(queue='all'))
   sge_template <- '~/tmp.tmpl' 
   param$template%>%readLines%>%str_replace(regex('\\#\\$ -q .*'),'')%>%cat(file=sge_template,sep='\n')
-  param<- BatchtoolsParam(workers=100, cluster="sge", resources=list(queue='all'),template=sge_template)
+  param<- BatchtoolsParam(workers=50, cluster="sge", resources=list(queue='all'),template=sge_template)
   #bplapply(BPPARAM=param
 }
 
+test_gene_names <-  metainfo%>%filter(sig_MS_change)%>%.$gene_name
 genelengths = metainfo$width%>%setNames(metainfo$gene_name)
-splitdata <- lapply(c('Satb2','Flna',test_gene_names),get_standata_confint,genelengths,processedtbl,lengthnorm=T,assay2get='ribo')
-stop()
+mygenes2fit <- c('Satb2','Flna','Gamt',test_gene_names)
 
-indivclustfits<-bplapply(BPPARAM=param,splitdata[1],get_stanfit=get_stanfit,indivCIstanfile=indivCIstanfile,function(gsetstandata,get_stanfit,indivCIstanfile){
+splitdata <- mclapply(mc.cores=20,mygenes2fit,mymemoise(get_standata_confint),genelengths,processedtbl,lengthnorm=T,assay2get='ribo')
+
+length(splitdata)
+#First lets get the optimal fit for 
+indivCIstanmodel<-mymemoise(stan_model)(indivCIstanfile)
+indivCI_lin_stanmodel<-mymemoise(stan_model)(indivCI_lin_stanfile)
+st_indivCIstanmodel<-mymemoise(stan_model)(st_indivCI_stanfile)
+
+
+################################################################################
+########Messing with optimization
+################################################################################
+  
+# nlopt<-vb(indivCIstanmodel,data=splitdata[[2]],algorithm = c("meanfield"))
+# linopt<-vb(indivCI_lin_stanmodel,data=splitdata[[2]],algorithm = c("fullrank"))
+# save.image('data/degredation_confint_data.R')
+
+nlopt<-optimizing(indivCIstanmodel,data=splitdata[[2]],algorithm = c("Newton"),hessian=TRUE)
+linopt<-optimizing(indivCI_lin_stanmodel,data=splitdata[[2]],algorithm = c("Newton"),hessian=TRUE)
+
+st_opt<-optimizing(st_indivCIstanmodel,data=splitdata[[2]],algorithm = c("Newton"),hessian=TRUE)
+
+
+goptsetnames <- splitdata%>%map_chr('gsetname')
+splitdata%<>%setNames(goptsetnames)
+st_opts <- mclapply(splitdata[goptsetnames], safely(function(x){cat('.');optimizing(st_indivCIstanmodel,data=x,algorithm = c("Newton"),hessian=TRUE)}))
+
+paramstderrs <- st_opts%>%map('result')%>%map('hessian')%>%map(safely(.%>%multiply_by(-1)%>%solve%>%diag%>%sqrt))%>%map('result')%>%setNames(goptsetnames)
+paramvals <- st_opts%>%map('result')%>%map('theta_tilde')%>%setNames(goptsetnames)
+
+paramstderrs%>%paramvals
+
+paramstderrs['Satb2']
+
+paramvals[[1]]%>%.[1,]%>%stanpars_to_list
+
+parnames <- iparnames%>%str_remove('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')
+parinds <- iparnames%>%str_extract('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')%>%str_extract_all(regex('\\d+'))%>%map(as.numeric)
+innummax <- parinds%>%map_dbl(length)%>%max
+
+matrix(NA,nrow=length(parinds),ncol = )
+
+stanmodel_hes_stder_df<-paramvals%>%map_df(.id='gene_name',~enframe(.[1,],'parameter','value'))%>%
+  mutate(parameter = str_replace_all(parameter,'[\\[\\],](?=.)','.'))%>%
+  mutate(parameter = str_replace_all(parameter,']$',''))%>%
+  inner_join(
+    paramstderrs%>%map_df(.id='gene_name',enframe,'parameter','stderr')
+  )
+
+stanmodel_hes_stder_df%<>%  mutate(myhgrp = case_when(
+    value < -5 ~ 'low',
+    value > 5 ~ 'high',
+    TRUE ~ 'middle' 
+  ))
+
+pdf('tmp.pdf')
+stanmodel_hes_stder_df%>%filter(parameter=='l_st.1')
+stanmodel_hes_stder_df%>%filter(parameter=='l_pihalf.1')
+dev.off()
+
+stanmodel_hes_stder_df%>%filter(parameter=='l_pihalf.1')%>%filter(value>0)%>%arrange(desc(value))
+
+
+mcshanedf<-fread('ext_data/mcshane_etal_2016_S1.csv')
+#
+mcshanethalfs<-mcshanedf%>%select(2,38,41)%>%set_colnames(c('gene_name','half_life','McShane_deg_cat'))
+#
+mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
+mcshanethalfs$half_life %<>% {./24}
+#
+library(txtplot)
+#
+pdf('tmp.pdf')
+stanmodel_hes_stder_df%>%filter(parameter=='l_pihalf.1')%>%
+  mutate(value = value)%>%
+  left_join(mcshanethalfs)%>%
+  mutate(half_life=half_life)%>%
+  {qplot(data=.,color=McShane_deg_cat,.$value,log(.$half_life),ylab = 'McShane estimated Thalf',xlab='Model_estimated_thalf')+theme_bw()}
+dev.off()
+normalizePath('tmp.pdf')
+#
+mcshanetestdf<-stanmodel_hes_stder_df%>%filter(parameter=='l_pihalf.1')%>%
+  mutate(value = value)%>%
+  left_join(mcshanethalfs)%>%
+  mutate(half_life=half_life)%>%
+  mutate(mcshnhigh = ifelse(half_life==max(half_life,na.rm=T),'high','nothigh'))
+
+mcshanetestdf%>%
+  {table(.$mcshnhigh,.$myhgrp)}%>%
+  chisq.test
+
+mcshanetestdf%>%
+  {table(.$McShane_deg_cat,.$myhgrp)}%>%
+  chisq.test
+
+
+
+
+stanmodel_hes_stder_df
+
+mcshanedf%>%colnames
+
+# pdf('tmp.pdf')
+# plot(st_opt)
+# dev.off()
+
+
+# nlopt$value
+# linopt$value
+# paramint<-c('lKs.1','Kd.1')
+# nlopt$hessian[paramint,paramint]
+
+
+# library(txtplot)
+
+# nlprotvals<-nlopt$theta_tilde[1,]%>%enframe('par','value')%>%  mutate(ppar=parse_stan_pars(par))%>%unnest%>%
+#   filter(parameter%in%c('prot'))%>%.$value%T>%txtplot
+
+# linprotvals <- linopt$theta_tilde[1,]%>%enframe('par','value')%>%  mutate(ppar=parse_stan_pars(par))%>%unnest%>%
+#   filter(parameter%in%c('prot'))%>%.$value%T>%txtplot
+
+# stprotvals <- st_opt$theta_tilde[1,]%>%enframe('par','value')%>%  mutate(ppar=parse_stan_pars(par))%>%unnest%>%
+#   filter(parameter%in%c('prot'))%>%.$value%T>%txtplot
+
+
+        
+
+
+indivclustfits<-bplapply(BPPARAM=param,splitdata[1:2],get_stanfit=get_stanfit,stanfile=st_indivCI_stanfile,function(gsetstandata,get_stanfit,stanfile){
+# stindivclustfits<-lapply(splitdata[1:2],get_stanfit=get_stanfit,st_indivCI_stanfile=st_indivCI_stanfile,function(gsetstandata,get_stanfit,st_indivCI_stanfile){
   require(rstan)
   require(tools)
   require(magrittr)
   require(tidyverse)
+  require(here)
   #get teh data  #
   testindivfit<-get_stanfit(
     gsetstandata,
-    indivCIstanfile,
-    pars=NULL,iter=400,n_chains=4,
-    modelsamplefile='stansamples/testhierarch.csv',
+    stanfile,
+    pars=NULL,iter=1000,n_chains=4,
     sampledir=here('pipeline/stansamples')
   )
 })
 
+indivclustfits
+
+stop()
+
+
+sampledir%>%list.files(full=TRUE)
+# sampledir%>%list.files(full=TRUE)%>%file.remove
+
+#function to extract parameters from list of stanfit objects and ploti
+plot_sample_density<-function(indivclustfits,par='lKs'){
+  indivclustfits%<>%setNames(mygenes2fit[1:length(indivclustfits)])
+  vals = indivclustfits %>%map_df(.id='gene',function(x)x[[1]]@sim$samples[[1]][['lKs[1]']]%>%data.frame(val=.))
+  qplot(data=vals,color=gene,fill=gene,x=val,geom='blank')+geom_histogram()+theme_bw()
+}
+
+#now plot
+pdf('tmp.pdf')
+# plot_sample_density(indivclustfits,'lKs')
+plot_sample_density(indivclustfits,'')
+dev.off()
+normalizePath('tmp.pdf')
+
+indivclustfits[[5]]
+
+stop()
+
+indivclustfits[[2]][[1]]@sim$samples[[2]][['lKs[1]']]%>%max
 
 #see if they converge
 testhierarchfit <- get_stanfit(
@@ -296,10 +454,6 @@ testhierarchfit <- get_stanfit(
 
 
 
-
-
-
-}
 
 testhierarchfit[[1]]%>%summary%>%.[[1]]%>%head
 

@@ -3,6 +3,8 @@ conflict_prefer('type','Biostrings')
 library(GenomicFeatures)
 MAPQTHRESH <- 200
 
+source('src/R/Rprofile.R')
+
 ################################################################################
 ########This will compare out TE differential genes to others using a few different measures
 ################################################################################
