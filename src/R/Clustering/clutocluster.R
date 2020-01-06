@@ -313,6 +313,7 @@ goenrichmentsbp<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
 goenrichmentsmf<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
   map(~rungo((names(.)),GTOGO%>%mutate(ensembl_gene_id=gene_name)%>%filter(ensembl_gene_id %in%gnames),'MF'))
 goenrichmentscc<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
+
   map(~rungo((names(.)),GTOGO%>%mutate(ensembl_gene_id=gene_name)%>%filter(ensembl_gene_id %in%gnames),'CC'))
 
 #get all go terms
@@ -467,3 +468,4 @@ clutoclustlist[[13]]%>%table%>%sort
 
 
 save.image('data/cluto_clusts.Rdata')
+

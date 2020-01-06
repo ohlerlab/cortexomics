@@ -4,7 +4,6 @@ conflict_prefer("rowSums", "BiocGenerics")
 conflict_prefer("colMeans", "BiocGenerics")
 conflict_prefer("setdiff", "dplyr")
 
-
 ms_id2protein_id
 best_uprotein_ids
 
@@ -15,19 +14,11 @@ library(GenomicAlignments)
 require(txtplot)
 require(Rsamtools)
 #coverageplots
-
-shiftmodel <- 'pipeline/seqshift_reads/data/P0_ribo_1/seqshiftmodel.rds'
-if(!file.exists(shiftmodel)){
-	message('no psite model found')
-	psite_model <- NULL
-}else{
-	psite_model <- readRDS(shiftmodel)
-}
+offsets <- read_tsv(here('ext_data/offsets_manual.tsv'))
 
 displaystagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
 stageconv = names(displaystagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
 stagecols <- displaystagecols%>%setNames(names(stageconv))
-
 
 CODOONSOFINTEREST<-DNAStringSet(c('TCA','TCG','TCC','TCT'))
 codons2scan <- c(CODOONSOFINTEREST,reverseComplement(CODOONSOFINTEREST))
@@ -235,9 +226,6 @@ stopifnot(codonprofiles$signal%>%is.finite%>%all)
 
 codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
 codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
-offsets<- psite_model$offsets%>%filter(compartment=='nucl')%>%mutate(readlen=paste0('rl',length))%>%select(readlen,offset)
-offsets<- myoffsets
-
+# offsets<- psite_model$offsets%>%filter(compartment=='nucl')%>%mutate(readlen=paste0('rl',length))%>%select(readlen,offset)
 
 # offsets%>%write_tsv('ext_data/offsets_manual.tsv')
-
