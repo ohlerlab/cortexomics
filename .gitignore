@@ -66,3 +66,4 @@ src/.idea
 *.RData
 *RData
 proDD_fit.RData
+packrat/lib*/

@@ -89,6 +89,7 @@ src/R/Load_data/integrate_exprdata_trajplots.R
 Figure 4?
 #The file I'm currently using to load up data
 src/R/Modeling/degredation_confint_data.R
+#files this thing calls:
 src/R/Modeling/linearspline.R
 src/R/Modeling/linearsplinemathnotes.R
 
