@@ -305,7 +305,7 @@ dev.off()
 
 make_cluster_trajplots(kmeans$cluster)
 # make_cluster_trajplots((myhclusts,13))
-source('src/R/go_term_funcs.R')
+source('src/R/Functions/go_term_funcs.R')
 
 #' ### Now run a go enrichment on each of the clusters, with the set as a whole as the background.
 goenrichmentsbp<-clutoclustlist_filt[[13]]$cluster%>%split(.,.)%>%
@@ -321,20 +321,55 @@ allterms <- goenrichmentsbp%>%map('Term')%>%unlist%>%unique
 
 #now get the similiarity matrix in go terms
 
-source("src/R/go_term_funcs.R")
-gomat <- Matrix::Matrix(data=FALSE,sparse=TRUE,ncol=n_distinct(GTOGO$go_id),nrow=n_distinct(GTOGO$ensembl_gene_id))
-dimnamedf<-data.frame(GTOGO$ensembl_gene_id,GTOGO$go_id)
+source("src/R/Functions/go_term_funcs.R")
+
+gomat <- Matrix::Matrix(data=FALSE,sparse=TRUE,
+  nrow=n_distinct(GTOGO$ensembl_gene_id),
+  ncol=n_distinct(GTOGO$go_id)
+)
+
+rownames(gomat)<-unique(GTOGO$ensembl_gene_id)
+colnames(gomat)<-unique(GTOGO$go_id)
 indmat<-data.frame(GTOGO$ensembl_gene_id%>%as.factor%>%as.numeric,GTOGO$go_id%>%as.factor%>%as.numeric)%>%as.matrix
 gomat[indmat]<-TRUE
+#discard terms that are always zero in our data
+gomat <- gomat[,Matrix::colSums(gomat[metainfo$gene_id,]) > 10]
 
-clustgeneids <- oldclutoclusts[[13]]$cluster%>%
-  enframe('gene_name','cluster')%>%
-  left_join(metainfo%>%
-  distinct(gene_name,gene_id))%>%
-  filter(!is.na(gene_id))%>%
-  {split(.$gene_id,.$cluster)}
 
-match(clustgeneids[[2]],dimnamedf[[1]])
+#we weant to go from a gene x term matrix to a cluster x term matrix
+
+str(gomat[match(clustgeneids[[2]],rownames(gomat)),TRUE])
+
+#so we could get the entropy of each cluster's distribution over the terms, giving us n entropies
+#or the entropy of each term's distribution over the clusters
+cnum_termentrops<-lapply(oldclutoclusts,function(clustvect){
+  clustgeneids <- clustvect$cluster%>%
+    enframe('gene_name','cluster')%>%
+    left_join(metainfo%>%
+    distinct(gene_name,gene_id))%>%
+    filter(!is.na(gene_id))%>%
+    {split(.$gene_id,.$cluster)}
+
+  term_clust_mat <- lapply(clustgeneids,function(gids){
+    Matrix::colSums(gomat[match(gids,rownames(gomat)),TRUE])
+  })%>%simplify2array
+
+  term_entropies <- term_clust_mat%>%apply(1,function(x){y=x[x>0];y=y/sum(y);sum(y * log(y))})
+
+  term_entropies
+
+})
+
+pdf('tmp.pdf')
+cnum_termentrops%>%setNames(paste0('n_',seq_along(.)))%>%enframe('ncluster','term_entropy')%>%
+  mutate(ncluster = factor(ncluster,unique(ncluster)))%>%
+  unnest%>%
+  qplot(data=.,x=term_entropy,color=ncluster,geom='density')+facet_grid(ncluster~.,scale='free')+theme_bw()
+dev.off()
+normalizePath('tmp.pdf')
+
+nrow(gomat)
+
 
 library(gridExtra)
 
@@ -467,5 +502,5 @@ clutoclustlistraw[[13]]%>%table%>%sort
 clutoclustlist[[13]]%>%table%>%sort
 
 
-save.image('data/cluto_clusts.Rdata')
+load('data/cluto_clusts.Rdata')
 
