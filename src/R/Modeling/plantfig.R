@@ -3,7 +3,7 @@ library(Gviz)
 library(magrittr)
 
 
-devtools::load_all('~/work/Applications/SaTann')
+# devtools::load_all('~/work/Applications/SaTann')
 annofile <-'data/test_arabidopsis.gtf.gz_Rannot'
 anno <- get(load(annofile))
 # plastidres <- riboseqcoutput%>%map(~subset(.,as.character(seqnames) %in% c('Chr1'))%>%subset(start > 1e6)%>%subset(start < 2e6))

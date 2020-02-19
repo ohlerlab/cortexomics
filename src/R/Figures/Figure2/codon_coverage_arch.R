@@ -209,8 +209,6 @@ fprofilemats_unproc<-mclapply(mc.cores=1,fpsitelist,mymemoise(function(psites){
 ########PRocess these
 ################################################################################
 
-
-
 if(all(fprofilemats_unproc$sample %in% 1:100)) fprofilemats_unproc$sample %<>% {names(fpsitelist)[as.numeric(.)]}
 
 fprofilemats_unproc$codon%>%n_distinct
@@ -223,14 +221,11 @@ codonprofiles%<>%filter(!codon %in% c('TAG','TAA','TGA'))
 codonprofiles%<>%mutate(position = position - 1 - (FLANKCODS*3))
 codonprofiles%<>%group_by(readlen)%>%filter(any(signal!=0))
 # if(!str_detect(codonprofiles$readlen,'rl')) codonprofiles$readlen%<>%as.numeric(.)%>%names(widths)[.]
-codonprofiles%<>%group_by(readlen,codon,sample)%>%
-	mutate(occ_nonorm=signal)%>%
-	mutate(occupancy = signal / median(signal))
-codonprofiles%<>%select(-signal)
-stopifnot(codonprofiles$occupancy%>%is.finite%>%all)
+codonprofiles%<>%group_by(readlen,codon,sample)%>%mutate(occ_nonorm=signal)%>%mutate(signal = signal / median(signal))
+
 codonprofiles %>%saveRDS('data/codonprofiles.rds')
 
-
+codonprofiles%>%filter(sample==sample[1])%>%{txtplot(.$signal,.$occ_nonorm)}
 
 # codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
 # codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
@@ -240,4 +235,4 @@ codonprofiles %>%saveRDS('data/codonprofiles.rds')
 # offsets%>%write_tsv('ext_data/offsets_manual.tsv')
 
 # save.image('data/codon_coverage.Rdata')
-load('data/codon_coverage.Rdata')
+# load('data/codon_coverage.Rdata')

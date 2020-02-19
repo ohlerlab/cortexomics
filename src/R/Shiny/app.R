@@ -13,9 +13,9 @@ suppressMessages(library(here))
 library(conflicted)
 library(ggplot2)
 library(rsconnect)
-conflict_prefer("filter",'dplyr')
-conflict_prefer("last",'dplyr')
-conflict_prefer("setdiff",'dplyr')
+# conflict_prefer("filter",'dplyr')
+# conflict_prefer("last",'dplyr')
+# conflict_prefer("setdiff",'dplyr')
 
 if(file.exists('trajplotobjects.Rdata')){
   datafile <- 'trajplotobjects.Rdata'
@@ -24,17 +24,54 @@ if(file.exists('trajplotobjects.Rdata')){
     datafile <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/trajplotobjects.Rdata'
 
 }
-if(!exists('exprdf')) load(file=datafile)
+if(!exists('exprdf')){
+   load(file=datafile)
+}
+
 #todo stick gene name on this
 
-{
-make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdmat,exprdf,msrescale2lfq,best_uprotein_ids,prediction_df,tpnames,assaynames){
-  plotlistlist = list()
-  # genenamelist = list()
-  
-  u = list('Bcl11b'=c(-2,4),'Flna'=c(-4,1),'Nes'=c(-4,1),'Satb2'=c(-1,5))
+#assaynames - prettier names for the 
+
+
+#currently msrescale2lfq is a problem
+
+#The scale we want is the median LFQ one I guess. So the median normalized protmat, but before it was centered on zero
+#for numerical issues in stan
+#That means we need to rescale the output of our plots to that.
+#We'll do that by simply re-aligning the matrices, another function should do the same for confidence interval dfs.
+#
+#this contains all chosen ms_ids , median normalized
+ms_mat_mednorm <- 
+#this is the same but for count data
+countmat_mednorm <- 
+
+#This contains the limma predictions, rescaled
+
+#This contains the predictions from the proDA run.
+
+#This contains arbitrary predictions, from a variable number of models. The
+# function will add them in as different panels.
+
+################################################################################
+########
+################################################################################
   
 
+
+#this contains the 
+
+#' Need to think of a way to show if proDA is working well.
+#' and ADDITIONALLY, if our dropout inclusive model works better...
+#' an example of that would be great.
+#' Also reports that work would be great....
+
+{
+make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdmat,exprdf,msrescale2lfq,best_uprotein_ids,ci_df,tpnames,assaynames){
+  plotlistlist = list()
+  # genenamelist = list()
+  #
+  u = list('Bcl11b'=c(-2,4),'Flna'=c(-4,1),'Nes'=c(-4,1),'Satb2'=c(-1,5))
+  #
   assert_that(all(genes2plot %in% exprdf$gene_name))
   testpids <- exprdf%>%subset(gene_name%in%genes2plot)%>%distinct(protein_id,gene_name)%>%{setNames(.$protein_id,.$gene_name)}
   test_uids<-unique(exprdf$uprotein_id)%>%str_subset(testpids%>%paste0(collapse='|'))
@@ -53,8 +90,9 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
   # ggdf_msconf$time%<>%factor%>%time
   #get ms-protein id pairs
   test_uids<-ggdf%>%distinct(uprotein_id,gene_name)%>%{setNames(.$uprotein_id,.$gene_name)}
+  #scaling function
   scaledata = function(x,assay2plot){
-    if(assay2plot=='MS'){
+    if(assay2plot=='MS'){#use msrescale2lfq
       out = x%>%mutate_at(vars(one_of(c('signal','logFC','CI.R','CI.L'))),list(function(x)x+msrescale2lfq))
     }else{
       out = x 
@@ -66,7 +104,6 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
   # plotdf%>%filter(assay==assay2plot)%>%scaledata(assay2plot='MS')
   # scaledata = identity
   #
-
   trajfile = './plots/tmp.pdf'
   for(testuid in test_uids[genes2plot]){
     assaytitles <- if(testuid==test_uids[genes2plot][1]) assaynames else NULL
@@ -90,6 +127,8 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
         points = geom_point(data=msdf%>%filter(uprotein_id%in%testuid)%>%scaledata('dont unscale'))
         linerange=geom_linerange(color=I('blue'),data=ggdf_msconf%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(y=signal,ymin=CI.L,ymax=CI.R))
       }
+      
+      browser()
       ggplot(
       data = plotdf%>%filter(assay==assay2plot)%>%scaledata(assay2plot),
       aes(
@@ -97,8 +136,8 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
         y=signal
       ))+
       points+linerange+
-      geom_ribbon(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(x=as.numeric(as_factor(time)),y=logFC,ymin=CI.L,ymax=CI.R),fill='darkgreen',alpha=I(0.5))+ 
-      geom_line(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),linetype=2,aes(x=as.numeric(as_factor(time)),y=logFC))+  
+      geom_ribbon(data=ci_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(x=as.numeric(as_factor(time)),y=logFC,ymin=CI.L,ymax=CI.R),fill='darkgreen',alpha=I(0.5))+ 
+      geom_line(data=ci_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),linetype=2,aes(x=as.numeric(as_factor(time)),y=logFC))+  
       # geom_line(data=prediction_df%>%uidfilt,aes(x=time,y=logFC))+  
       scale_x_continuous(name=xname,labels=xtpnames)+
       theme_bw()+
@@ -110,13 +149,11 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
     # trajectoryplots[c(1:3)]%<>%lapply(function(plot) plot+ coord_cartesian(ylim=u[[gene2plot]]))
     # trajectoryplots[c(4)]%<>%lapply(function(plot) plot+ coord_cartesian(ylim=c(-3,3)))
     trajectoryplots%<>%lapply(function(plot) plot+ coord_cartesian(ylim=c(myymin,myymax)))
-
+    #
     plotlistlist = append(plotlistlist,list(trajectoryplots))
     # genenamelist = append(genenamelist,gname)
   }
-  
-
-  
+  #
   assert_that(length(plotlistlist) < 9,msg='Too many genes!')
   trajectoryplot<-ggarrange(plotlist=plotlistlist%>%flatten,ncol=4,nrow=length(plotlistlist))
   trajectoryplot<-annotate_figure(trajectoryplot)
@@ -124,12 +161,44 @@ make_traj_plot <- function(genes2plot,myymin,myymax,msdf,postmeanmat,postprecsdm
 }
 }
 
+#What should our plot do???
+
 
 ################################################################################
 ########The app
 ################################################################################
 
 genechoices <- c('Satb2','Flna')
+
+
+plotable_genes = exprdf$gene_name%>%unique
+# conflict_prefer("Position",'ggplot2')
+
+
+make_traj_plot_p <- partial(make_traj_plot,
+  msdf=msdf,
+  postmeanmat=postmeanmat,
+  postprecsdmat=postprecsdmat,
+  exprdf=exprdf,
+  tpnames=mytpnames,
+  msrescale2lfq=msrescale2lfq,
+  best_uprotein_ids=best_uprotein_ids,
+  ci_df=prediction_df,
+  assaynames=myassaynames,
+)
+make_traj_plot_p('Flna')
+
+stop()
+
+if(!shiny::isRunning()) {
+  pdf('tmp.pdf')
+  print(make_traj_plot_p(c('Satb2','Flna'),myymin=-3,myymax=3))
+  dev.off()
+}
+
+
+splitgenes <- .%>%str_split(' ')%>%unlist%>%setdiff(c('',' '))
+
 # Define UI for app that draws a histogram ----
 ui <- fluidPage(
 
@@ -162,25 +231,6 @@ ui <- fluidPage(
 )
 
 
-plotable_genes = exprdf$gene_name%>%unique
-conflict_prefer("Position",'ggplot2')
-
-
-make_traj_plot_p <- partial(make_traj_plot,
-  msdf=msdf,
-  postmeanmat=postmeanmat,
-  postprecsdmat=postprecsdmat,
-  exprdf=exprdf,
-  tpnames=mytpnames,
-  msrescale2lfq=msrescale2lfq,
-  best_uprotein_ids=best_uprotein_ids,
-  prediction_df=prediction_df,
-  assaynames=myassaynames
-)
-# dev.off()
-
-if(!shiny::isRunning()) { print(make_traj_plot_p(c('Satb2','Flna'),myymin=-3,myymax=3))}
-splitgenes <- .%>%str_split(' ')%>%unlist%>%setdiff(c('',' '))
 # Define server logic required to draw a histogram ----
 server <- function(input, output) {
  

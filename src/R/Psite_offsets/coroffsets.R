@@ -16,7 +16,6 @@ suppressMessages({library(assertthat)})
 suppressMessages({library(parallel)})
 suppressMessages({library(Biostrings)})
 suppressMessages({library(dplyr)})
-suppressMessages({library(riboWaltz)})
 suppressMessages({library(purrr)})
 
 library(Gviz)

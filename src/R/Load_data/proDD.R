@@ -2,7 +2,9 @@
 ########This script takes in a matrix of ms values and then outputs posterior
 ########Values 
 ################################################################################
-	
+
+#conda install -c anaconda libnetcdf-dev
+#BiocManager::install('MSnbase')
 # devtools::install_github("const-ae/proDD")
 library(proDD)
 
@@ -43,8 +45,12 @@ proddtest <- proDD::test_diff(posteriors[['E13']],posteriors[['P0']])
 
 
 # save.image('proDD_fit.RData')
-# load('proDD_fit.RData')
+# load('data/proDD_fit.RData')
 
+# pdf('tmp.pdf')
+# plot(1)
+# dev.off()
+# normalizePath('tmp.pdf')
 
 
 
@@ -215,6 +221,7 @@ if(plotting){
 
 stopifnot(all(satb2ms_ids%in%posteriorsum$ms_id))
 save(posteriors,posteriorsum,X,params,file='data/proDD.data')
+load(file='data/proDD.data')
 
 #' Okay so, indeed this method doesn't take time point variation into account, so we end up with strange results
 

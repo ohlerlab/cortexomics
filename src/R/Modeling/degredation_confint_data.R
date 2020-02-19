@@ -21,9 +21,14 @@ suppressMessages(library(assertthat))
 suppressMessages(library(limma))
 message('...done')
 
+conflict_prefer("accumulate", "purrr")
+conflict_prefer("setdiff", "BiocGenerics")
+conflict_prefer("between", "dplyr")
+conflict_prefer("clusterApply", "BiocGenerics")
+
 setwd(here())
 
-source(here('src/R/cortexomics_myfunctions.R'))
+source(here('src/R/Functions/cortexomics_myfunctions.R'))
 source(here('src/R/Rprofile.R'))
 # message('temp commented out')
 
@@ -173,26 +178,10 @@ get_standata_confint<-function(g2fit,genelengths,exprdata,lengthnorm,assay2get='
 
 
 
-stanpars_to_list <- function(stanparvect){
-  #get the dimensions of each of the parameters
-  iparnames <- stanparvect%>%names
-  parnames <- iparnames%>%str_remove('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')
-  parinds <- iparnames%>%str_extract('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')%>%str_extract_all(regex('\\d+'))%>%map(as.numeric)
-  parinds <- parinds%>%split(parnames)%>%map(.%>%simplify2array%>%t)
-  stanlist <- parinds%>%map(.%>%apply(2,max)%>%replace_na(1)%>%array(NA,dim=.))
-  #
-  parname<-'cM'
-  for(parname in unique(parnames)){
-    stanlist[[parname]][parinds[[parname]]] <- stanparvect[parnames==parname]
-  }
-  stanlist
-}
-
 #Funciton to fit linear and nonlinear model with stan
-get_stanfit <- function(standata,stanfile,pars=NA,sampledir,iter=200, n_chains=4,stanpars_to_list=stanpars_to_list)
-{
+get_stanfit <- function(standata,stanfile,pars=NA,sampledir,iter=200, n_chains=4,stanpars_to_listi=stanpars_to_list){
 
-stanpars_to_list(paramvals[[1]]%>%.[1,]%>%names)
+stanpars_to_listi(paramvals[[1]]%>%.[1,]%>%names)
 
   require(tools)
   ##First copy the model file to a new folder
@@ -238,6 +227,7 @@ stanpars_to_list(paramvals[[1]]%>%.[1,]%>%names)
   #get chain files, clear old ones
   chainfiles <- paste0(samplefilepath,'_',1:n_chains,'.csv')
   try({file.remove(chainfiles)})
+  message(paste0('fitting full model ',basename(tmpdir),' on ',standata$G,' genes'))
   #fit model
   stanfit <- stan(file=modelcopy,
           model_name=imodel_name,
@@ -297,14 +287,19 @@ st_opt<-optimizing(st_indivCIstanmodel,data=splitdata[[2]],algorithm = c("Newton
 
 goptsetnames <- splitdata%>%map_chr('gsetname')
 splitdata%<>%setNames(goptsetnames)
-st_opts <- mclapply(splitdata[goptsetnames], safely(function(x){cat('.');optimizing(st_indivCIstanmodel,data=x,algorithm = c("Newton"),hessian=TRUE)}))
+
+st_opts <- tryCatch({
+    readRDS(here('data/st_opts.rds'))
+  },error=function(e){
+     st_opts <- mclapply(splitdata[goptsetnames], safely(function(x){cat('.');optimizing(st_indivCIstanmodel,data=x,algorithm = c("Newton"),hessian=TRUE)}))
+     st_opts%>%saveRDS(here('data/st_opts.rds'))
+     st_opts
+  })
+# st_opts <- mclapply(splitdata[goptsetnames], safely(function(x){cat('.');optimizing(st_indivCIstanmodel,data=x,algorithm = c("Newton"),hessian=TRUE)}))
+# st_opts%>%saveRDS(here('data/st_opts.rds'))
 
 paramstderrs <- st_opts%>%map('result')%>%map('hessian')%>%map(safely(.%>%multiply_by(-1)%>%solve%>%diag%>%sqrt))%>%map('result')%>%setNames(goptsetnames)
 paramvals <- st_opts%>%map('result')%>%map('theta_tilde')%>%setNames(goptsetnames)
-
-paramstderrs%>%paramvals
-
-paramstderrs['Satb2']
 
 paramvals[[1]]%>%.[1,]%>%stanpars_to_list
 
@@ -341,6 +336,10 @@ mcshanethalfs<-mcshanedf%>%select(2,38,41)%>%set_colnames(c('gene_name','half_li
 #
 mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
 mcshanethalfs$half_life %<>% {./24}
+
+mcshanethalfs%>%filter(McShane_deg_cat=='ED')%>%.$half_life%>%.[.<12]%>%txtdensity()
+mcshanethalfs%>%filter(McShane_deg_cat=='ED')%>%.$half_life%>%log10%>%.[.<24]%>%txtdensity()
+
 #
 library(txtplot)
 #
@@ -400,21 +399,33 @@ mcshanedf%>%colnames
         
 
 
-indivclustfits<-bplapply(BPPARAM=param,splitdata[1:2],get_stanfit=get_stanfit,stanfile=st_indivCI_stanfile,function(gsetstandata,get_stanfit,stanfile){
-# stindivclustfits<-lapply(splitdata[1:2],get_stanfit=get_stanfit,st_indivCI_stanfile=st_indivCI_stanfile,function(gsetstandata,get_stanfit,st_indivCI_stanfile){
+
+
+indivclustfits<-bplapply(BPPARAM=param,splitdata,get_stanfit=get_stanfit,stanfile=st_indivCI_stanfile,
+# indivclustfits<-lapply(splitdata[,get_stanfitfun=get_stanfit,stanfile_i=st_indivCI_stanfile,
+    function(gsetstandata,get_stanfitfun,stanfile_i){
+  #stindivclustfits<-lapply(splitdata[1:2],get_stanfit=get_stanfit,st_indivCI_stanfile=st_indivCI_stanfile,function(gsetstandata,get_stanfit,st_indivCI_stanfile){
+  MSmed = median(gsetstandata$lMS) 
+  gsetstandata$lMS <- gsetstandata$lMS - MSmed
+  #
+  Ribomed = median(gsetstandata$lribo) 
+  gsetstandata$lribo <- gsetstandata$lribo - Ribomed
+  #
+  #
   require(rstan)
   require(tools)
   require(magrittr)
   require(tidyverse)
   require(here)
   #get teh data  #
-  testindivfit<-get_stanfit(
+  testindivfit<-get_stanfitfun(
     gsetstandata,
-    stanfile,
+    stanfile_i,
     pars=NULL,iter=1000,n_chains=4,
     sampledir=here('pipeline/stansamples')
   )
 })
+
 
 indivclustfits
 

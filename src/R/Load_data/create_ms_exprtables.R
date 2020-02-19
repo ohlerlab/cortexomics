@@ -9,12 +9,12 @@ suppressMessages(library(assertthat))
 for (funnm in as.character(lsf.str('package:dplyr'))){assign(funnm,get(funnm,'package:dplyr'))}
 
 args <- c(
-	totalmsfile='/fast/groups/ag_ohler/dharnet_m/cortexomics/gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt',
-	specmsfile='/fast/groups/ag_ohler/dharnet_m/cortexomics/gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt',
-	outfolder=file.path('/fast/groups/ag_ohler/dharnet_m/cortexomics','pipeline','ms_tables')
+	totalmsfile=here('gdrive/cortexomics_ms_total/325_new_2_all_log2_LFQ_n7464.txt'),
+	specmsfile=here('gdrive/cortexomics_ms_cyt+80+Poly/proteinGroups.txt'),
+	outfolder=here('pipeline','ms_tables')
 )
 
-args[] <- commandArgs(trailingOnly=TRUE)[1:length(defaultargs)]%>%setNames(names(defaultargs))
+args[] <- commandArgs(trailingOnly=TRUE)[1:length(args)]%>%setNames(names(args))
 for(i in names(args)) assign(i,args[i])
 #function to delete japanese fromt he tables
 delete_japanese<-function(dblstring) str_extract(dblstring,'(NA)|(NaN)|(\\d+\\.?\\d*)')%>%as.numeric
@@ -24,9 +24,11 @@ ms_data=
   read_tsv(totalmsfile,comment = '#')%>%
   {colnames(.) = str_replace_all(colnames(.),' ','_');.}%>%
   select(gene_name=Gene_names,everything())%>%
-  mutate_at(vars(matches('^(E\\d\\d|P0)')),funs(delete_japanese))
+  mutate_at(vars(matches('^(E\\d\\d|P0)')),list(delete_japanese))
 #label the LFQ columns
 colnames(ms_data) <- str_replace(colnames(ms_data),'^(E\\d\\dp?\\d?|P0)_n','LFQ_\\1_total_rep')
+#and iBAQ
+colnames(ms_data) <- str_replace(colnames(ms_data),'^iBAQ_(E\\d\\dp?\\d?|P0)_n','iBAQ_\\1_total_rep')
 
 #convert them back from their log2 values
 for(lfqcol in colnames(ms_data)%>%str_subset('LFQ')) ms_data[[lfqcol]] %<>% {2^.}
@@ -54,7 +56,7 @@ ms_data_all%<>%select(Protein_IDs=Majority_protein_IDs,everything())
 # ms_data_all%<>%select(Protein_IDs=Protein_IDs,everything())
 
 
-commoncols<-intersect(colnames(ms_data),colnames(ms_dat_aspec))
+commoncols<-intersect(colnames(ms_data),colnames(ms_data_spec))
 totalcols<-setdiff(colnames(ms_data),colnames(ms_data_spec))
 speccols<-setdiff(colnames(ms_data_spec),colnames(ms_data))
 
@@ -90,6 +92,8 @@ ms_tall<-
   }
 
 
+ms_tall%>%filter(fraction=='total')%>%.$dataset%>%unique
+
 #signal column should be numeric
 ms_tall%<>%mutate(signal = as.numeric(signal))
 
@@ -100,6 +104,7 @@ ms_tall <- ms_tall %>%
   # mutate(signal = (1e6*signal) / sum (na.omit(signal)) )
   identity
 
+stopifnot(ms_tall$fraction%>%unique%>%identical(c("total", "80S", "cyto", "poly")))
 
 #make outlying low values into NAs
 ms_tall$nearzero <- log10(ms_tall$signal) < -4 & (ms_tall$sigtype=='LFQ')
@@ -116,6 +121,7 @@ ms_tall<-ms_tall%>%
   group_by(Protein_IDs,fraction,time)%>%
   mutate(frac_time_missing = sum(!is.na(signal))<=1)
 
+ms_tall$fraction%>%unique
 
 # ms_tall%>%ungroup%>%filter(gene_name=='Pa2g4',sigtype=='LFQ')%>%qplot(data=.,x=time,y=signal,ylab='LFQ',main='MS for Pa2g4 in different fractions')+facet_grid(~fraction)
 
@@ -163,11 +169,17 @@ ms_tall = bind_rows(ms_tall%>%filter(!sigtype=='norm_iBAQ'),ibnormms_tall)
 sigtypes = ms_tall$sigtype%>%unique
 ms_tall$replicate%<>%str_replace('rep','')
 stopifnot(sigtypes%>%unique%>%str_detect('norm_iBAQ')%>%any)
-for(sigtypei in sigtypes){
+
+stopifnot(ms_tall$fraction%>%unique%>%identical(c("total", "80S", "cyto", "poly")))
+
+
+
+# for(sigtypei in sigtypes){
+for(sigtypei in c('iBAQ','LFQ')){
 	for(fractioni in unique(ms_tall$fraction)){
 	  mstallfile <- file.path(outfolder,str_interp('ms_${sigtypei}_${fractioni}_ms_tall.tsv'))
 	  dir.create(dirname(mstallfile),showWarn=FALSE)
 	  write_tsv(ms_tall%>%filter(sigtype==sigtypei,fraction==fractioni),mstallfile%T>%message)
 	}
 }
-
+# Sys.glob('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/ms_tables/*')%>%file.remove

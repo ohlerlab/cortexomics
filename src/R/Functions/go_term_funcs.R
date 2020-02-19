@@ -94,11 +94,7 @@ if(!file.exists('data/GTOGO.rds')){
   GTOGO<-readRDS('data/GTOGO.rds')
 }
 
-
 GTOGO %<>% select(gene_name, go_id, ensembl_gene_id)
-
-
-
 
 rungo <- function(int.genes,GTOGO,my_ontology,background=NULL){
   if(is.logical(int.genes)){

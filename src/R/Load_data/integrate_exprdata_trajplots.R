@@ -37,7 +37,6 @@ genes_w_sig_TE_df <- count_te_coefs %>%
 		filter(adj.P.Val < 0.05)%>%as.data.frame
 
 
-
 allmscontr<-(alltimeeff+timeTEeffect+timeMSeffect)[,-1]
 
 genes_w_sig_ms_changedf <- lapply(tps[-1],function(testtp){
@@ -228,6 +227,9 @@ exprdf%<>%separate(dataset,c('time','assay','rep'))%>%left_join(ms_id2protein_id
 stopifnot(!any(prediction_df$assay%>%unique%>%is_in(tps)))
 
 #scale factor for the mass spec
+exprdf <- countsmatnorm%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,signal,-uprotein_id)%>%as_tibble
+exprdf%<>%separate(dataset,c('time','assay','rep'))%>%left_join(ms_id2protein_id%>%distinct(uprotein_id,protein_id))%>%
+	mutate(rep = as.numeric(rep))
 msrescale2lfq<-(postmeanmat%>%colMedians(na.rm=T)%>%median) - (mscountvoom$E[,21:25]%>%colMedians%>%median)
 
 }

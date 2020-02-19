@@ -269,7 +269,6 @@ txtplot(predict(px_lm)[-1],log(prot))
 
 (mybs %*% px) + log(edbasis%*%(px + mydeg))
 
-(R + log(Ks)) = 
 
 
 

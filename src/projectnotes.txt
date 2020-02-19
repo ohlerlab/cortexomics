@@ -1,7 +1,11 @@
 ###REMEMBER - 
-- When in doubt organize, overview, look at the paper plan, read, until you realize the urgency and import
-- Plenty of papers in the papers folder
+TAPs, meds, speed.
 
+####Presently:
+Making sure lib norm for the genes is ok not double counting ORFs.
+Then including the models in our trajectory plots on shiny.
+	#Doing this with REAL CODE - modularity. Acceptance that I forget stuff and
+		.
 
 Questions 2020-01-06 10:18
 Zoya Ignatova - what does she know about norm?

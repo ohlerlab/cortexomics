@@ -1,4 +1,4 @@
-
+if(!exists('codonprofiles')) source('src/R/Load_data/codon_coverage.R')
 library(conflicted)
 library(rlang)
 conflict_prefer("last", "dplyr")
@@ -9,7 +9,7 @@ aatable <- read_tsv('ext_data/aa_properties.tsv')
 ################################################################################
 ########Plot occupancies at codon level
 ################################################################################
-
+# codonprofiles$signal <- codonprofiles$occupancy
 
 
 profvarpca <- codonprofiles%>%
@@ -145,21 +145,7 @@ codonoccs$time%>%unique%>%qs('S5')
 ########Now combine the tRNA and codon occupancy info
 ################################################################################ head(allcodsigmean_isomerge)
 
-#Now merge with the tRNA data
-tRNA_occ_df<-allcodsigmean_isomerge%>%
-	ungroup%>%
-	left_join(codonoccs)
 #
-tRNA_occ_df%<>%filter(is.finite(signal))
-##Get the amino acid for each one
-tRNA_occ_df%<>%mutate(AA = GENETIC_CODE[codon]%>%qs('S+'))
-aatrna_occ_df<-tRNA_occ_df%>%
-	group_by(time,AA)%>%
-	summarise(occupancy = mean(occupancy),signal_aa = log2(sum(2^(-signal),na.rm=T)))
-#
-tRNA_occ_df%<>%	left_join(usedcodonfreqs%>%colSums%>%enframe('codon','freq'))%>%
-	ungroup%>%
-	mutate(common = freq>median(freq))
 
 aaanova <- anova(
 	tRNA_occ_df%>%lm(data=.,occupancy ~ 0+ time + AA)
@@ -260,10 +246,6 @@ sigmodel_aacod_time$coef%>%.[names(.)%>%str_detect('codon')])
 #do those tRNAs with more average occ, tend to have more tRNAsignal
 tRNA_occ_df%>%group_by(fraction,time)%>%summarise(mean(signal))
 
-#
-tRNA_occ_df$codresid <- model_aa_time$residuals%>%
-	{r=rep(0,as.numeric(last(names(.))));r[as.numeric(names(.))]<-.;r}%>%
-	qs('R+')
 #
 tmeantRNA_occ_df <- tRNA_occ_df%>%
 	filter(fraction=='Total')%>%
@@ -382,58 +364,58 @@ tRNA_occ_df%>%filter(AA=='D')
 allcodsigmean%>%filter(AA=='D')
 codonoccs$time%>%table
 
-#plot with the AAs as colors
-pdf('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf',w=12,h=5)
-codonoccs%>%
-	mutate(AA = GENETIC_CODE[codon])%>%
-	# filter(fraction=='Total')%>%
-	mutate(codonname = paste0(AA,'-',codon))%>%
-	group_by(codonname)%>%mutate(codmean=mean(occupancy))%>%group_by(AA)%>%mutate(aamean=mean(occupancy))%>%
-	ungroup()%>%arrange(aamean,codmean)%>%
-	mutate(codonname=as_factor(codonname),AA=as_factor(AA),codonname=as_factor(codonname))%>%
-	{
-	ggplot(filter(.,(codon%>%table(.)[.]) > 1),aes(y=occupancy,x=codonname,color=time))+
-	geom_point(size=1)+
-	# geom_line(color=I('grey'))+
-	scale_color_manual(values=stagecols)+
-	facet_grid(.~AA,scale='free_x')+
-	# geom_rect(xmax='R-AGG',xmin='R-CGT',ymin=-Inf,ymax=Inf,alpha=0.2)+
-	theme_bw()+
-	theme(axis.text.x=element_text(angle=45,vjust=.5))+
-	scale_y_continuous(name='Normalized Occupancy Over Codon A site')
-}
-dev.off()
-normalizePath('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf')
+# #plot with the AAs as colors
+# pdf('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf',w=12,h=5)
+# codonoccs%>%
+# 	mutate(AA = GENETIC_CODE[codon])%>%
+# 	# filter(fraction=='Total')%>%
+# 	mutate(codonname = paste0(AA,'-',codon))%>%
+# 	group_by(codonname)%>%mutate(codmean=mean(occupancy))%>%group_by(AA)%>%mutate(aamean=mean(occupancy))%>%
+# 	ungroup()%>%arrange(aamean,codmean)%>%
+# 	mutate(codonname=as_factor(codonname),AA=as_factor(AA),codonname=as_factor(codonname))%>%
+# 	{
+# 	ggplot(filter(.,(codon%>%table(.)[.]) > 1),aes(y=occupancy,x=codonname,color=time))+
+# 	geom_point(size=1)+
+# 	# geom_line(color=I('grey'))+
+# 	scale_color_manual(values=stagecols)+
+# 	facet_grid(.~AA,scale='free_x')+
+# 	# geom_rect(xmax='R-AGG',xmin='R-CGT',ymin=-Inf,ymax=Inf,alpha=0.2)+
+# 	theme_bw()+
+# 	theme(axis.text.x=element_text(angle=45,vjust=.5))+
+# 	scale_y_continuous(name='Normalized Occupancy Over Codon A site')
+# }
+# dev.off()
+# normalizePath('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf')
 
 
 codonoccs$time%>%table
 
 
-##Plot of change over time
-pdf('plots/figures/figure2/trna_codons/percodon_AAreg_tRNAab_Riboocc.pdf',w=7,h=7)
-normtRNA_occ_df%>%
-	# safe_filter(sample%>%str_detect('Poly'))%>%
-	left_join(usedcodonfreqs%>%colSums%>%enframe('codon','freq'))%>%
-	ungroup%>%
-	mutate(common = ifelse(freq>median(freq),'common','rare'))%>%
-	{
-	#
-	labelpos = group_by(.,codon,fraction)%>%summarise(codresid=mean(codresid),signal=mean(signal))
-	#
-	# filter(codon%>%str_detect("ATG"))%>%
-	ggplot(.,aes(x=signal,y=codresid,size=freq,color=time,group=codon))+
-	geom_point(aes(size=freq))+
-	# geom_line(color=I('grey'))+
-	# facet_wrap(nrow=3,time ~ . )+
-	scale_color_manual(values=stagecols)+
-	facet_grid(common~fraction)+
-	# geom_text(show.legend=F,data=labelpos,aes(label=codon,color=NULL),size=9)+
-	scale_x_continuous(name='Temporal Change in Summed tRNA Expression')+
-	scale_y_continuous(name='Temporal change in occupancy - AA effect')+
-	theme_bw()
-}
-dev.off()
-normalizePath('plots/figures/figure2/trna_codons/percodon_AAreg_tRNAab_Riboocc.pdf')
+# ##Plot of change over time
+# pdf('plots/figures/figure2/trna_codons/percodon_AAreg_tRNAab_Riboocc.pdf',w=7,h=7)
+# normtRNA_occ_df%>%
+# 	# safe_filter(sample%>%str_detect('Poly'))%>%
+# 	left_join(usedcodonfreqs%>%colSums%>%enframe('codon','freq'))%>%
+# 	ungroup%>%
+# 	mutate(common = ifelse(freq>median(freq),'common','rare'))%>%
+# 	{
+# 	#
+# 	labelpos = group_by(.,codon,fraction)%>%summarise(codresid=mean(codresid),signal=mean(signal))
+# 	#
+# 	# filter(codon%>%str_detect("ATG"))%>%
+# 	ggplot(.,aes(x=signal,y=codresid,size=freq,color=time,group=codon))+
+# 	geom_point(aes(size=freq))+
+# 	# geom_line(color=I('grey'))+
+# 	# facet_wrap(nrow=3,time ~ . )+
+# 	scale_color_manual(values=stagecols)+
+# 	facet_grid(common~fraction)+
+# 	# geom_text(show.legend=F,data=labelpos,aes(label=codon,color=NULL),size=9)+
+# 	scale_x_continuous(name='Temporal Change in Summed tRNA Expression')+
+# 	scale_y_continuous(name='Temporal change in occupancy - AA effect')+
+# 	theme_bw()
+# }
+# dev.off()
+# normalizePath('plots/figures/figure2/trna_codons/percodon_AAreg_tRNAab_Riboocc.pdf')
 
 
 (lm(data=tRNA_occ_df%>%safe_filter(fraction=='Total')%>%group_by(codon)%>%mutate(msig=mean(signal)), occupancy ~ 1 + time + AA + signal + codon ))%T>%{anova(.)%>%print}
@@ -479,6 +461,8 @@ aov(data=tRNA_occ_df%>%safe_filter(fraction=='Total')%>%group_by(codon)%>%mutate
 
 aov(data=tRNA_occ_df%>%safe_filter(fraction=='Total')%>%group_by(codon)%>%mutate(msig=mean(signal)), occupancy ~ 1 + AA  + time + availablity  )%>%summary
 
+aov(data=tRNA_occ_df%>%safe_filter(fraction=='Poly')%>%group_by(codon)%>%mutate(msig=mean(signal)), occupancy ~ 1 + AA  + time + availablity  )%>%summary
+
 library(lme4)
 
 
@@ -500,13 +484,6 @@ tot_tRNA_occ_df%>%group_by(codon)%>%summarise(mr = mean(prctlresids),signal=mean
 tot_tRNA_occ_df%>%group_by(AA)%>%filter(n_distinct(codon)>1)%>%group_by(codon)%>%summarise(mr = mean(prctlresids),signal=mean(signal))%>%{txtplot(.$mr,.$signal)}
 
 #What if we look only at AAs with multiple codons?
-
-tot_tRNA_occ_df%>%
-	group_by(AA)%>%filter(n_distinct(codon)>1)%>%
-	group_by(AA,codon)%>%summarise(mr = mean(occupancy),availablity=mean(availablity))%>%
-	group_by(AA)%>%mutate(availablity = availablity - mean(availablity))%>%
-	group_by(AA)%>%mutate(mr = mr - mean(mr))%>%
-	{cor.test(use='complete',.$mr,.$availablity)}
 
 tot_tRNA_occ_df%>%
 	group_by(AA)%>%filter(n_distinct(codon)>1)%>%
@@ -906,5 +883,59 @@ normalizePath('plots/figures/figure2/trna_codons/protein_ddev_scatter_TEclassees
 
 protein_dev_classes%>%{split(.$MS_timevar%>%log,.$set)}%>%{wilcox.test(.[["TE Up, Elongation Score Change < 0.05 "]],.[['TE Up, Elongation Score Change > 0.2\n(Getting Slower)']])}
 
-MStimechange
+allcodsigmean_isomerge %<>% mutate(availablity_noshare = signal / weightedusage)
+
+#Now merge with the tRNA data
+tRNA_occ_df<-allcodsigmean_isomerge%>%
+	ungroup%>%
+	left_join(codonoccs)
+#
+tRNA_occ_df%<>%filter(is.finite(abundance))
+##Get the amino acid for each one
+tRNA_occ_df%<>%mutate(AA = GENETIC_CODE[codon]%>%qs('S+'))
+aatrna_occ_df<-tRNA_occ_df%>%
+	group_by(time,AA)%>%
+	summarise(occupancy = mean(occupancy),abundance_aa = log2(sum(2^(-abundance),na.rm=T)))
+#
+tRNA_occ_df%<>%	left_join(usedcodonfreqs%>%colSums%>%enframe('codon','freq'))%>%
+	ungroup%>%
+	mutate(common = freq>median(freq))
+tRNA_occ_df$codresid <- model_aa_time$residuals%>%
+	{r=rep(0,as.numeric(last(names(.))));r[as.numeric(names(.))]<-.;r}%>%
+	qs('R+')
+
+tRNA_occ_df%>%
+	safe_filter(fraction=='Poly')%>%
+	filter(time=='E13')%>%
+	# group_by(AA)%>%filter(n_distinct(codon)>1)%>%
+	group_by(AA,codon)%>%summarise(mr = mean(occupancy),availablity=mean(availablity))%>%
+	# group_by(AA)%>%mutate(availablity = availablity - mean(availablity))%>%
+	# group_by(AA)%>%mutate(availablity = availablity - mean(availablity))%>%
+	group_by(AA)%>%mutate(mr = mr - mean(mr))%>%
+	{txtplot(.$mr,.$availablity);.}%>%
+	{cor.test(use='complete',.$mr,.$availablity)}
+
+
+
+
+
+tRNA_occ_df%>%
+	safe_filter(fraction=='Poly')%>%
+	# group_by(AA)%>%filter(n_distinct(codon)>1)%>%
+	group_by(AA,codon)%>%summarise(mr = mean(occupancy),abundance=mean(weightedusage))%>%
+	group_by(AA)%>%mutate(abundance = abundance - mean(abundance))%>%
+	group_by(AA)%>%mutate(mr = mr - mean(mr))%>%
+	{cor.test(use='complete',.$mr,.$abundance)}
+
+
+tRNA_occ_df%>%filter(fraction=='Poly')%>%
+	group_by(AA,codon)%>%summarise(occupancy=mean(occupancy),availablity=mean(availablity))%>%
+	lm(data=.,log(occupancy) ~ AA + availablity)%>%summary
+
+
+
+allcodsigmean_isomerge%>%filter(is.finite(availablity),is.finite(availablity_noshare))%>%{txtplot(.$availablity ,.$availablity_noshare)}
+
+
+allcodsigmean_isomerge%>%filter(is.finite(availablity),is.finite(abundance))%>%{txtplot(.$availablity ,.$abundance)}
 

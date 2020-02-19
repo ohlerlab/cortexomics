@@ -14,7 +14,7 @@ multi_spread <- function(df, key, value) {
         spread(temp, value)
 }
 
-bestmscountebayes
+
 
 techangetbl  <- lapply(tps[-1],function(testtp){
 	eBayes(contrasts.fit(lmFit(mscountvoom[best_uprotein_ids,]),contrasts = timeTEeffect[,2:5]))%>%topTable(coef=which(tps==testtp)-1,number=1e9,confint=0.95)%>%rownames_to_column('uprotein_id')%>%
@@ -129,6 +129,9 @@ foldchangecatdf%>%
 	guides(fill = guide_legend(override.aes = list(size=10)))
 dev.off()
 plotfile%>%normalizePath%>%message
+
+foldchangecatdf%>%saveRDS(here('data/foldchangecatdf.rds'))
+
 
 
 

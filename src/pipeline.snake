@@ -14,7 +14,7 @@ def is_over_size(file,n):
   assert os.stat(file).st_size > n
 
 # #reference genome
-REF_orig = '/fast/projects/cubit/0.12.0/static_data/annotation/GENCODE/M12/GRCm38/GRCm38.p5.genome.chr_scaff.fa'
+REF_orig = 'pipeline/GRCm38.p5.genome.chr_scaff.fa'
 # 'wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M12/ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M12/gencode.vM12.annotation.gtf.gz -O ../annotation/gencode.vM12.annotation.gtf.gz; gunzip ../annotation/gencode.vM12.annotation.gtf.gz'
 # 'wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M12/gencode.vM12.chr_patch_hapl_scaff.annotation.gff3.gz -O ../annotation/gencode.vM12.chr_patch_hapl_scaff.annotation.gff3.gz; gunzip ../annotation/gencode.vM12.chr_patch_hapl_scaff.annotation.gff3.gz'
 GTF_orig = '../annotation/gencode.vM12.annotation.gtf'
@@ -43,7 +43,7 @@ KMERSIZE  = 21
 kallistobin = "~/work/bin/kallisto"
 
 #
-filter_index = '../contaminants/contaminants.done'
+filter_index = '../ext_data/contaminants.done'
 
 sample_param = csv.DictReader(open(SAMPLE_FILE))
 
@@ -199,8 +199,7 @@ rule all:
     expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('riboWaltz/{sample}/.done',sample=ribosamples),
-    expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
-    expand('riboWaltz/data/{sample}/offsets.tsv', sample=filter(lambda x: not 'test' in x,ribosamples))
+    # expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -251,6 +250,8 @@ rule link_in_files:
       ln -sf $(readlink -f input/{sample}/{fastq}) {output}
     """)
     is_over_size(output[0],100)
+
+
 rule cutadapt_reads:
   input: 'preprocessed_reads/{sample}/{fastq}'
   output: 'cutadapt_reads/{sample}/{fastq}'
@@ -354,7 +355,7 @@ rule make_trna_rrna_indices:
       #get rRNAs and tRNAs, rename the tRNAs to exons for GenePRed,
       #get the gene type out and stick it front of the transcript id
       #for better names in the fasta
-      cp ../contaminants/contaminants.fa {fafile}
+      cp ../ext_data/contaminants.fa {fafile}
 
        cat  ../ext_data/rRNAseqs/*.fasta >> {fafile} 
        bowtie2-build {fafile} {outprefix} -p {threads}
@@ -390,26 +391,25 @@ collate_idxscript = "../exploration/collate_idx.R"
 
 rule filter_tRNA_rRNA:
     input: 
-      'cutadapt_reads/{sample}/{fastq}',
+      'trim_reads/{sample}/{fastq}',
       'filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done'  
-      # filter_index    
-    output: 'filter_reads/{sample}/{fastq}',
-    wildcard_constraints: sample=ribowc
 
+      # filter_index    
+    output: 'filter_reads/{sample}/{fastq,.*fastq.gz}',
     threads: 8
-    run:
-      sample = wildcards['sample']
-      indexname = input[1].replace('.done','')
-      outdir = os.path.dirname(output[0])
-      shell(r"""
+    conda: '../envs/tophat'
+    params:
+      indexname = lambda wc,input: input[1].replace('.done',''),
+      outdir = lambda wc,output: os.path.dirname(output[0])
+    shell: r"""
        set -evx
 
-       [ -f {outdir} ] && rm -rf {outdir}
+       [ -f {params.outdir} ] && rm -rf {params.outdir}
      
-       mkdir -p  {outdir}
+       mkdir -p  {params.outdir}
 
       bowtie2 \
-        -x {indexname} \
+        -x {params.indexname} \
         -L 20  \
         -p {threads}  \
         -N 0 \
@@ -425,21 +425,20 @@ rule filter_tRNA_rRNA:
       samtools index {output[0]}.filtered_reads.bam
       
       #those which mismatch twice should not be included
-      samtools view -hb {outdir}/filtered_reads.bam \
+      samtools view -hb {params.outdir}/filtered_reads.bam \
       | bamtools filter -tag XM:2-10 -in - -out /dev/stdout \
       | samtools view -H > {output[0]}.mm.sam
-      #>> {outdir}/unmapped.sam
+      #>> {params.outdir}/unmapped.sam
      
       #group the idx columns stuff is from 
       samtools idxstats {output[0]}.filtered_reads.bam \
       | perl -lanpe 's/^(\S+)_[^_\s]+\t/$1\t/' > {output[0]}.idxtmp
 
-      #Rscript --vanilla {collate_idxscript} {output[0]}.idxtmp {indexname}.fa
+      #Rscript --vanilla {collate_idxscript} {output[0]}.idxtmp {params.indexname}.fa
 
       samtools stats {output[0]}.filtered_reads.bam > samtools stats {output[0]}.filtered_reads.bam.stats
 
-    """)
-
+    """
         # (?# --al-gz $OUTDIR/rRNA_reads  \)
         # --un-gz $OUTDIR/tmp \
  
@@ -506,9 +505,9 @@ trsizes = GTF.replace('.gtf','.trsizes')
 
 rule gffread:
   input: REF,GTF_orig
+  conda: '../envs/gffread'
   output: GTF,CDSGTF,RNAFASTA,CDSFASTA,BED,chromsizes,trsizes
-  run:
-    shell(r""" 
+  shell:r""" 
       # set -x
       #with filtering output all sequences
       cat {GTF_orig} \
@@ -547,7 +546,7 @@ rule gffread:
 
       samtools faidx {RNAFASTA}
       cut -f1,2 {RNAFASTA}.fai  > {trsizes}    
-      """)
+      """
 
 
 
@@ -1477,46 +1476,45 @@ rule aggregate_feature_counts:
 
 
 
-rule riboWaltz:
-  input: 
-    stardone='star/data/{sample}/.done',
-    gtf=GTF_orig
-  output:'riboWaltz/data/{sample}/offsets.tsv'
- # conda: '~/miniconda3/newr'
-  run:
-    transcriptbam = glob.glob(os.path.dirname(input['stardone'])+'/*star_transcript.bam')
-    assert len(transcriptbam) > 0
-    outfolder = os.path.dirname(output[0])
-    shell(r"""
-
-        Rscript ../src/R/Psite_offsets/riboWaltz.R \
-          {transcriptbam} \
-          {input.gtf} \
-          {output}
-
-      """)
-
 riboqcanno='riboqc/'+Path(GTF).name.replace('.gtf','.matchchrs.gtf')+'_Rannot'
 
-rule make_riboqc_anno:
-   input : GTF,REF,REF+'.fai'
-   output: touch('riboqc/annot.done'),riboqcanno
-   params:
-    speciesname = lambda wc,input: Path(input[1]).name.replace('.fa','') + '.foo',
-    annobase = lambda wc,input: input[0].replace('.gtf',''),
-    outdir = lambda wc,output: output[0].replace('annot.done',''),
-    twobitfile = lambda wc,input: input[1].replace('.fa','.twobit'),
+# rule make_riboqc_anno:
+#    input : GTF,REF,REF+'.fai'
+#    output: touch('riboqc/annot.done'),riboqcanno
+#    params:
+#     speciesname = lambda wc,input: Path(input[1]).name.replace('.fa','') + '.foo',
+#     annobase = lambda wc,input: input[0].replace('.gtf',''),
+#     outdir = lambda wc,output: output[0].replace('annot.done',''),
+#     twobitfile = lambda wc,input: input[1].replace('.fa','.twobit'),
+#     gtfmatchchrs = lambda wc,input: input[0].replace('.gtf','.matchchrs.gtf')
+#    shell:r"""
+#          set -x`
+#      #faToTwoBit {REF} {params.twobitfile}
+
+#      samtools faidx {REF}
+
+#     awk -vOFS="\t" '{{print $1,0,$2}}'  {REF}.fai | bedtools intersect -b -  -a {GTF} > {params.gtfmatchchrs}
+
+#      mkdir -p riboqc
+#      R -e ' library(RiboseQC); prepare_annotation_files("{params.outdir}","{params.twobitfile}","{params.gtfmatchchrs}","{params.speciesname}","{params.annobase}",forge_BS=FALSE,genome_seq=FaFile("{REF}")) '
+
+#  """
+RIBOSEQCPACKAGE = '~/work/Applications/RiboseQC'
+# RIBOSEQCPACKAGE = config['RIBOSEQCPACKAGE']
+
+rule make_riboseqc_anno:
+  input : 
+    GTF,
+    REF,str(REF)+'.fai'
+  output: Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
+  params:
+    annobase = Path(GTF).name.replace('.gtf','').replace('.gz',''),
     gtfmatchchrs = lambda wc,input: input[0].replace('.gtf','.matchchrs.gtf')
-   shell:r"""
-         set -x`
-     #faToTwoBit {REF} {params.twobitfile}
-
-     samtools faidx {REF}
-
-    awk -vOFS="\t" '{{print $1,0,$2}}'  {REF}.fai | bedtools intersect -b -  -a {GTF} > {params.gtfmatchchrs}
-
-     mkdir -p riboqc
-     R -e ' library(RiboseQC); prepare_annotation_files("{params.outdir}","{params.twobitfile}","{params.gtfmatchchrs}","{params.speciesname}","{params.annobase}",forge_BS=FALSE,genome_seq=FaFile("{REF}")) '
+  shell:r"""
+    set -x
+    awk -vOFS="\t" '{{print $1,0,$2}}' {REF}.fai | bedtools intersect -b - -a {GTF} > {params.gtfmatchchrs}
+    mkdir -p $(dirname {output[0]})
+    R -e 'devtools::load_all("{RIBOSEQCPACKAGE}");args(prepare_annotation_files) ;prepare_annotation_files(annotation_directory=".",gtf_file="{params.gtfmatchchrs}",annotation_name="{params.annobase}",forge_BS=FALSE, genome_seq=FaFile("{REF}"))'
  """
 
 
@@ -1527,24 +1525,39 @@ rule make_chrnamefile:
  shell:r""" cut -d$'\t' -f1 {input} | uniq | sort | uniq | grep -v '#' > {input}"""
 
 
-rule run_riboqc:
-   input: 'riboqc/annot.done','star/data/{sample}/.done',REF,GTF,riboqcanno,'riboWaltz/data/{sample}/offsets.tsv'
-   output: touch('riboqc/data/{sample}/.done'),'riboqc/data/{sample}/_for_SaTAnn','riboqc/reports/{sample}/riboqcreport.html'
-   # conda: '../envs/riboseqc'
-   params:    
-     annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot')),
-     bamfile = lambda wc: 'star/data/'+wc['sample']+'/'+wc['sample']+'.bam',
+# rule run_riboqc:
+#    input: 'riboqc/annot.done','star/data/{sample}/.done',REF,GTF,riboqcanno,'riboWaltz/data/{sample}/offsets.tsv'
+#    output: touch('riboqc/data/{sample}/.done'),'riboqc/data/{sample}/_for_SaTAnn','riboqc/reports/{sample}/riboqcreport.html'
+#    # conda: '../envs/riboseqc'
+#    params:    
+#      annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot')),
+#      bamfile = lambda wc: 'star/data/'+wc['sample']+'/'+wc['sample']+'.bam',
+#      outname = lambda wc,output: output[0].replace('.done',''),
+#      report_file = lambda wc: 'riboqc/reports/'+wc['sample']+'/'+'riboqcreport.html',
+
+#    shell:r"""
+#          set -x
+#          mkdir -p {params.outname}
+#          mkdir -p riboqc/reports/{wildcards.sample}
+#          R -e 'library(RiboseQC);RiboseQC::RiboseQC_analysis("{params.annofile}", bam="{params.bamfile}",offsets_df=readr::read_tsv("{params.ribowaltztsv}"),dest_names="{params.outname}", genome_seq = "{REF}", report_file="{params.report_file}")'
+     
+#      """
+
+
+rule run_riboseqc:
+   input: Path(GTF).with_suffix('.matchchrs.gtf_Rannot'),bam=ALIGNER_TO_USE+'/data/{sample}/{sample}.bam'
+   output: touch('riboseqc/data/{sample}/.done'),'riboseqc/data/{sample}/_for_SaTAnn','riboseqc/reports/{sample}/riboseqcreport.html'
+   threads: 4
+   params:
+     annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF_orig).name.replace('.gtf','.matchchrs.gtf_Rannot')),
      outname = lambda wc,output: output[0].replace('.done',''),
-     report_file = lambda wc: 'riboqc/reports/'+wc['sample']+'/'+'riboqcreport.html',
-     ribowaltztsv = lambda wc: 'riboWaltz/data/'+wc['sample']+'/offsets.tsv'
+     report_file = lambda wc: 'riboseqc/reports/'+wc['sample']+'/'+'riboseqcreport.html',
    shell:r"""
          set -x
          mkdir -p {params.outname}
-         mkdir -p riboqc/reports/{wildcards.sample}
-         R -e 'library(RiboseQC);RiboseQC::RiboseQC_analysis("{params.annofile}", bam="{params.bamfile}",offsets_df=readr::read_tsv("{params.ribowaltztsv}"),dest_names="{params.outname}", genome_seq = "{REF}", report_file="{params.report_file}")'
-     
+         mkdir -p riboseqc/reports/{wildcards.sample}
+         R -e 'devtools::load_all("{RIBOSEQCPACKAGE}");RiboseQC::RiboseQC_analysis("{params.annofile}", bam="{input.bam}",rescue_all_rls=TRUE,dest_names="{params.outname}", genome_seq = "{REF}", report_file="{params.report_file}")'
      """
-
 
 rule get_offset_model:
   input:
@@ -1564,23 +1577,20 @@ rule quant_riboseq:
   output: 'riboseq_quant/data/{sample}/segment_counts_df.tsv'
   shell:r"""Rscript ../src/R/Psite_offsets/segment_counts.R {input} $(dirname {output})"""
 
+
 rule run_satann:
-  input : 'riboqc/data/{sample}/.done','riboqc/annot.done',REF
+  input : 'riboseqc/data/{sample}/.done',Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
   output: touch('SaTAnn/{sample}/.done')
-  # input: lambda wc: 
-      # ['riboqc/data/'+s+'/.done' for s in samplegroups[wc['groupname']] ]
-  output: touch('SaTAnn/{groupname}/.done')
   params: 
-    for_satannfile = lambda wc, input: input[0].replace('.done','_for_SaTAnn'),
-     annofile = lambda wc,input: input[1].replace('annot.done',Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot')),
-     outputdir = lambda wc,output: output[0].replace('.done','')
+    for_satannfile = lambda wc,input: 'c("'+('","'.join(['riboseqc/data/'+s+'/''_for_SaTAnn' for s in [wc['sample']] ]))+'")',
+    annofile = lambda wc,input: 'riboseqc/'+Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot'),
+    outputdir = lambda wc,output: output[0].replace('.done','')
   threads: 10
   shell:r"""
     set -ex
       mkdir -p {params.outputdir}
 
-      R -e 'devtools::load_all("~/work/Applications/SaTann");run_SaTAnn(for_SaTAnn_file = "{params.for_satannfile}",annotation_file = "{params.annofile}",genome_seq = "{REF}", n_cores = {threads} ,  prefix = "{params.outputdir}") '
-      #R -e 'try({{library(SaTAnn);if(file.exists(paste0("{params.for_satannfile}","_final_SaTAnn_results"))){{plot_SaTAnn_results(for_SaTAnn_file = {params.for_satannfile},SaTAnn_output_file = paste0("{params.for_satannfile}","_final_SaTAnn_results"),annotation_file = "{params.annofile}") }}}})'
+      R -e 'devtools::load_all("/fast/AG_Ohler/Eelco/RP/Senescence_ribo/applications/SaTAnn");run_SaTAnn(for_SaTAnn_file = {params.for_satannfile},annotation_file = "{params.annofile}",genome_seq = "{REF}", n_cores = {threads},prefix="{params.outputdir}") '
         
       """
 

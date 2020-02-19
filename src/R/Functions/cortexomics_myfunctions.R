@@ -75,8 +75,6 @@ parse_stan_pars<-function(stanpars,indnames=c('time','gene')){
 
 }
 
-
-
 vparse_stan_pars<-function(stanpars,indnames=c()){
 
   if(any(str_detect(stanpars,'\\['))){

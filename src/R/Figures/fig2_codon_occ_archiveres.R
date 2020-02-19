@@ -1,4 +1,4 @@
-
+if(!exists('codonprofiles')) source('src/R/Load_data/codon_coverage.R')
 library(conflicted)
 library(rlang)
 conflict_prefer("last", "dplyr")

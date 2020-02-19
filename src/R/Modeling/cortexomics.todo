@@ -16,28 +16,40 @@ All Tasks:
        Fix scales on map plots
 
     Fig2:
+      tRNA levels
+        ☐ lm and
+       browser()
+        ☐ correlation scatter.
+
       DEXseq for translation
       
-      ☐ Mordret et al 2019 errors and translation
-          ☐ Check if the Occupancy/A site stuff has any correspondance to their data.
-             ☐ Mean occupancy for each one vs their error rates
-             ☐ Mean tRNA for each one vs their error rates
-             Do the above for both the yeast and the bacterial
-
        Check if codon optimality is 
 
+       What about the Poly/Mono specific Ribo-seq
 
-      ☐ Graph poly vs Total
-        Figure out if I can select the best tRNA using this data
+   ☐ Figure out if I can see poly tRNAs being more reflective of optimization
+
+   ☐ Remember transcriptional as well as translational.
+
+   ☐ redo the amino acid figures, make sure ranking is good, compare it to the ones in Riba et al.
+
+      ☐ Mordret et al 2019 errors and translation
+          ✔ Check if the Occupancy/A site stuff has any correspondance to their data. @done (20-01-10 11:26)
+             ✔ Mean occupancy for each one vs their error rates @done (20-01-10 11:26)
+             ✔ Mean tRNA for each one vs their error rates @done (20-01-10 11:26)
+             Do the above for both the yeast and the bacterial
 
 
-
-      Figure out if I can see poly tRNAs being more reflective of optimization
-
-      Try the Poly tRNA measurements 
-      ☐ Finalize Figure design.
-      ☐ Remember transcriptional as well as translational.
 Fig3:
+    ☐ Compare half life distribution in McShane and Schwannhausser.
+
+    ☐ Run the model for individual genes
+
+    ☐ Win condition for the modeling?
+      ☐ Get sampling to work on our gene indep model
+      ☐ See if hierarch dist for all genes is comparable to schwannhauser or McShane
+      
+
     The various effects are stored in kind of irreglar objects, could be neater
     but need to mix the data CIs and the effect preds fro trajectory plots
     split integrate script into pre-post xtail I think
@@ -88,6 +100,9 @@ App:
 Quant:
   ☐ Mappability effect?
   ☐ New psite offsets?
+  Coefficient of determination
+
+  ratio of 
 
 Maintainance:
     ☐ Order the scripts, so dependencies are clear, in the projectnotes file.

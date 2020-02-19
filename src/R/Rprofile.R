@@ -1,4 +1,6 @@
-library(GenomicRanges)
+#options(repos = BiocManager::repositories());packrat::init(options = list(ignored.packages = c('sleuth','xtail','SaTAnn','RiboseQC','ORFquant','rseq','rseqdata','proDD','riboWaltz','colorout')))
+
+library(colorout)
 library(Biostrings)
 library(checkmate)
 library(memoise)
@@ -7,13 +9,64 @@ library(stringr)
 library(tidyverse)
 library(magrittr)
 library(checkmate)
-library(conflicted)
+# library(conflicted)
+message('loading libraries')
+suppressMessages(library(magrittr))
+suppressMessages(library(stringr))
+suppressMessages(library(ggpubr))
+suppressMessages(library(data.table))
+suppressMessages(library(DESeq2))
+suppressMessages(library(assertthat))
+suppressMessages(library(tidyverse))
+suppressMessages(library(dplyr))
+suppressMessages(library(DESeq2))
+suppressMessages(library(here))
+suppressMessages(library(biomaRt))
+suppressMessages(library(testthat))
+library(zeallot)
+library(splines)
+library(GenomicRanges)
+library(limma)
+library(broom)
+library(hashmap)
 
+safe_hashmap<-setRefClass("Safe_Rcpp_Hashmap",
+      contains="Rcpp_Hashmap",
+      inheritPackage=TRUE
+)
+setMethod('[[','Safe_Rcpp_Hashmap',function (x, i, j, default,...){
+  hashmapname = ''
+    .local <- function (x, i, j, ..., exact = TRUE)
+    {
+        x$`[[`(i)
+    }
+    out <- .local(x, i, j, ...)
+    if(missing(default)){
+      if(any(is.na(out))){
+        keymissingtxt = as.character(i[is.na(out)])%>%head%>%{ifelse(nchar(.)>15,paste0(substr(.,0,13),'...'),.)}%>%paste0(collapse='...')
+        stop(paste0('Keys missing from safe hashmap: ',hashmapname,':',keymissingtxt))        
+      }
+    } else if(length(default)==1){
+      out[is.na(out)] <- default
+    }else{
+      out[is.na(out)] <- default[is.na(out)]
+    }
+    return(out)
+})
 
+# #
+# conflict_prefer('setdiff','BiocGenerics')
+# conflict_prefer('rowMedians','Biobase')
+# conflict_prefer('setequal','S4Vectors')
+# conflict_prefer("between", "dplyr")
+# conflict_prefer("intersect", "BiocGenerics")
+# conflict_prefer("lag", "dplyr")
+matches <- dplyr::matches
 filter<-dplyr::filter
 select<-dplyr::select
 slice<-dplyr::slice
 qs<-checkmate::qassert
+
 
 # ###memoise
 project_cache=here::here('R_cache')
@@ -31,6 +84,7 @@ mymemoise <- function(f){
       f
   }
 }
+projmemoise<-mymemoise
 addfileinf <- function(file){
   attr(file,'fileinfo')<-file.info(file)
   file
@@ -522,6 +576,8 @@ clip_end <- function(x,n) resize(x,width(x)-n,fix='start')
 setstrand<-function(x) {strand(x)<-Rle('+') 
   x}
 
+
+# BiocManager::install('GenomicRanges')
 testthat::expect_equal(downstream_dist_till(GRanges(c('chr1:10:-')),GRanges(c('chr1:5:-','chr1:40-51:+'))),5)
 testthat::expect_equal(downstream_dist_till(GRanges(c('chr1:10:+')),GRanges(c('chr1:14:+','chr1:40-51:+'))),4)
 
@@ -784,7 +840,6 @@ get_cds_offsets = function(reads_tr,offsets,compartments){
 
 setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
 setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
-  browser()
   if(is.character(offset)){
     offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
   } 
@@ -928,21 +983,24 @@ inclusiontable<-function(a,b){
 
 
 
-conflict_prefer('has_name','assertthat')
+# conflict_prefer('has_name','assertthat')
 
-get_genomic_psites <- function(bam,windows,mapqthresh=200) {
+get_genomic_psites <- function(bam,windows,mapqthresh=200,psite_model) {
   require(GenomicAlignments)
   riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
   reads <- readGAlignments(bam,param=riboparam)
+
   mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
 
   reads <- reads%>%subset(width %in% psite_model$offsets$length)
+  
   mcols(reads)$length <- width(reads)
   reads%<>%subset(!is.na(cdsshift))
   psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
   mcols(psites)$length <- mcols(reads)$length   
   psites
 }
+
 
 
 
@@ -955,12 +1013,10 @@ ext_grl<-function(grl,nbp,fixend='end'){
   if(fixend=='start'){
     strandtorev <- '-' 
     endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
-
   }else if (fixend=='end'){
     #and if the end then we want the start
     strandtorev <- '+'
     endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
-
   }else{stop('fixend needs to be start or end')}
   cuminds <- cumsum(elementNROWS(grl))
 
@@ -974,3 +1030,24 @@ ext_grl<-function(grl,nbp,fixend='end'){
   stopifnot(is(grl,'GRangesList'))
   grl
 }
+
+stanpars_to_list <- function(stanparvect){
+  #get the dimensions of each of the parameters
+  iparnames <- stanparvect%>%names
+  parnames <- iparnames%>%str_remove('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')
+  parinds <- iparnames%>%str_extract('(\\[|\\.)[0-9\\,]+(\\]|\\.)$')%>%str_extract_all(regex('\\d+'))%>%map(as.numeric)
+  parinds <- parinds%>%split(parnames)%>%map(.%>%simplify2array%>%t)
+  stanlist <- parinds%>%map(.%>%apply(2,max)%>%replace_na(1)%>%array(NA,dim=.))
+  #
+  for(parname in unique(parnames)){
+    stanlist[[parname]][parinds[[parname]]] <- stanparvect[parnames==parname]
+  }
+  stanlist
+}
+
+vals <- function(x){
+  x[is.finite(x)]
+
+}
+
+GRanges(1:2,1:2)%>%split(1:2)

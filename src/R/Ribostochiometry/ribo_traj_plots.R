@@ -60,9 +60,8 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
   
 }
 
-
 #load fractionated ms data
-ms_tall <- map(c('./pipeline/ms_tables/ms_LFQ_total_ms_tall.tsv',
+ms_tall <- map(c('./pipeline/ms_tables/ms_LFQ_cyto_ms_tall.tsv',
                  './pipeline/ms_tables/ms_LFQ_poly_ms_tall.tsv',
                  './pipeline/ms_tables/ms_LFQ_80S_ms_tall.tsv'),
                fread)
@@ -76,7 +75,7 @@ stopifnot(ms_tall$fraction%>%unique%>%length == 3)
 #do MEDIAN NORMALIZATION on our signal
 ms_tall%<>%group_by(time,fraction,replicate)%>%mutate(nnsig =signal,signal = signal / median(signal,na.rm=T))
 
-ms_tall
+
 
 #define our catagories
 message('looking up protein ID annotations')
@@ -117,6 +116,8 @@ selms_tall <- ms_tall %>% inner_join(filter(pids,pcat!='other'))
 selms_tall$fraction%>%unique
 
 
+selms_tall%>%filter(Protein_IDs=='Ebp1')
+
 selms_tall_summ <- selms_tall %>% 
   # mutate(signal=log10(signal))%>%
   group_by(pcat,Protein_IDs,time,fraction)%>%
@@ -141,18 +142,22 @@ selms_tall_summ_nomed <- selms_tall %>%
     signal=median(nnsig,na.rm=T)
   )
 
-
+#
 pcats <- c('Ebp1','Rpl','Rps','translation-associated')
 plotcats <- c('Ebp1','Rpl median','Rps median','Translation-associated median')
 plotcols <- c('#EA1D3D','#11A7E0','#FADE4E','#010702')
-
+#
 selms_tall_summ$pcat <- list(selms_tall_summ$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
-selms_tall_summ$fraction%<>%recode(poly='Poly',total='Total')
+selms_tall_summ$fraction%<>%recode(poly='Poly',total='Total',cyto="Cyto")
 selms_tall_summ$time %<>% str_replace('p','.')
-
+#
 selms_tall_summ_nomed$pcat <- list(selms_tall_summ_nomed$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
-selms_tall_summ_nomed$fraction%<>%recode(poly='Poly',total='Total')
+selms_tall_summ_nomed$fraction%<>%recode(poly='Poly',total='Total',cyto="Cyto")
 selms_tall_summ_nomed$time %<>% str_replace('p','.')
+
+selms_tall_summ_nomed%>%filter(fraction=='80S',time=='E13')%>%select(pcat,signal)%>%mutate(ssignal=log2(signal))
+selms_tall_summ%>%filter(fraction=='80S',time=='E13')%>%select(pcat,signal)%>%mutate(ssignal=log2(signal))
+
 
 
 ##Also need RNA expression levels  for this plot
@@ -262,32 +267,33 @@ tpchangesig<-function(tbl){
   out
 }
 #
+data=selms_tall_summ
 make_traplot <- function(data,sigtests){
     data%<>%ungroup%>%mutate(time=str_replace(time,'\\.|p',''))%>%group_by(time)
     unique(data$pcat) %in% unique(sigtests$pcat)
     unique(data$time) %in% unique(sigtests$time)
     unique(data$fraction) %in% unique(sigtests$fraction)
-    
-    # browser()
-
     # commoncols<-intersect(colnames(data),colnames(sigtests))
     # for(commoncol in commoncols) 
     # unique(data$pcat)
     # unique(sigtests$pcat)
-
     data%>%
+    # data$fraction %in% sigtests$fraction
+    # data%>%filter(fraction=='Cyto')
     # anti_join(sigtests)%>%
     # {.$id<-seq_len(nrow(.));.}%>%semi_join(sigtests)%>%group_by(id)
-    semi_join(sigtests)%>%
-    safe_left_join(sigtests)%>%
+    # semi_join(sigtests)%>%
+    # safe_left_join(sigtests)%>%
+    mutate(issig=TRUE)%>%
+    # filter(fraction=='80S')%>%
     ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,ymax=upper,ymin=lower,color=pcat))+
     geom_line()+
     geom_linerange()+
     geom_point(aes(shape=issig),size=4)+
-    scale_x_continuous(name='',labels = c('',unique(selms_tall_summ$time)),limits=c(0,5))+
+    scale_x_continuous(name='',labels = c('',unique(data$time)),limits=c(0,5))+
     facet_grid(cols = vars(fraction))+
     scale_color_manual(name='',values = setNames(plotcols,plotcats))+
-    # scale_y_continuous(name=signame)+
+    scale_y_continuous(name=signame)+
     scale_y_log10(name=signame,limits=c(0.2,1e3))+
     scale_fill_manual(name='Sig Diff from E13',values=setNames(c('grey','grey','black'),c(NA_character_,'FALSE','TRUE')))+
     theme_minimal()+
@@ -296,37 +302,54 @@ make_traplot <- function(data,sigtests){
 #
 #
 #
-
 # sig_df<-selms_tall
 # pcati<-'Ebp1'
 # fractioni='total'
 # tpind=3
+sig_df=selms_tall
+pcati='Rpl'
+tpind=5
+fractioni='80S'
 get_anova_sig_frac_pcat_tp<-function(sig_df){
   out <- map_df(.id='fraction',unique(sig_df$fraction)%>%setNames(.,.),function(fractioni){
     map_df(.id='pcat',unique(sig_df$pcat)%>%setNames(.,.),function(pcati){
-      map_df(.id='time',(2:5)%>%setNames(unique(sig_df$time)[2:5]),function(tpind){
+      map_df(.id='time',(1:5)%>%setNames(unique(sig_df$time)[1:5]),function(tpind){
+        if(tpind==1) return(data.frame(pval=1))        
         sig_df%>%filter(pcat==pcati)%>%ungroup%>%mutate(time=as_factor(time))%>%filter(fraction==fractioni,time%in%unique(time)[c(1,tpind)])%>%lm(data=.,formula=nnsig ~ time)%>%anova%>%.$`Pr(>F)`%>%.[1]%>%{data.frame(pval=.)}
     })
-  })%>%mutate(pval=p.adjust(pval))})%>%
+  })%>%
+    mutate(pval=p.adjust(pval))})%>%
   ungroup%>%
   mutate(issig = pval<0.05)%>%
   mutate(fraction=tools::toTitleCase(fraction))%>%
-  mutate(fraction<-recode(fraction,'80s'='80S'))
+  mutate(fraction=recode(fraction,'80s'='80S'))
   #
-
+  out$time%<>%recode(E14p5='E145')
+  out$time%<>%recode(E17p5='E175')
+  #
   pcats <- c('Ebp1','Rpl','Rps','translation-associated')
   plotcats <- c('Ebp1','Rpl median','Rps median','Translation-associated median')
   out$pcat <- list(out$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
   out
 }
-
-
+#
 sigfunc <- tpchangesig
-
 sigfunc <- get_anova_sig_frac_pcat_tp
+selms_tall_summ%>%filter(fraction=='80S',time=='P0')
 sigs<-sigfunc(selms_tall)
+sigs%>%filter(fraction=='80S',time=='P0')
+# sigs$fraction
 stopifnot('Rps median' %in% sigs$pcat)
+selms_tall_summ%<>%ungroup%>%mutate(time=str_replace(time,'\\.|p',''))%>%group_by(time)
+selms_tall_summ%>%safe_left_join(sigs)
 traplot <-  selms_tall_summ%>%make_traplot(data=.,sigs)
+# selms_tall_summ%>%group_by(fraction,pcat,time)%>%tally%>%full_join(sigs)%>%as.data.frame
+#now plot
+plotfile<- here(paste0('plots/','tmp','.pdf'))
+pdf(plotfile)
+traplot
+dev.off()
+normalizePath(plotfile)
 
 
 rnatraplot <- rnaseqdata %>%make_traplot(.,sigfunc(rnaseqdata_tall%>%mutate(fraction='RNAseq'))) 
@@ -346,7 +369,7 @@ ggpubr::ggarrange(plotlist=list(rnatraplot+b,traplot+a),ncol=2,widths=c(1,3))
 dev.off();
 normalizePath(plotfile)
 
-
+stop()
 
 
 
