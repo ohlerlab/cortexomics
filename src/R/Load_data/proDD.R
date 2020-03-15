@@ -10,7 +10,7 @@ library(proDD)
 
 # Packages for plotting
 library(ggplot2)
-library(pheatmap)
+# library(pheatmap)
 library(viridisLite)
 library(tidyverse,magrittr)
 set.seed(1)
@@ -39,7 +39,7 @@ MS_mat <- median_normalization(MS_mat)
 # The columns are the samples and each row is a protein
 params <-  fit_parameters(MS_mat[TRUE,TRUE],experimental_design,n_subsample=2000,verbose=TRUE)
 
-posteriors <- sample_protein_means(X, params, verbose=TRUE)
+posteriors <- sample_protein_means(MS_mat, params, verbose=TRUE)
 
 proddtest <- proDD::test_diff(posteriors[['E13']],posteriors[['P0']])
 
@@ -218,10 +218,12 @@ if(plotting){
 	message(normalizePath(plotfile))
 
 }
+stop()
 
 stopifnot(all(satb2ms_ids%in%posteriorsum$ms_id))
-save(posteriors,posteriorsum,X,params,file='data/proDD.data')
+save(posteriors,posteriorsum,MS_mat,params,file='data/proDD_ibaq.data')
+load(file='data/proDD_ibaq.data')
 load(file='data/proDD.data')
-
+posteriorsum[[2]][[2]]
 #' Okay so, indeed this method doesn't take time point variation into account, so we end up with strange results
 

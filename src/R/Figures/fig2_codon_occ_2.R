@@ -612,5 +612,5 @@ fig2 <- function(){
 
 options(error=dump.frames)
 purely(fig2,throw_error=F)()
-debugger()
-1
+
+save.image('data/fig2_codon_occ_2.Rdata')

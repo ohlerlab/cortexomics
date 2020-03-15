@@ -304,6 +304,7 @@ stop()
 # lR(t) = lP(t) + log(dlP + Kd) - log(Ks)
 
 # dlP + Kd or the fold synthesis at any given time, must be positive.
+
 # We call it M
 
 # dlP+Kd = dbs %*% cM = dbs %*% (zv+cv)

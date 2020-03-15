@@ -21,10 +21,12 @@ data {
 
 parameters {
   real<lower=0> sigma2[G];// the variance for that protein
-  vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
+  vector[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lcM;  // log vector of fold changes due to synthesis
   vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
   vector[G] prot0; // initial LOG amount of protein
+  vector[T] ribnorm; // normalization factor for the riboseq
+  vector[T] protnorm;  // normalization factor for the protein
   
 }
 
@@ -40,7 +42,7 @@ transformed parameters{
 
     lKd = log2(log(2)) -  l_pihalf;
     Kd = exp(log(2)*lKd);
-    lKs = l_st -  lKd;
+    lKs = l_st -  lKd ;
 
     cM = exp(log(2)*lcM);
 
@@ -50,9 +52,9 @@ transformed parameters{
       // cv[,g] = cM[,g] - 20;
     } // get fold changes of protein
 
-    prot = cv * (mybs[,2:T+1]') + rep_matrix(prot0,T); // get the full protein trajectory
+    prot = cv * (mybs[,2:T+1]') + rep_matrix(prot0,T) - (rep_matrix(protnorm,G)'); // get the full protein trajectory
 
-    mRNA = prot + log2(cM * (mydbs)' ) - rep_matrix(lKs,T); // get the mRNA trajectory this implies
+    mRNA = prot + log2(cM * (mydbs)' ) - rep_matrix(lKs,T) - (rep_matrix(ribnorm,G)'); // get the mRNA trajectory this implies
 
   {
     int counter = 1;
@@ -68,34 +70,37 @@ transformed parameters{
 }
 
 model {
-  // this needs to become steady state I think
   // for(c in 1:ncond){
     // l_st[,c] ~ normal(mu0, sqrt(sigma20));
+  #prior distribution for the variance per gene
   sigma2 ~ scaled_inv_chi_square(nu, sqrt(eta));
 
+  #prior distributions for the steady state levels, and the half lives
   l_st ~ normal(0,5);
   l_pihalf ~ normal(0,4);
+
+  #prior distribution on the fold changes per gene
   for(t in 1:T) lcM[,t] ~ normal(0,5); // put a prior on fold changes
-  prot0 ~ normal(mu0, sqrt(sigma20));
+  #broad prior distribution of the protein starting points 
+  prot0 ~ normal(mu0, sqrt(sigma20*10));
 
+  #prior disribution on the differences in protein/ribo synthesis.
+  ribnorm ~ normal(0,3);
+  protnorm ~ normal(0,3);
   // }
-
-
-  {
-    int counter = 1;
-    for(i in 1:G){
-      for(jr in 1:nribosamples){
-        lribo[i,jr] ~ normal(mRNA[i,experimental_design_r[jr]], voom_sigma[i,jr]); // use confidence intervals to weight the observations
-      }
-      for(j in 1:nsamples){
-        if(is_inf(lMS[i, j])){
-          target += normal_lccdf(prot[i, experimental_design[j]] | rho[j], fabs(zetastar[counter]));
-          counter += 1;
-        }else{
-          lMS[i, j] ~ normal(prot[i, experimental_design[j]], sqrt(sigma2[i]));
-        }
+  int counter = 1;
+  for(i in 1:G){
+    for(jr in 1:nribosamples){
+      lribo[i,jr] ~ normal(mRNA[i,experimental_design_r[jr]], voom_sigma[i,jr]); // use voom confidence intervals to weight the riboseq observations
+    }
+    for(j in 1:nsamples){
+      if(is_inf(lMS[i, j])){
+        target += normal_lccdf(prot[i, experimental_design[j]] | rho[j], fabs(zetastar[counter]));#use the normal dist to weight our missing data
+        counter += 1;
+      }else{
+        lMS[i, j] ~ normal(prot[i, experimental_design[j]], sqrt(sigma2[i]));# use our protein values to predict our MS data
       }
     }
   }
-}
 
+}

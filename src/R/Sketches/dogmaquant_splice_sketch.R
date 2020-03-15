@@ -56,7 +56,7 @@ rm(p0)
 
 ###
 ### Declare fitting functions
-###
+### 
 
 timepoints <- as.numeric(dimnames(prot)[[4]])
 names(timepoints) <- dimnames(prot)[[4]]
@@ -66,9 +66,9 @@ load("Kfunc.Rdata")
 
 #These rate functions are for dealing with changes in the rates
 #over time, applicable to both 
-#12 is because those chnges in raates are over a 12 hr period
-#e.g. i f initial rate is 1, and final is 12, then you can
-#do ratefunc(c(log(1),log(24)),t) to get the rate at time t
+# 12 is because those chnges in raates are over a 12 hr period
+# e.g. i f initial rate is 1, and final is 12, then you can
+# do ratefunc(c(log(1),log(24)),t) to get the rate at time t
 
 
 
@@ -81,6 +81,7 @@ library(testthat)
 
 #In the case where parameter is a constant, literally jsut
 #exponentiates the answer
+
 expect_true(0.5 == ratefunc(c(log(0.5),log(1)),1) ) 
 expect_true(0.5 == ratefunc(c(log(0.5),log(1)),12) ) 
 

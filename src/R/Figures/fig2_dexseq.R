@@ -1,6 +1,7 @@
 N_SPLINE = 4
 #Now clip the ends
 ibrary(GenomicFeatures)
+
 spl_mapFromTranscripts<-function(tmptest,tmpexons){
   exons_tr<-tmpexons%>%unlist%>%setNames(paste0('exon_',seq_along(.)))%>%mapToTranscripts(tmpexons)
   ov <- findOverlaps(tmptest,exons_tr)
@@ -58,6 +59,7 @@ metainfo<-read_tsv(here('pipeline/exprdata/limma_genemetadata.tsv'))
 library(GenomicAlignments)
 library(GenomicFeatures)
 metainfo$dTE%>%table
+
 cds_counttrs <- cds%>%subset(protein_id %in% (metainfo%>%filter(highcount,is_gid_highest)%>%.$protein_id))
 cdssplit <- cds_counttrs%>%split(.,.$transcript_id)
 trlens<-cdssplit%>%width%>%sum%>%enframe('transcript_id','length')%>%filter(length>(STARTCLIP*3+ENDCLIP*3))
@@ -65,6 +67,10 @@ trregions<-GRanges(trlens$transcript_id,IRanges(STARTCLIP*3+1,trlens$length-(END
 trregions_genome<-trregions%>%spl_mapFromTranscripts(.,cdssplit)
 trregions_genome$transcript_id <- seqnames(trregions)[trregions_genome$xHits]
 trregions_genome$gene_id <- Rle(cds_counttrs$gene_id)[match(trregions_genome$transcript_id,cds_counttrs$transcript_id)]
+
+
+
+
 #
 dexseqexons<-trregions_genome%>%subset(gene_id%in%(unique(dexseqgenes)))
 #

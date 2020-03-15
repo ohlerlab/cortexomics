@@ -55,8 +55,6 @@ LOWCOUNTLIM <- 32
 
 source(here('src/R/Rprofile.R'))
 
-4 Marz
-18: 00
 
 
 
@@ -149,15 +147,29 @@ setequal(highcountgenes,allTEchangedf$gene_id)
 ########Load the matching between protein IDS and mass spec ids
 ################################################################################
 
+
 {
-allms=data.table::fread(msfile)
-#some formatting differences
-allms%<>%select(ms_id=Protein_IDs,everything())
-allms$time%<>%str_replace('p5','5')
-allms$dataset%<>%str_replace('p5','5')
-allms$dataset%<>%str_replace('_rep','_')
-allms$dataset%<>%str_replace('^[^_]+_','')#no need to annotate what signal type it is
-allms$dataset%<>%str_replace('total','MS')#no need to annotate what signal type it is
+
+getms<-function(msfile){
+	allms=data.table::fread(msfile)
+	#some formatting differences
+	allms%<>%select(ms_id=Protein_IDs,everything())
+	allms$time%<>%str_replace('p5','5')
+	allms$dataset%<>%str_replace('p5','5')
+	allms$dataset%<>%str_replace('_rep','_')
+	allms$dataset%<>%str_replace('^[^_]+_','')#no need to annotate what signal type it is
+	allms$dataset%<>%str_replace('total','MS')#no need to annotate what signal type it is
+	allms
+}
+allms <- getms(msfile)
+allmsibaq <- getms(here('pipeline/ms_tables/ms_iBAQ_total_ms_tall.tsv'))
+allms <- allmsibaq
+}
+
+{
+{
+# allms%>%group_by(dataset)%>%group_slice(10)%>%filter(!is.na(ms_id))%>%safe_left_join(allmsibaq%>%select(dataset,ms_id,ibaq=signal))%>%{cor(log10(.$signal),log10(.$ibaq),use='complete')}
+
 
 if(file.exists('data/ms_id2protein_id.rds')){
 	ms_id2protein_id <- readRDS('data/ms_id2protein_id.rds')			# ms_id2protein_id %>%saveRDS('data/ms_id2protein_id.rds')
@@ -167,13 +179,6 @@ if(file.exists('data/ms_id2protein_id.rds')){
 
 ms_id2protein_id%<>%{select(.,-matches('gene_name'))}%>%
 	safe_left_join(ids_nrgname%>%distinct(transcript_id,gene_name),by='transcript_id')
-
-#keep the mass spec we've matched to protein IDs
-matched_ms <- allms%>%semi_join(ms_id2protein_id%>%distinct(ms_id,protein_id))
-matched_ms%<>%group_by(ms_id)%>%filter(!all(is.na(signal)))
-
-#get our matrix and design df
-c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
 
 #get the satb2 ids we want to look at
 allids <- readRDS('pipeline/allids.txt')
@@ -191,6 +196,11 @@ satb2ids <- ms_id2protein_id%>%filter(gene_name=='Satb2')%>%.$protein_id
 }
 
 
+#keep the mass spec we've matched to protein IDs
+matched_ms <- allms%>%semi_join(ms_id2protein_id%>%distinct(ms_id,protein_id))
+matched_ms%<>%group_by(ms_id)%>%filter(!all(is.na(signal)))
+#get our matrix and design df
+c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
 
 # ms_id2protein_id%>%mutate(id=seq_len(n()))%>%left_join(allids2%>%distinct(protein_id,gene_name))%>%group_by(id)%>%filter(n()>1)
 # #now we can calculate the minimum MS specific variance per gene.
@@ -226,8 +236,8 @@ stopifnot(exists('matchedms_mat'))
 
 c(posteriorsum,posteriors) %<-% with(new.env(),{
 	if(!exists('posteriors')){
-		if(file.exists('data/proDD.data')){
-			load(file='data/proDD.data')
+		if(file.exists('data/proDD_ibaq.data')){
+			load(file='data/proDD_ibaq.data')
 		}else{
 			source(here('src/R/Load_data/proDD.R'))
 		}
@@ -512,7 +522,7 @@ all(featuredata$protein_id%in%allsegcounts_nz$protein_id)
 ################################################################################
 ########Manipulate the effects from spline space to linear space 
 ################################################################################
-	
+
 {
 itime_modelmat<-model.matrix(~ 1 + ribo+MS+time+time:(ribo+MS),data=mscountvoomdesign%>%mutate(time=factor(tps[add(time,3)])))
 itime_modelmat%<>%set_colnames(itime_modelmat%>%colnames%>%str_replace('riboTRUE','TE')%>%str_replace('MSTRUE','MS_dev'))
@@ -597,11 +607,45 @@ message('fitting linear model to counts, indep timepoints')
 itimecountebayes <- eBayes(lmFit(itimecountvoom)) 
 
 #Now test time dependence of MSDEV
+stop()
+mscountebayes -> ibaqmscountebayes
 best_uprotein_ids <- mscountebayes%>%topTable(coef=12:15,number=Inf)%>%rownames_to_column('uprotein_id')%>%
 	safe_left_join(ms_id2protein_id%>%distinct(gene_id,uprotein_id))%>%
 	group_by(gene_id)%>%slice(which.max(P.Value))%>%
 	.$uprotein_id
+}
+#27.360168
+}
+bestpvals_lfq <- lfqmscountebayes%>%topTable(coef=12:15,number=Inf)%>%rownames_to_column('uprotein_id')%>%
+	safe_left_join(ms_id2protein_id%>%distinct(gene_id,uprotein_id))%>%
+	group_by(gene_id)%>%slice(which.max(P.Value))%>%select(F,P.Value)
+bestpvals_ibaq <- ibaqmscountebayes%>%topTable(coef=12:15,number=Inf)%>%rownames_to_column('uprotein_id')%>%
+	safe_left_join(ms_id2protein_id%>%distinct(gene_id,uprotein_id))%>%
+	group_by(gene_id)%>%slice(which.max(P.Value))%>%select(F,P.Value)
 
+
+
+
+#now plot
+
+
+plotfile<- here(paste0('plots/','lfq_ibaq_comp','.pdf'))
+pdf(plotfile)
+	bestpvals_lfq%>%safe_left_join(bestpvals_ibaq%>%select(F_ibaq=F,pval_ibaq=P.Value))%>%
+	ggplot(.,aes(x= - log10(P.Value),y = - log10(pval_ibaq)))+
+	geom_point()
+	# scale_color_discrete(name='colorname',colorvals)+
+	# scale_x_continuous(paste0('xname'))+
+	# scale_y_continuous(paste0('yname'))+
+	ggtitle(paste0('LFQ vs. IBAQ'))+
+	theme_bw()
+dev.off()
+normalizePath(plotfile)
+
+best_satb2_pid%in% best_uprotein_ids
+
+
+stop()
 #And redo the model with the best pairs
 #Both for MS and count
 bestmscountvoom <- mscountvoom[best_uprotein_ids,]
@@ -631,7 +675,7 @@ ms_id2protein_id%>%filter(uprotein_id%in%best_uprotein_ids)%>%filter(gene_name==
 
 ebayes_stepwiseold<-ebayes_stepwise
 
-}
+# }
 
 ###############################################################################
 #######Breakdown into confidence intervals over assays
@@ -816,7 +860,10 @@ metainfo%>%write_tsv(here('pipeline/exprdata/limma_genemetadata.tsv'))
 #
 exprdf <- bestmscountvoom$E%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%gather(dataset,signal,-uprotein_id)%>%as_tibble
 #
-exprdf%<>%separate(dataset,c('time','assay','rep'))%>%left_join(ms_id2protein_id%>%distinct(uprotein_id,protein_id))%>%
+exprdf%<>%separate(dataset,c('time','assay','rep'))%>%
+  left_join(ms_id2protein_id%>%
+    distinct(uprotein_id,protein_id)
+  )%>%
   mutate(rep = as.numeric(rep))
 exprdf%>%filter(assay=='MS')
 
@@ -825,5 +872,5 @@ exprdf%>%filter(assay=='MS')
 
 
 
-# save.image('data/integrate_exprdata2.Rdata')
+save.image('data/integrate_exprdata2.Rdata')
  # load('data/integrate_exprdata2.Rdata')

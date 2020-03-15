@@ -91,12 +91,22 @@ translationgoterm <- "GO:0006417"
 translationprotids <- biomaRt::getBM(attributes = c("uniprot_gn_id"), 
                  filters=('go'),values=translationgoterm,
                  mart = mart)[[1]]
-ebp1pid = mstall$Protein_IDs[match('Pa2g4',mstall$gene_name)]
 
+manual_tl_df<-fread(here('ext_data/transl_prots_2check.txt'))
+manual_tl_df%<>%filter(!gene_name=='Pa2g4')
+manual_tl_df[[2]]%in%mstall$Protein_IDs
+translsetlist <- list(
+	'taset_manual'=manual_tl_df[[2]]%>%str_split_fast%>%unlist,
+	'taset_go'=translationprotids
+)
+translsetname='taset_manual'
 
 {
-# mstall_trans%<>%filter(!gene_name%>%str_detect('Hbs1l'))
-mssigcol = 'LFQ'
+
+for(mssigcol in c('LFQ','iBAQ')){
+for(translsetname in names(translsetlist)){
+	translset <- translsetlist[[translsetname]]
+
 #load the iBAQ ms data
 Sys.glob(here(str_interp('pipeline/ms_tables/*')))
 mstallfiles <- Sys.glob(here(str_interp('pipeline/ms_tables/ms_${mssigcol}*_ms_*')))%>%
@@ -107,6 +117,7 @@ mstall <- mstallfiles%>%map(fread)%>%map(function(.){.$signal <- log2(.$signal) 
 mstall$signal%<>%{exp(.*log(2))}
 mstall$fraction%>%unique
 
+ebp1pid = mstall$Protein_IDs[match('Pa2g4',mstall$gene_name)]
 
 #'get info on the ribosomal subu,nts from mats table
 rids <- read_tsv(here('ext_data/riboprotids.tsv'))
@@ -122,20 +133,11 @@ rids%>%filter(!`Mito-RP`)%>%nrow
 
 #' First we load the list of protein IDs, handpicked by Matt, using only the small
 #' or large subunits - no mitochondrial riboproteins  
-
-
-
 #define ambigous protein groups as those which have elements that appear in more than one protein group
 allpgroups <- mstall$Protein_IDs%>%unique
 multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
 all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
 library(data.table)
-
-
-
-
-# mstall_trans<-mstall%>%mutate(ambig = sep_element_in(Protein_IDs,multids))
-
 
 #' We pick out the iBAQ data, since LFQ isn't recommended for these kinds of enriched datasets
 #' We also include Pa2g4.  
@@ -152,7 +154,7 @@ pids%<>%mutate(pcat = case_when(
  (Protein_IDs=='P68040') ~ "P68040",
   sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
   sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
-  sep_element_in(Protein_IDs,translationprotids) ~ "translation-associated",
+  sep_element_in(Protein_IDs,translset) ~ "translation-associated",
   TRUE ~ "other"
 ))
 stopifnot("Ebp1" %in% pids$pcat)
@@ -220,6 +222,7 @@ message('getting stochiometry matrices')
 
 stopifnot('total'%>%is_in(mstall_trans$fraction%>%unique))
 
+
 #now matrix for our 
 sigmat = mstall_trans%>%
 	filter(!ambig)%>%
@@ -240,6 +243,9 @@ stochmats <- lapply(2:ncol(sigmat),function(j) {
 			set_rownames(matpids)%>%
 			set_colnames(matpids)
 	})%>%setNames(dsetnames)
+
+
+
 
 #plot the stochiometry heatmap
 catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","green"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
@@ -319,7 +325,12 @@ ribostochplots<-lapply(dsetnames,function(dset){
 	# pdf('tmp.pdf')	
 	data.frame(relativeLFQ =relvals,pcat = msid_cat[[sigmat$Protein_IDs]])%>%
 		mutate(gname = sigmat$Protein_IDs%>%gname[[.,default=.]] ) %>%
-		mutate(label = ifelse((abs(relativeLFQ)>2.5) & (pcat%in%c('Rps','Rpl')),gname,'')) %>%
+		mutate(label = ifelse(
+			(abs(relativeLFQ)>2.5) & (pcat%in%c('Rps','Rpl'))|
+				((translsetname=='taset_manual') &(pcat%in%c('translation-associated'))),
+			gname,
+			'')
+		) %>%
 		mutate(pcat = factor(pcat,c('translation-associated','Ebp1','Rps','Rpl')))%>%
 		mutate(pcat = recode(pcat,'translation-associated'='translation\nassociated'))%>%
 		filter(!is.na(pcat))%>%
@@ -340,34 +351,30 @@ ribostochplots<-lapply(dsetnames,function(dset){
 })
 #now plot
 #plot without labels
-ribostochplotsnorepel%>%length
+
 ribostochplotsnorepel<-ribostochplots%>%map(function(x){x$layers[[2]]=NULL;x})
-plotfile<- here(paste0('plots/','ribostochbars_',mssigcol,'.pdf'))
+plotfile<- here(paste0('plots/','ribostochbars_',mssigcol,'_',translsetname,'.pdf'))
 #
 pdf(plotfile,w=12,h=20)
-ggarrange(plotlist=ribostochplotsnorepel,nrow=5,ncol=3)
+print(ggarrange(plotlist=ribostochplotsnorepel,nrow=5,ncol=3))
 dev.off()
 message(normalizePath(plotfile))
 #
 library(ggrepel)
-plotfile<- here(paste0('plots/','ribostochbars_label_',mssigcol,'.pdf'))
+plotfile<- here(paste0('plots/','ribostochbars_label_',mssigcol,'_',translsetname,'_','.pdf'))
 pdf(plotfile,w=24,h=40)
-ggarrange(plotlist=ribostochplots,nrow=5,ncol=3)
+print(ggarrange(plotlist=ribostochplots,nrow=5,ncol=3))
 dev.off()
 normalizePath(plotfile)
+message(normalizePath(plotfile))
 
-stop()
+}
+}
 
-
-gname <- as(gname,'Safe_Rcpp_Hashmap')
-testhash<-safe_hashmap(letters,1:26)
-testhash[[letters]]
-testhash[[c('aaa','a','bbbb'),default=0]]
-
-sigmat$Protein_IDs%>%{gname[[.,default=.]]}
 
 }
 
+stop()
 
 save.image(here('data/ribo_stoch_heatmaps.R'))
 stop()

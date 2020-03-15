@@ -72,6 +72,9 @@ exons <- gtf_gr%>%subset(type=='exon')
 cds <- gtf_gr%>%subset(type=='CDS')
 	
 
+
+#get point of origin, sample 5' end according to dimer probs for each location
+
 # cds	%>%split(.,.$protein_id)%>%head(2)%>%lapply(head,2)%>%GRangesList%>%unlist%>%{.[isfpmost(.)]%<>%clip_start(5);.}
 
 
@@ -86,18 +89,21 @@ cds <- gtf_gr%>%subset(type=='CDS')
 
 # grl<-tmpgrl
 # tmpgrl<-tmpgrl%>%unlist%>%.[,NULL]%>%split(.,names(.))
+library(magrittr)
+
 resize_grl<-function(grl,nbp,fixend='end'){
 	stopifnot(identical(grl,sort(grl)))
 	if(is.null(names(grl))) names(grl)<-seq_along(grl)
+
 	#if we fix the start we want to select the end
 	if(fixend=='start'){
 		strandtorev <- '-' 
-		endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
+		endinds <-  grl%>%{as(ifelse(any(as.vector(strand(.))%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
 
 	}else if (fixend=='end'){
 		#and if the end then we want the start
 		strandtorev <- '+'
-		endinds <-  grl%>%{as(ifelse(any(strand(.)%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
+		endinds <-  grl%>%{as(ifelse(any(as.vector(strand(.))%in%strandtorev),1,elementNROWS(.)),'IntegerList')}
 
 	}else{stop('fixend needs to be start or end')}
 	cuminds <- cumsum(elementNROWS(grl))
@@ -113,11 +119,26 @@ resize_grl<-function(grl,nbp,fixend='end'){
 	grl
 }
 
-strandedorder <- function(grl) {
-	order <- order(tmpgrl)
-	order[any(strand(tmpgrl)%in%'-')]%<>%revElements
-	order
-}
+
+
+
+# library(GenomicRanges)
+
+# grl = GRangesList(c(
+# 	GRanges('a:3-6:+'),
+# 	GRanges('a:8-10:+'),
+# 	GRanges('a:13-15:+')
+# ))
+# resize_grl(grl,0,'end')
+# resize_grl(grl,1,'end')
+# resize_grl(grl,5,'end')
+# grl
+
+# strandedorder <- function(grl) {
+# 	order <- order(tmpgrl)
+# 	order[any(strand(tmpgrl)%in%'-')]%<>%revElements
+# 	order
+# }
 
 segment_ribocount<-function(exonsubset,cdssubset,bam,psite_model,REF,
 	STARTCLIP = 15,

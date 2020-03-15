@@ -283,39 +283,47 @@ steady = Ks/deg
 
 
 
-dP = R Ks - deg P
-dP/deg = R Ks / deg - P
-dP/deg = R steady - P
-dP/deg = R steady - P
-dP/deg = R steady - P
-dP/deg + P = R steady
-R steady = dP/deg + P
-log(R steady) = log( dP/deg + P )
-log(R) + log(steady) = log(dP/deg + P)
-log(R)  = log(dP/deg + P) - log(steady)
-log(R)  = log(P * dlP/deg + P) - log(steady)
-log(R)  = log(P * (dlP/deg + 1)) - log(steady)
-log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+dP = R Ks - Kd P #basic differentiatial equation
+dP/Kd = R Ks / Kd - P #divide by Kd
+dP/Kd = R St - P# Define St = Ks / Kd
+R St = dP/Kd + P #re arrange
+log(R St) = log( dP/Kd + P ) # take the log of both sides
+log(R) + log(St) = log(dP/Kd + P) # seperate log(st)
+log(R)  = log( dP/Kd + P ) - log(St) # subtract it
+#define d_log(P) as the differential of the log(P) and 
+#use the fact that d_log(P)*P = dP (i.e. d_log(P) is a fold change)
+log(R)  = log(P * d_log(P)/Kd + P) - log(St) 
+log(R)  = log(P * (d_log(P)/Kd + 1)) - log(St) # 
 
-#IF deg is high then
-log(R)  = log(P * (dlP/deg + 1)) - log(steady)
-		~= log(P * (0 + 1)) - log(steady)
-		~= log(P) - log(steady)
+#IF Kd is high then this ends up a simple linear model
+log(R)  = log(P * (d_log(P)/Kd + 1)) - log(St)
+		~= log(P * (0 + 1)) - log(St)
+		~= log(P) - log(St)
 
-#But if deg is low then
-log(R)  = log(P) + log(dlP/deg + 1) - log(steady)
-log(R)  = log(P * (dlP/deg + 1)) - log(steady)
+#But if Kd is low then it becomes nonlinear
+log(R)  = log(P * (dlP/Kd + 1)) - log(St)
+log(R)  = log(P) + log(dlP/Kd + 1) - log(St)
+log(R)  = log(P) + log(Kd * (dlP + (1/Kd))) - log(St)
+log(R)  = log(P) + log(Kd * dlP + (1/Kd)) - log(St)
 
 
-#or with half life
-log(R)  = log(P * (dlP*thalf/log(2)) + 1) - log(steady)
+# dP(t) = Ks R(t) - Kd (P(t))
+# R(t) = dP(t) + Kd (P(t)) / Ks
+# log(R(t)) = log(dP(t)+Kd P(t)) - log(Ks)
+# log(R(t)) = log(P(t) * dlP(t) +Kd P(t)) - log(Ks)
+# lR(t) = log(P(t)) + log(dlP(t) + Kd(t)) - log(Ks)
 
-log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
+# lR(t) = lP(t) + log(dlP + Kd) - log(Ks)
 
-#
-log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
 
-#
-log(R)  = log(P) + log(dlP*(thalf/log(2)) + 1) - log(steady)
+# dP(t) = Ks R(t) - Kd (P(t)) #
+# R(t) = dP(t) + Kd (P(t)) / Ks
+# log(R(t)) = log(dP(t)+Kd P(t)) - log(Ks)
+# log(R(t)) = log(dP(t)+Kd P(t)) - log(Ks)
 
+# log(R(t)) = log(P(t) * dlP(t) +Kd P(t)) - log(Ks)
+
+# lR(t) = log(P(t)) + log(dlP(t) + Kd(t)) - log(Ks)
+
+# lR(t) = lP(t) + log(dlP + Kd) - log(Ks)
 

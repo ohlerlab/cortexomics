@@ -24,6 +24,7 @@ parameters {
   vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lcM;  // log vector of fold changes due to synthesis
   vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
+  vector<lower=-20,upper=20>[G] p_dev;  //log protein deviance from the trajectory
   vector[G] prot0; // initial LOG amount of protein
   
 }
@@ -52,7 +53,7 @@ transformed parameters{
 
     prot = cv * (mybs[,2:T+1]') + rep_matrix(prot0,T); // get the full protein trajectory
 
-    mRNA = prot + log2(cM * (mydbs)' ) - rep_matrix(lKs,T); // get the mRNA trajectory this implies
+    mRNA = prot + log2(cM * (mydbs)') - rep_matrix(lKs,T); // get the mRNA trajectory this implies
 
   {
     int counter = 1;
@@ -75,9 +76,13 @@ model {
 
   l_st ~ normal(0,5);
   l_pihalf ~ normal(0,4);
-  for(t in 1:T) lcM[,t] ~ normal(0,5); // put a prior on fold changes
+  
+  for(t in 1:T){
+    p_dev ~ normal(0,2);
+    lcM[,t] ~ normal(0,5);
+  }; // put a prior on fold changes
   prot0 ~ normal(mu0, sqrt(sigma20));
-
+  
   // }
 
 
@@ -92,7 +97,7 @@ model {
           target += normal_lccdf(prot[i, experimental_design[j]] | rho[j], fabs(zetastar[counter]));
           counter += 1;
         }else{
-          lMS[i, j] ~ normal(prot[i, experimental_design[j]], sqrt(sigma2[i]));
+          lMS[i, j] ~ normal(prot[i, experimental_design[j]] + p_dev[i,experimental_design[j]], sqrt(sigma2[i]));
         }
       }
     }

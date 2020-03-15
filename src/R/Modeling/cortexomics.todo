@@ -1,4 +1,5 @@
 Current task:
+  Finish report for nadia on clustering
   ☐ Go term matrix to analyze the quality of the clustering
 
 
@@ -26,7 +27,7 @@ All Tasks:
        Check if codon optimality is 
 
        What about the Poly/Mono specific Ribo-seq
-
+8
    ☐ Figure out if I can see poly tRNAs being more reflective of optimization
 
    ☐ Remember transcriptional as well as translational.
@@ -43,8 +44,6 @@ All Tasks:
 Fig3:
     ☐ Compare half life distribution in McShane and Schwannhausser.
 
-    ☐ Run the model for individual genes
-
     ☐ Win condition for the modeling?
       ☐ Get sampling to work on our gene indep model
       ☐ See if hierarch dist for all genes is comparable to schwannhauser or McShane
@@ -53,6 +52,32 @@ Fig3:
     The various effects are stored in kind of irreglar objects, could be neater
     but need to mix the data CIs and the effect preds fro trajectory plots
     split integrate script into pre-post xtail I think
+
+ clustering:
+   I need to figure out what a good cluster is.
+   Also need to figure out what a bad cluster is.
+
+   POssible clusteirng htings
+   Uncertainty via mvnorm distance
+   This gives very little clustering in combo with HDBSCAN
+   Using TREE clust
+   Replicating CLUTO
+   Try treSNE
+   TRY the distance metric that cluto uses.
+Todos
+    Gquads
+        Verify, get motif
+        do we see changes, stalling or whatever 
+        Do see corerspondanc ein the Poly/total ribo stuff and the rTE.
+        Stalling sites - do they correlate with our Gquad
+
+    Flow plot of the filtrations
+    Power and saturation tests
+    QC
+        Figure out what other reads are
+    Do some intersection with known Data on riboProteins
+    Figure out why read sizeoutlier 80SE13
+    Make sure results don't go if we exclude the dexseq exons
 
 Coverage plots:
      ☐ Get the simplest possible one of our Satb2 Locus working
@@ -115,10 +140,11 @@ Maintainance:
 
 
 Modeling:
-    ☐ Get fully sampled model fits for all of the genes
-    Mail Najda
-    ✔ Think about, rather than equ and decay, equ EXPR and time to reach equilibrium. @done (19-12-09 13:30)
-    ☐ Implement a model based on half life and eq expression.
+    ✔ Get fully sampled model fits for all of the genes @done (20-02-20 10:28)
+    ✔ Think about, rather than equ and decay, equ EXPR and time to reach equilibrium. @done (20-02-20 10:28)
+    Create a distinct git that nadja can look at for this project
+      Split the fitting script into two files, with the 
+    ☐ Function that plots the model fits for a given gene
 
 
 

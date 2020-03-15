@@ -238,4 +238,18 @@ dat
  table(pred, test.set[, "A"])
 
 
+##Get the distance between points in our limma object, accounting for uncertainty.
+ #seee https://math.stackexchange.com/questions/917292/expected-distance-between-two-vectors-that-belong-to-two-different-gaussian-dist
+fit<-mscountebayes
+cols2use <- fit$coef%>%colnames%>%str_subset('time')
+se.coef <- sqrt(fit$s2.post) * fit$stdev.unscaled[,cols2use]
+centdist <- dist(fit$coef[,cols2use],method='euclidian',diag=TRUE)
+coef_sigma <- (se.coef^2) %>% apply(1,sum)
+dim(coef_sigma)
+dim(as.matrix(centdist))
+dist_un <- t(t(centdist + coef_sigma) + coef_sigma)
+
+test_hdbscan = hdbscan(dist_un,minPts = )
+
+
 

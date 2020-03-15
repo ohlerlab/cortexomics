@@ -1,6 +1,6 @@
 #options(repos = BiocManager::repositories());packrat::init(options = list(ignored.packages = c('sleuth','xtail','SaTAnn','RiboseQC','ORFquant','rseq','rseqdata','proDD','riboWaltz','colorout')))
 
-library(colorout)
+try(silent=T,{library(colorout)})
 library(Biostrings)
 library(checkmate)
 library(memoise)
