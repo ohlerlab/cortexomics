@@ -1,86 +1,355 @@
 library(purrr)
+library(here)
 library(ggExtra)
 library(ggpubr)
 library(tidyverse)
 library(Rcpp)
+library(doMC)
 library(rstan)
+#BiocManager::install('rstan')
+library(tidyverse)
+library(magrittr)
+library(data.table)
+library(stringr)
+library(magrittr)
+library(splines)
+library(parallel)
+#!/usr/bin/env Rscript
+message('loading libraries')
+suppressMessages(library(assertthat))
+suppressMessages(library(limma))
+message('...done')
 
-options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
+setwd(here())
 
-#get the names of some increasing rna dudes
-exprdata%>%
-  group_by(gene_name)%>%
-  filter(rep==1,assay=='total')%>%
-  filter(signal[5] > 3+signal[1])%>%.$gene_name%>%
-  sample(10)
+source(here('src/R/cortexomics_myfunctions.R'))
 
-#we need a 
-library(zoo)
-# 
-tps <- c('E13','E145','E16','E175','P0')
+# message('temp commented out')
+
+transformdexprfile=here('pipeline/exprdata/transformed_data.txt')
+designmatrixfile=here('pipeline/exprdata/designmatrix.txt')
+registerDoMC(32)
 
 
-gnamei <- 'Satb2'
+#get the data
+source('src/R/modeling/stan_predict_impute.R')
 
-#increasing genes
-gnamesi <- c('Satb2')
-#decreasing genes
-'Isoc1'
-gnamesi <- c('')
-# gnamesi <- c('Satb2')
-gnamesi <- c('Isoc1')
 
-gnamesi <- exprdata%>%.$gene_name%>%sample(1)
 
-gnamesi <- 'Satb2'
+#Funciton to fit linear and nonlinear model with stan
+get_stanfit <- function(standata,stanfile,modelsamplefile,pars=NA,sampledir){
+  require(tools)
 
-getstanfits <- function(gnamesi,...){
+  ##First copy the model file to a new folder
+  tmpdir <- tempdir() 
+  stopifnot(file.exists(stanfile))
+  #delete the rds file
+  stanfile%>%str_replace('.stan','.rds')%>%{suppressWarnings(file.remove(.))}
+  # stanfile<-file.path(root,'src/Stan/degmodel_nonhierach.stan')
+  tdir <-   tempdir()
+  dir.create(tdir)
+  file.copy(stanfile,tdir)
+  modelcopy=file.path(tdir,basename(stanfile))
+  stopifnot(file.exists(modelcopy))
+  modelcopy
 
-realdata <- list(
-   G=length(gnamesi),T=length(tps),K=3,
-   # gene_name=gnamei,
-   MS=exprdata%>%filter(gene_name%in%gnamesi)%>%filter(assay=='MS')%>%arrange(match(gene_name,gnamesi),time,rep)%>%.$signal%>%array(dim=c(3,5,length(gnamesi)))%>%aperm(c(1,2,3))%>%{2^.},
-   # ribo =exprdata%>%filter(gene_name==gnamei)%>%filter(assay=='ribo',rep==1)%>%.$predicted_signal%>%{2^.}%>%rollmean(k=2)%>%matrix
-   ribo =exprdata%>%filter(gene_name%in%gnamesi)%>%filter(assay=='ribo',rep==1)%>%arrange(match(gene_name,gnamesi),time)%>%.$predicted_signal%>%{2^.}%>%matrix(ncol=length(gnamesi))
-)
-realdata
-# realdataold <- realdata
 
-#Fit non-hierarchical model 
-realstanfit <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
-            control=list(adapt_delta=0.95,max_treedepth=20),
-            chains=4,iter=2e3,
-            # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-            verbose=TRUE)
+  # modelnm=basename(stanfile)%>%file_path_sans_ext%>%paste0('_n',length(standata$genes),basename(tdir))
+  chainfilesregex <- paste0(file_path_sans_ext(basename(modelsamplefile)),'_[0-9]+')
+  Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(chainfilesregex)%>%file.remove
 
-#now fit linear model
-realstanfit_lin <- rstan::stan(file='src/Stan/degmodel_simple_linear.stan',data=realdata,
-                           control=list(adapt_delta=0.95,max_treedepth=20),
-                           chains=4,iter=2e3,
-                           # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
-                           verbose=TRUE)
+  message(paste0('fitting model ',basename(tdir),' on ',standata$G,' genes'))
+  # modelsamplefile<-paste0('stansamples_',basename(tdir),'_',basename(stanfile),'_modsamples')
+  #
+  n_chains <- 4
 
-list(realstanfit,realstanfit_lin)
+  setwd(sampledir)
+
+  stanfit <- rstan::stan(file=modelcopy,
+          model_name=basename(tdir),seed=1,
+          # model_name=modelnm,seed=1,
+          data=standata,
+              control=list(adapt_delta=0.95,max_treedepth=15),save_dso=FALSE,
+              pars=c(pars,'lrTE'),
+              # init = lapply(seq_len(n_chains),function(id)list('lrTE'=array(rep(20,length(g2fit))))),
+              chains=n_chains,iter=1e3,cores=n_chains,verbose=TRUE,save_warmup=FALSE,
+              sample_file=modelsamplefile,
+              # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
+            )
+
+
+  chainfiles <- Sys.glob(file.path(sampledir,'*_[0-9].csv'))%>%str_subset(chainfilesregex)
+  stopifnot(length(chainfiles)==n_chains)
+  
+
+  list(fit=stanfit,chainfiles= chainfiles)
+
 }
 
-allstanfits <- lapply(exprdata$gene_name%>%unique%>%sample(100),safely(getstanfits))
-allstanfits <- lapply(exprdata$gene_name%>%unique%>%sample(100),safely(getstanfits))
 
-# allstanfits%>%saveRDS('data/allstanfits.rds')
 
-allstanfits %<>% setNames(exprdata$gene_name%>%unique)
+dir.create(paste0('stanfits/'),showWarnings=F)
 
-allstanfits%>%map('result')%>%map(1)%>%map(as.data.frame)%>%setNames(.,seq_along(.))%>%
-  bind_rows(.id='gene')%>%
-  filter(gene%in%sample(unique(gene),10))%>%
-  select(lrTE=`lrTE[1]`,gene)%>%
-  group_by(gene)%>%
-  mutate(spread=sd(lrTE))%>%
-  arrange(spread)%>%
-  qplot(data=.,x=lrTE)+facet_grid(gene~.)
+# stop()
+################################################################################
+########with sample data
+################################################################################
 
-  qplot(data=.,y=as_factor(gene),x=lrTE)
+
+ 
+
+# if(countdata2model=='total'){
+#   if(model=='hierarch'){
+#     testhierarchfit_rna <- get_stanfit(testsetstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='testhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
+#     testhierarchfit_rna%>%saveRDS(here('data/testhierarchfit_rna.rds'))
+#   }
+#   if(model=='lin'){
+#     testlinfit_rna <- get_stanfit(testsetstandata_rna,linearstanfile,pars='lp__',modelsamplefile='testlinear_rna.csv',sampledir=here('pipeline/stansamples'))
+#     testlinfit_rna%>%saveRDS(here('data/testlinfit_rna.rds'))
+#   }
+# }
+# testhierarchfit <- get_stanfit(testsetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='testhierarch.csv',sampledir=here('pipeline/stansamples'))
+# testhierarchfit%>%saveRDS(here('data/testhierarchfit.rds'))
+
+# testlinfit <- get_stanfit(testsetstandata,linearstanfile,pars='lp__',modelsamplefile='testlin.csv',sampledir=here('pipeline/stansamples'))
+# testlinfit%>%saveRDS(here('data/testlinfit.rds'))
+
+
+# stopifnot(testlinfit_rna$chainfiles%>%file.exists)
+# stopifnot(testlinfit$chainfiles%>%file.exists)
+
+
+
+################################################################################
+########Now for each
+################################################################################
+
+
+
+# if(countdata2model=='total'){
+#   if(model=='hierarch'){
+#     allhierarchfit_rna <- get_stanfit(allstandata_rna,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch_rna.csv',sampledir=here('pipeline/stansamples'))
+#     allhierarchfit_rna%>%saveRDS(here('data/allhierarchfit_rna.rds'))
+#   }
+#   if(model=='lin'){
+#     alllinfit_rna <- get_stanfit(allstandata_rna,linearstanfile,pars='lp__',modelsamplefile='alllinear_rna.csv',sampledir=here('pipeline/stansamples'))
+#     alllinfit_rna%>%saveRDS(here('data/alllinfit_rna.rds'))
+#     }
+#   }
+# }
+
+# if(countdata2model=='ribo'){
+#   if(model=='hierarch'){
+#   # testhierarchfit <- get_stanfit(singlesetstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='stansamples/testhierarch.csv')
+#     allhierarchfit <- get_stanfit(allstandata,hierarchstanfile,pars=hierarchpars,modelsamplefile='allhierarch.csv',sampledir=here('pipeline/stansamples'))
+#     allhierarchfit%>%saveRDS(here('data/allhierarchfit.rds'))
+#   }
+#   if(model=='lin'){
+#     alllinfit <- get_stanfit(allstandata,linearstanfile,pars='lp__',modelsamplefile='alllin.csv',sampledir=here('pipeline/stansamples'))
+#     alllinfit%>%saveRDS(here('data/alllinfit.rds'))
+#   }
+# }
+
+datasets <- list(
+  test=list(
+    ribo = testsetstandata,rna = testsetstandata_rna
+    ),
+  all=list(
+     ribo = allstandata,rna = allstandata_rna
+  )
+)
+
+modelcodefiles <- list(hierarchical=hierarchstanfile,linear=linearstanfile)
+modelcodepars <- list(hierarchical=hierarchpars,linear='lp__')
+  
+
+stanfits<-imap(datasets[1], function(dsets,inputsetnm){
+  imap(dsets[1],  function(modeldata,rnadatanm){
+    imap(modelcodefiles, function(modelcodefile,modeltypenm){
+      # browser()
+      modelcodepar = modelcodepars[[modeltypenm]]
+      if(inputsetnm=='test') modelcodepar=NA
+      fitrdsfile <- here(paste0('data/',inputsetnm,'_',rnadatanm,'_',modeltypenm,'.rds'))
+      modelsampfile <- paste0(inputsetnm,'_',rnadatanm,'_',modeltypenm,'.csv')
+      
+      stanfit <- get_stanfit(modeldata,
+        modelcodefile,
+        pars=modelcodepar,
+        modelsamplefile=modelsampfile,
+        sampledir=here('pipeline/stansamples')
+      )
+
+      message(fitrdsfile)
+      message('done')
+
+      stanfit%>%saveRDS(fitrdsfile)
+      stanfit
+  })
+})
+})
+
+stanfits[['test']][['ribo']][['hierarchical']][['fit']]%>%summary%>%.[['summary']]%>%as.data.frame%>%select(Rhat)%>%rownames_to_column('par')%>%sample_n(10)
+
+
+
+
+
+stop()
+
+# for(inputsetnm in c('test','all')){
+# for(rnadatanm in c('rna','ribo')){
+# for(modeltypenm = c('hierarchical','linear')){
+#   modeldata = datasets[[inputsetnm]][[rnadatanm]]
+ 
+
+
+
+alllinfit%>%saveRDS()
+
+
+
+
+
+stop('done modeling')
+
+# allstanfits <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=FALSE)
+
+
+# message('testing fit')
+# # modob<-safely(getstanfits)('Satb2',genelengths,exprdata,pars=c('lrTE','ldeg','prot'),lengthnorm=FALSE)
+# stopifnot(is.null(modob$error))
+# saveRDS(modob, paste0('stanfits/','Satb2','nonh_vs_lin.stanfit.rds'))
+# message( paste0('stanfits/','Satb2','nonh_vs_lin.stanfit.rds'))
+# modob$result$genes
+
+#Now fit all models together
+allstanfitssim <- safely(getstanfits)(genes2fit,genelengths,exprdata,lengthnorm=TRUE,)
+
+#Use do par to write the inidividual model fits to disc
+parrun<-foreach(g=genes2fit) %dopar%{
+  suppressMessages({modob<-safely(getstanfits)(g,genelengths,exprdata,lengthnorm=TRUE)})
+  saveRDS(modob, paste0('stanfits/',g,'nonh_vs_lin.stanfit.rds'))
+  message(paste0(which(genes2fit==g), '/',length(genes2fit)))
+}
+
+
+source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R')
+
+stop()
+
+allstanfitssim[[1]]$kinetic%>%
+  summary%>%
+  .$summary%>%
+  as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppar=parse_stan_pars(par))%>%unnest%>%filter(is.na(time),is.na(gene))%>%
+  mutate(parameter,time,gene,mean,`2.5%`,`97.5%`)
+
+stop()
+
+
+# allstanfitssim%>%saveRDS('../data/allstanfitssim.rds')
+
+
+
+
+###########PRocessing results
+
+fitfiles <- Sys.glob(paste0('stanfits/*nonh_vs_lin.stanfit.rds'))
+fitfiles%<>%setNames(.,basename(.)%>%str_replace('nonh_vs.*',''))
+
+####Now read in the individual fits
+allstanfits <- mclapply(fitfiles,readRDS)
+allstanfits%<>%setNames(names(fitfiles))
+
+allstanfitsln <- mclapply(genes2fit,safely(getstanfits),genelengths,exprdata,lengthnorm=TRUE)
+allstanfitsln%<>%setNames(names(fitfiles))
+
+#save larger objects
+allstanfits%>%saveRDS('../data/allstanfits.rds')
+allstanfitsln%>%saveRDS('../data/allstanfitsln.rds')
+
+
+allstanfits%>%map('result')%>%
+  map('kinetic')%>%
+  map(summary)%>%map(1)%>%object.size%>%divide_by(1e6)
+
+stop()
+
+
+#Now, don't store all in memory, just save the summary
+allstanfitsumm<-fitfiles%>%mclapply(safely(.%>%readRDS(.)%>%.$result%>%.$kinetic%>%summary%>%.[[1]]%>%as.data.frame))
+stopifnot(allstanfitsumm%>%map('error')%>%map_lgl(is.null)%>%all)#they all worked
+allstanfitsumm%<>%map('result')
+
+####Now read in the list of indiivdual fit summaries
+allstanfitsumm%>%saveRDS('../data/allstanfitsumm.rds')
+allstanfitsumm<-readRDS('../data/allstanfitsumm.rds')
+
+# stopifnot(allstanfitsumm%>%map_lgl(is,'matrix')%>%all)
+
+allsummary <- allstanfitsumm%>%
+  map(as.data.frame)%>%
+  map(rownames_to_column,'par')%>%
+  bind_rows(.id='gene_name')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  select(-gene)
+
+allsummarysim <- allstanfitssim$result[[1]]%>%summary%>%.[[1]]%>%as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  mutate(gene_name=genes2fit[gene])
+
+
+hallsummary <- allstanfitssim$result$kinetic%>%
+  summary%>%.[[1]]%>%as.data.frame%>%
+  rownames_to_column('par')%>%
+  mutate(ppars=parse_stan_pars(par))%>%
+  unnest%>%
+  mutate(gene_name=allstanfitssim$result$genes[gene])
+
+
+
+#Plot distributipon of rTEs
+
+#about a fifth of them had convergenet TE
+stopifnot(allsummary%>%filter(parameter=='lrTE')%>%
+  .$sd %>%`>`(2.5)%>%mean%>%between(0.1,0.3))
+
+
+
+
+
+stop()
+allstanfits%>%map
+
+
+allstanfits$lrTE
+
+
+realdata
+
+fitfiles <- Sys.glob(paste0('stanfits/*nonh_vs_lin.stanfit.rds'))
+
+
+gnamei<-gnamesi
+
+#Getting the log likelihood 
+getloglikratios <- function(fitfile){
+  fit<-fitfile%>%readRDS
+  realstanfit <- fit%>%.$result%>%.$kinetic
+  realstanfit_lin <- fit%>%.$result%>%.$linear
+  fitdata<-fit%>%.$result%>%.$data
+  kin=extract(realstanfit,'lp__')%>%.[[1]]%>%min
+  lin=extract(realstanfit_lin,'lp__')%>%.[[1]]%>%min
+  kin-lin
+}
+
+loglikratios <- fitfiles%>%str_subset('Flna')%>%mclapply(mc.cores=20,getloglikratios)
+
+
 ##Now with fixed values
 # realstanfit_test <- rstan::stan(file='src/Stan/degmodel_simple.stan',data=realdata,
 #                                control=list(adapt_delta=0.95,max_treedepth=20),
@@ -89,93 +358,8 @@ allstanfits%>%map('result')%>%map(1)%>%map(as.data.frame)%>%setNames(.,seq_along
 #                                # init=function(z) list(rTE=array(c(10),dim=c(n_genes)),MS0=array(ribo_mat[1,]*rTEs,dim=c(n_genes))),
 #                                verbose=TRUE)
 
-stanpars <- colnames(as.data.frame(realstanfit))
 
-parse_stan_pars<-function(stanpars,indnames=c()){
-  parsedpars<-stanpars%>%str_match('([^\\[]+)\\[?(\\d*),?(\\d*)\\]?')%>%as.data.frame%>%
-    .[,-1]
-  n_inds <- length(colnames(parsedpars))-1
-
-    parsedpars[,-1]%>%.[,]%>%apply(1,function(x){k = keep(x,~ . !='');c(rep(NA,n_inds-length(k)),k)})%>%t%>%
-            set_colnames(c('time','gene'))%>%
-            as.data.frame%>%
-            map_df(.,as.integer)%>%
-          mutate(parameter=parsedpars[,1])%>%
-      select(parameter,time,gene)%>%
-      split(.,seq_len(nrow(.)))
-
-}
-
-
-#get maximim likelihood (kinda) and mean values from our two models, with these functions
-get_ml_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
-get_parsed_summary<-function(fit) fit %>%summary%>%.$summary%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest
-#get_samples_stanfit <- function(fit){fit%>%as.data.frame%>%slice(which.max(lp__))%>%t%>%as.data.frame%>%rownames_to_column('par')%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%select(parameter,val=V1,time,gene)}
-
-#get maximim likelihood (kinda) and mean values from our two models
-parsed_ml<-realstanfit%>%get_ml_stanfit
-parsed_ml_lin<-realstanfit_lin%>%get_ml_stanfit
-parsed_ml<-realstanfit%>%get_parsed_summary%>%mutate(val=`50%`)
-parsed_ml_lin<-realstanfit_lin%>%get_parsed_summary%>%mutate(val=`50%`)
-#function to pull out the mcmc samples for plotting 
-fit <- allstanfits%>%names
-get_prot_samples<-function(fit) fit %>%as.data.frame%>%select(matches('prot'))%>%mutate(sample=1:nrow(.))%>%gather(par,value,-sample)%>%mutate(ppars=parse_stan_pars(par))%>%unnest%>%
-  filter(parameter=='prot')%>%select(time,value,sample,gene)
-#e.g.
-#realstanfit %>% get_prot_samples
-
-gene_ind <- 2
-gnamei <- g2plot[gene_ind]
-
-rdata2plot<-realdata$MS[,,gene_ind]%>%as.data.frame%>%set_colnames(tps)%>%mutate(rep=1:3)%>%gather(time,signal,-rep)
-
-ml2plot<-parsed_ml%>%filter(parameter=='prot')%>%transmute(gene,time=as_factor(tps[time]),signal=(val))%>%filter(gene==gene_ind)
-ml2plot_lin<-parsed_ml_lin%>%filter(parameter=='prot')%>%transmute(gene,time=as_factor(tps[time]),signal=(val))%>%filter(gene==gene_ind)
-
-protsampleslin<- get_prot_samples(realstanfit_lin)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Linear'))%>%filter(gene==gene_ind)
-protsamples<- get_prot_samples(realstanfit)%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
-
-# 
-# protsamples_lowrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`<0.01))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
-# protsamples_highrTEmode<- get_prot_samples(realstanfit%>%as.data.frame%>%filter(`rTE[1]`>0.1))%>%mutate(sample=factor(sample),signal=value,time=as_factor(tps[time]),model=as_factor('Kinetic'))%>%filter(gene==gene_ind)
-# 
-
-#plot showing trajectories and fits with MCMC samples 
-trajectoryplot<-ggplot(rdata2plot%>%mutate(model='MS Data'),aes(color=model,y=log2(signal),x=as.numeric(as_factor(time))))+geom_point()+
-  geom_line(size=I(1),data=ml2plot%>%mutate(model='Kinetic'),linetype=1)+
-  geom_line(size=I(1),data=ml2plot_lin%>%mutate(model='Linear'),linetype=1)+
-  geom_line(alpha=I(0.005),data=protsampleslin,aes(group=sample))+
-  geom_line(alpha=I(0.005),data=protsamples,aes(group=sample))+
-  # geom_line(size=I(2),data=get_prot_samples(ml2plot_lin)%>%mutate(model='Linear'),linetype=1)+
-  scale_x_continuous(name='Stage',labels=tps)+
-  scale_y_continuous(name='Log2 LFQ / Log2 Normalized Counts')+
-  scale_color_manual(values = c('Kinetic'='red','Linear'='blue','MS Data'='black','rTE: 0'='purple','Riboseq Data'='dark green'))+
-  theme_bw()+
-  geom_line(data=exprdata%>%filter(gene_name==gnamesi[gene_ind],assay=='ribo',!is.na(predicted_signal))%>%mutate(signal=2^predicted_signal,model='Riboseq Data'))+
-  ggtitle(label = str_interp('Linear vs. Kinetic Model - ${gnamei}'),sub="Faded Lines represent samples from Posterior\nSolid Line is Median Value")
-  
-# trajectoryplot
-
-
-gglayout = c(1,1,1,2,3,4)%>%matrix(ncol=2)
-
-
-arrangedplot<-gridExtra::grid.arrange(
-  trajectoryplot,
-    realstanfit%>%as.data.frame%>%.$`lrTE[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution log rTE\n${gnamei}'))+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`ldeg[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - log(degredation / 1.5 days) ${gnamei}'))+theme_bw(),
-  realstanfit%>%as.data.frame%>%.$`deg[1]`%>%qplot(bins=50,main=str_interp('Posterior Distribution - degredation / 1.5 days ${gnamei}'))+theme_bw(),
-layout_matrix=gglayout)
-
-
-#' sab2 increasing
-#' Orc3 weird zig zag in the riboseq that the model fits by just completely disregarding it.... This may be an instance of the riboseq signal itself
-#' being fucked up
-#' Ewsr1 - another fucking weird, zig-zaggy riboseq signal, that the model just chucks away.
-#' 'Ap1' nice clear signal for rTE, increasing
-
-ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePath(.)%>%message},arrangedplot,w=12,h=10)
-
+stop()
 
 # 
 # stanfit <- rstan::stan(file='src/degmodel.stan',data=list(G=n_genes,T=tps,K=K,
@@ -186,7 +370,7 @@ ggsave(str_interp('plots/modelling/stanmodelcomp_${gnamei}.pdf')%T>%{normalizePa
 #                        verbose=TRUE)
 
 
-# 
+##########Examining stanfits
 
 samples=stanfit%>%as.data.frame
 
@@ -207,9 +391,6 @@ summary(stanfit)%>%as.data.frame%>%rownames_to_column('parameter')%>%filter(para
 comp_paramval(param='rTE',  realval=simdata$rTE)
 comp_paramval('MS0',simdata$prot0)
 comp_paramval('deg',exp(simdata$ldeg))
-
-
-
 
 
 stanfit<-realstanfit
@@ -250,17 +431,12 @@ print(pairs(stanfit,pars=parstoplot))
 
 
 ####So... parametrizing in terms of half life doesn't really seem to have helped. Makes everything pretty bimodal in fact.
-
 ##back to ldeg parametrization and things ar e
-
 #What does this distribution of degs look like??
-
 #What if i simulate values with the stan model?
-
 map_df(1:10,~simulate_data(log(0.5),100,c(100,200,200,500,500),5e4,n_reps=3))%>%
   .$MS%>%simplify2array%>%aperm(c(1,2,3))%>%
-  identity()%>%
-  
+  identity()%>%  
 
 k = - log(0.5) / (10^rnorm(10e3,log10(48),log10(30)))
 degs <- 1-exp(-k*36)
@@ -274,13 +450,6 @@ log(1-degs) = -k*36
  - log(1-degs) / 36 = k
 
 rnorm(10e3,log10(48),log10(30))%>%hist(20)
-
-10^(log10(12))
-
-exp(log10(12))*exp(log10(10))
-
-2^4
-3^4
 
 hist(degs,50)
 
@@ -296,8 +465,42 @@ pairs(funnel_reparam, pars = c("y", "x[1]", "lp__"), las = 1) # below the diagon
 
 
 #ldeg_rTE parameter did NOT help, it just blows up to minus infinity
+
+
+#' Notes on nodel fitting.... 
 #' Looks like scaling of the standard deviation makes things work just fine
 #' Now I"ll try putting things on a log scale
 #' Okay so applying a prior like that to transformed parameters is bad (warning about needing to add in the jacobian of the transform)
 #' so I now have rTE and tau getting initilialized on a log scale.
 #' Combining the two genes Isoc1 seems to make the second one kind of divergent... (low Rhat, neff)
+#' 
+#' 
+#' Open questions - how many things have flatly contradictory evidence for the rTE? - now with the new data have to recheck
+#' 
+#' I need to show that the similtaneous model doesn't give different fits to the single ones, or at least not too badly.
+#' 
+#' I need to identify a couple of test genes - e.g. the one with contradictory TE, a few with vauge TE, and a few with certain TE. Then I should put them in a big model together
+#' First without contradictory one, then with, then with plus a mixture model component if necessary
+#' Then I should introduce some library specific scaling factors.
+#' 
+#' I should bear in mind there could be some gene name - id conflicts....
+#' 
+#' Looking at the fits - a kind of consistent pattern seems to be emerging where the linear fit looks okay just.... understated. This would not I think be fixed by simple coefficients for the timepoints,
+#' Because It's in opposite direction depending on time.
+#' The things I"m wondering about are a) Should I average between timepoints (seems like obviously yes, actually) and should I try restricting the rTE to the reasonable value space?
+#' Let's try tp restriction with a
+#' 
+#' NOt much discernable difference from the tp averaging. Didn't hurt, at least
+#' 
+#' Now to try the blunt prior on rTE - 
+#' Programming this is a nightmare, as it turns out. Getting initialization to work ont he stan object was hard, but getting it to actually recompile teh model whenever I run was harder... still haven't.
+#'
+#' Now the hierarchical model, which... seems to fit faster than the all the independent ones??? 
+#' Okay so the model object fits at least.....
+#'
+#' Need to compare the hierarch and non-hierarch models
+#' So need to be able to run the hierarch models 
+#' 
+#' It would be good if I could compare the RNA and the Riboseq based model - particularly for TE based cases
+#' 
+#' Also look at our top stalling candidates.

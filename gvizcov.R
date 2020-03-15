@@ -1,12 +1,4 @@
----
-title: "Pa2g4 - Riboseq coverage"
-author: "Dermot Harnett"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: pdf_document
----
-  
-  
-```{r setup,echo=FALSE,message=FALSE,warning=FALSE}
+## ----setup,echo=FALSE,message=FALSE,warning=FALSE------------------------
 knitr::opts_chunk$set(root.dir = "~/cortexomics/",echo = FALSE, message = FALSE, warning = FALSE)
 
 library(Gviz)
@@ -22,17 +14,9 @@ projectfolder <- "~/cortexomics/"
 options(ucscChromosomeNames=FALSE)
 
 
-```
 
 
-## Plotting Riboseq over Pa2g4
-Proof of concept - plotting coverage riboseq over Pa2g4
-
-We use:
-- fragments of all sizes
-- 
-
-```{r get_annotation,cache=TRUE}
+## ----get_annotation,cache=TRUE-------------------------------------------
 message('loading transcripts')
 transcriptfile <- '~/cortexomics/data/static_local/gencode.vM12.annotation.gtf'
 if(! exists('transcripts')){ 
@@ -47,11 +31,6 @@ gend = (vgene%>%end)
 #create the gene track for gviz
 
 gtrack = transcripts%>%{
-    
-}
-
-
-make_gtrack<-function(vgene,transcripts){
     transcripts = .
     transsubset=transcripts%>%subsetByOverlaps(vgene)
     transsubset$feature = transsubset$type %>% as.character
@@ -63,10 +42,8 @@ make_gtrack<-function(vgene,transcripts){
     transsubset$feature = transsubset$feature %>% as.character
     transsubset$transcript= transsubset$transcript_id
     # transsubset$group = transsubset$transcript_id 
-     Gviz::GeneRegionTrack(transsubset,thinBoxFeature=c("UTR"),showId=TRUE,chromosome=gchr,geneSymbol=TRUE)
+    gtrack = Gviz::GeneRegionTrack(transsubset,thinBoxFeature=c("UTR"),showId=TRUE,chromosome=gchr,geneSymbol=TRUE)
 }
-
-gtrack =make_gtrack(vgene,transcripts)
 
 startchr<-transcripts%>%
   subset(gene_id ==vgene$gene_id)%>%
@@ -87,9 +64,9 @@ startcodons<-matchPattern(reverseComplement(DNAString('ATG')),Mmusculus[[gchr%>%
 
 codtrack =     Gviz::AnnotationTrack(startcodons,feature='start_codon',genome='mm10')
 
-```
 
-```{r create_tracks,cache=TRUE}
+
+## ----create_tracks,cache=TRUE--------------------------------------------
 
 import.bw.neg <- function(file,selection){
   data <- import.bw(file,sel=selection)
@@ -102,17 +79,16 @@ make_track<-function(file,trackname,isneg=FALSE,ylims=NULL...){
   if(str_detect(trackname,'total')) isneg=TRUE
   if(isneg){ 
     importfunction = import.bw.neg
-    # ylims = c(-20,0)
+    ylims = c(-20,0)
   }else{
-    importfunction= function(file,selection){
-      import.bw(file,sel=selection)
-    # ylims = c(0,5)
+    importfunction= function(file,selection) import.bw(file,sel=selection)
+    ylims = c(0,5)
   }
-  DataTrack(file,name = trackname,chromosome=gchr,stream=TRUE,importFunction = importfunction)
+  DataTrack(file,name = trackname,chromosome=gchr,stream=TRUE,importFunction = importfunction,ylim = ylims)
   # DataTrack(file,name = trackname,chromosome=gchr,stream=TRUE,ylim = NULL)
 }
-datafiles <- Sys.glob(here('pipeline/mergedbigwigs/*/*/*'))%>%grep(v=TRUE,inv=TRUE,patt='transcript')
-datafiles <- Sys.glob(here('pipeline//bigwigs/*/*/*bw'))%>%grep(v=TRUE,inv=TRUE,patt='transcript')
+datafiles <- Sys.glob(here::here('data/mergedbigwigs/*/*/*'))%>%grep(v=TRUE,inv=TRUE,patt='transcript')
+datafiles <- Sys.glob(here::here('data/bigwigs/*/*/*bw'))%>%grep(v=TRUE,inv=TRUE,patt='transcript')
 # datafiles <- datafiles[c(1:4)]
 
 bwTracks <- 
@@ -122,31 +98,17 @@ bwTracks <-
   filter(trackname%>%str_detect('ribo.*neg|(total.*pos)'))%>%
   {map2(.$file,.$trackname,.f = make_track)}
 
-bwTracks[[1]]@stream()
-bwTracks[[1]]@file
-
-(vgene)
-
 # atracks <-map(bam_files[c(1:4,17:20)],.f = .%>%AlignmentsTrack(.,isPaired=FALSE))
 
 # tracks <- c(bwTracks[1:2],gtrack,codtrack,Gviz::GenomeAxisTrack())
 # plotTracks(tracks,chr = as.character(gchr), from = gend - 210, to = gend, type="h")
 tracks <- c(bwTracks[c(1:4,17:20)],gtrack,codtrack,Gviz::GenomeAxisTrack())
-```
 
 
-
-
-
-# Pa2g4 - First exon
-
-```{r plot first_exon,fig.height=14,fig.width=10}
-pfile <- here('plots','coverage','pa2g4_firstexon_bwchr_coverage.pdf')
-pfile%>%dirname%>%dir.create
-pdf(pfile,height=14,w=7)
-plotTracks(tracks[1],chr = as.character(gchr), from = gend - 300, to = gend, type="h")
+## ----plot first_exon,fig.height=14,fig.width=10--------------------------
+pdf(here('exploration','pa2g4_firstexon_bwchr_coverage.pdf'),height=14,w=7)
+plotTracks(tracks,chr = as.character(gchr), from = gend - 300, to = gend, type="h")
 dev.off()
-pfile
 
 plotTracks(tracks,chr = as.character(gchr), from = gend - 210, to = gend-180, type="h")
 
@@ -164,24 +126,17 @@ bwTracks[1:2]
 tracks <- c(bwTracks[1:2],gtrack,codtrack,Gviz::GenomeAxisTrack())
 plotTracks(tracks,chr = as.character(gchr), from = gend - 210, to = gend, type="h")
 
-```
 
 
-# Pa2g4 - Second exon
-
-```{r plot_second_exon,fig.height=14,fig.width=10}
+## ----plot_second_exon,fig.height=14,fig.width=10-------------------------
 pdf(here('exploration','pa2g4_secondexon_bwchr_coverage.pdf'),height=14,w=7)
-plotTracks(tracks[1],chr = as.character(gchr), from = gend - 3000, to = gend - 2600, type="h")
+plotTracks(tracks,chr = as.character(gchr), from = gend - 3000, to = gend - 2600, type="h")
 dev.off()
-```
 
 
-
-# Pa2g4 - whole gene
-
-```{r plot_whole_gene,fig.height=14,fig.width=10}
+## ----plot_whole_gene,fig.height=14,fig.width=10--------------------------
 
 plotTracks(tracks,chr = as.character(gchr), from = gstart - 100, to = gend + 100, type="h")
 
 
-```
+

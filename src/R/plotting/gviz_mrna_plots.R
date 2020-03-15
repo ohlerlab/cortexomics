@@ -274,7 +274,7 @@ for(zone_i in (markerTE$zone%>%unique)){
         ggtitle(str_interp("Translational Efficiency for ${zone_i}"))+
         theme_bw()+
         theme(text = element_text(size = 16))
-    
+      
   }%>%print
 
   }
