@@ -94,7 +94,7 @@ translationprotids <- biomaRt::getBM(attributes = c("uniprot_gn_id"),
 
 manual_tl_df<-fread(here('ext_data/transl_prots_2check.txt'))
 manual_tl_df%<>%filter(!gene_name=='Pa2g4')
-manual_tl_df[[2]]%in%mstall$Protein_IDs
+# manual_tl_df[[2]]%in%mstall$Protein_IDs
 translsetlist <- list(
 	'taset_manual'=manual_tl_df[[2]]%>%str_split_fast%>%unlist,
 	'taset_go'=translationprotids
@@ -310,7 +310,8 @@ my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)
 msid_cat <- distinct(mstall_trans,Protein_IDs,pcat)%>%{safe_hashmap(keys=.[[1]],values=.[[2]])}
 gname <- mstall_trans%>%distinct(Protein_IDs,gene_name)%>%filter(!is.na(gene_name))%>%{safe_hashmap(.[[1]],.[[2]])}
 #
-ribostochplots<-lapply(dsetnames,function(dset){
+
+ribostochlists<-lapply(dsetnames,function(dset){
 	#now get the median of all rps
 	ribomsids<-rownames(stochmats[[dset]])%>%{.[msid_cat[[.]]%>%is_in(c('Rpl','Rps'))]}
 	dsetribomed<-sigmat%>%filter(Protein_IDs%in%ribomsids)%>%ungroup%>%summarise_at(vars(-1),list(~ median(.,na.rm=T)))%>%t%>%
@@ -323,7 +324,7 @@ ribostochplots<-lapply(dsetnames,function(dset){
 	pos <- position_jitter(width = 0.3, seed = 2)
 	# plotfile<-'tmp.pdf'
 	# pdf('tmp.pdf')	
-	data.frame(relativeLFQ =relvals,pcat = msid_cat[[sigmat$Protein_IDs]])%>%
+	ggdf <- data.frame(relativeLFQ =relvals,pcat = msid_cat[[sigmat$Protein_IDs]])%>%
 		mutate(gname = sigmat$Protein_IDs%>%gname[[.,default=.]] ) %>%
 		mutate(label = ifelse(
 			(abs(relativeLFQ)>2.5) & (pcat%in%c('Rps','Rpl'))|
@@ -333,7 +334,8 @@ ribostochplots<-lapply(dsetnames,function(dset){
 		) %>%
 		mutate(pcat = factor(pcat,c('translation-associated','Ebp1','Rps','Rpl')))%>%
 		mutate(pcat = recode(pcat,'translation-associated'='translation\nassociated'))%>%
-		filter(!is.na(pcat))%>%
+		filter(!is.na(pcat))
+	plot<-ggdf%>%
 		ggplot(.,aes(y=relativeLFQ,color=pcat,fill=pcat,x=pcat,label=label))+
 		geom_jitter(position=pos,alpha=I(0.5))+
 		geom_text_repel(position=pos)+
@@ -346,14 +348,26 @@ ribostochplots<-lapply(dsetnames,function(dset){
 		ggtitle('Protein Stochiometry - ',dset)+
 		theme(axis.text.x=element_text(angle=45))+
 		theme_bw()
-	# dev.off()
-	# normalizePath(plotfile)
+		list(plot,ggdf)
 })
+ribostochplots <- map(ribostochlists,1)
+ribostochdfs <- map(ribostochlists,2)
+
+ribostochdfs%<>%setNames(dsetnames)%>%bind_rows(.id='dataset')
+
+tablefile<- here(paste0('tables/','ribostoch_',mssigcol,'_',translsetname,'.tsv'))
+
+left_join(
+	ribostochdfs%>%group_by(dataset)%>%summarise(ebp1_vs_Rpl = 2^(relativeLFQ[pcat=='Ebp1'] - median(na.rm=T,relativeLFQ[pcat=='Rpl']))),
+	ribostochdfs%>%group_by(dataset)%>%summarise(ebp1_vs_Rps = 2^(relativeLFQ[pcat=='Ebp1'] - median(na.rm=T,relativeLFQ[pcat=='Rps'])))
+)%>%write_tsv(tablefile)
+
+message(normalizePath(tablefile))
 #now plot
 #plot without labels
 
 ribostochplotsnorepel<-ribostochplots%>%map(function(x){x$layers[[2]]=NULL;x})
-plotfile<- here(paste0('plots/','ribostochbars_',mssigcol,'_',translsetname,'.pdf'))
+plotfile<- here(paste0('plots/','ribostochjitters_',mssigcol,'_',translsetname,'.pdf'))
 #
 pdf(plotfile,w=12,h=20)
 print(ggarrange(plotlist=ribostochplotsnorepel,nrow=5,ncol=3))
@@ -361,7 +375,7 @@ dev.off()
 message(normalizePath(plotfile))
 #
 library(ggrepel)
-plotfile<- here(paste0('plots/','ribostochbars_label_',mssigcol,'_',translsetname,'_','.pdf'))
+plotfile<- here(paste0('plots/','ribostochjitters_label_',mssigcol,'_',translsetname,'_','.pdf'))
 pdf(plotfile,w=24,h=40)
 print(ggarrange(plotlist=ribostochplots,nrow=5,ncol=3))
 dev.off()
