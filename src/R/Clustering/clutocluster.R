@@ -1,4 +1,5 @@
-source(here('src/R/Rprofile.R'))
+library(here)
+source(here::here('src/R/Rprofile.R'))
 
 # suppressMessages({library(svglite)})
 suppressMessages({library(readr)})
@@ -26,13 +27,12 @@ suppressMessages({library(ggpubr)})
 suppressMessages({library(conflicted)})
 
 # suppressMessages({map(lsf.str("package:BiocGenerics"),.f=conflict_prefer,'BiocGenerics')})
-
+conflict_prefer("intersect", "BiocGenerics")
 reduce <- GenomicRanges::reduce
 #
 MAPQTHRESH <- 200
 USEPHASE <- FALSE
 USERIBOSEQC <- FALSE
-
 
 
 CLUTOBIN <- here('Applications/cluto-2.1.2/Linux-x86_64/vcluster')
@@ -65,9 +65,12 @@ getassaypreds <- function(limmapredf,selassays){
       as.data.frame
     clutomat
 }
+
 get_cluto_clusts<-function(clutomat,clustnum,
                            clutoinput= 'pipeline/clustering/cluto_clustering/tmp_clusterdata.txt',
                            clutodir = 'pipeline/clustering/cluto_clustering/',
+                           clustfnpar = '',
+                           agglofrom=50,
                            clutobin=CLUTOBIN
 ){
   #create folder for cluto
@@ -78,7 +81,7 @@ get_cluto_clusts<-function(clutomat,clustnum,
   cat(file=clutoinput,x=str_interp('${nrow(clutomat)} ${ncol(clutomat)}\n'))
   as.data.frame(clutomat)%>%write_tsv(append = T, clutoinput,col_names = F)
   #  
-  system('cd ${clutodir} ;${clutobin} ${clutoinput} ${clustnum} -agglofrom=50 -sim=cos -clmethod=graph -showtree -fulltree -showfeatures -showsummaries=cliques -labeltree'%>%str_interp%T>%message)
+  system('cd ${clutodir} ;${clutobin} ${clutoinput} ${clustnum} -agglofrom=${agglofrom} -sim=cos ${clustfnpar} -clmethod=graph -showtree -fulltree -showfeatures -showsummaries=cliques -labeltree'%>%str_interp%T>%message)
   Sys.sleep(2)
   clusteringfile <- clutoinput%>%{paste0(.,'.clustering.',clustnum)}
   stopifnot(file.exists(clusteringfile))
@@ -93,13 +96,25 @@ get_cluto_clusts<-function(clutomat,clustnum,
 ########First let's test with old clusters
 ################################################################################
 # load('data/cluto_clusts.Rdata')
-oldclutomat<-clutomat%>%as.matrix
+# oldclutomat<-clutomat%>%as.matrix
+clutmat_RNA <- oldclutomat%>%.[,1:5]
+
+clutoclustlist_RNA <- lapply(4%>%setNames(.,.),get_cluto_clusts,clutomat=oldclutomat,clutoinput='pipeline/clustering/testcluster_clutmat_RNAonly_exp.txt')
+
+clutoclustlist_RNA <- lapply(30%>%setNames(.,.),get_cluto_clusts,clutomat=oldclutomat,clutoinput='pipeline/clustering/testcluster_clutmat_RNAonly_exp.txt',agglofrom=30)
+
+clutoclustlist_RNA[[1]]%>%table
+
+clutoclustlist_RNA <- lapply(5%>%setNames(.,.),get_cluto_clusts,clutomat=oldclutomat,clutoinput='pipeline/clustering/testcluster_clutmat_RNAonly_exp.txt',clustfnpar = ' -cstype=best ')
+clutoclustlist_RNA[[1]]%>%table
+
 clutmat_RNA <- oldclutomat%>%.[,colnames(.)%>%str_subset('total')]
 clutmat_RNA_Ribo <- oldclutomat%>%.[,colnames(.)%>%str_subset('total|ribo')]
 clutmat_RNA_MS <- oldclutomat%>%.[,colnames(.)%>%str_subset('total|MS')]
 clutmat_RNA_Ribo_MS <- oldclutomat%>%.[,]
 clutmat_Ribo_MS <- oldclutomat%>%.[,colnames(.)%>%str_subset('ribo|MS')]
 clutoclustlist_RNA <- lapply(13%>%setNames(.,.),get_cluto_clusts,clutomat=clutmat_RNA,clutoinput='pipeline/clustering/testcluster_clutmat_RNAonly_exp.txt')
+stop()
 clutoclustlist_RNA_Ribo <- lapply(13%>%setNames(.,.),get_cluto_clusts,clutomat=clutmat_RNA_Ribo,clutoinput='pipeline/clustering/testcluster_clutmat_RNA_Ribo_exp.txt')
 clutoclustlist_RNA_MS <- lapply(13%>%setNames(.,.),get_cluto_clusts,clutomat=clutmat_RNA_MS,clutoinput='pipeline/clustering/testcluster_clutmat_RNA_Ribo_exp.txt')
 clutoclustlist_Ribo_MS <- lapply(13%>%setNames(.,.),get_cluto_clusts,clutomat=clutmat_Ribo_MS,clutoinput='pipeline/clustering/testcluster_clutmat_Ribo_MS_exp.txt')

@@ -6,6 +6,7 @@ library(data.table)
 library(magrittr)
 library(data.table)
 library('DeconRNASeq')
+library('here')
 
 signatures <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/ext_data/scharma_etal_proteomic/'
 
@@ -34,6 +35,7 @@ if(!file.exists(scharmafile)){
 }else{
   scharma<-read_tsv(scharmafile)
 }
+
 #filter only very differential genes
 scharma <- scharma[scharma$`Log2 Fold Expression:>ten fold expressed in atleast one cell type`%in%'+',]
 colnames(scharma)%<>%str_replace('NA:Gene names','gene_name')
