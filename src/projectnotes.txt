@@ -2,7 +2,16 @@
 TAPs, meds, speed.
 
 ####Presently:
-Making sure lib norm for the genes is ok not double counting ORFs.
+- Simulate TEs
+  - Draw from Telley's experiments and do a DESeq analysis.
+    - Figure out how to draw from them.
+####Then
+- Data onto telleys axes if poss
+
+
+
+
+
 Then including the models in our trajectory plots on shiny.
 	#Doing this with REAL CODE - modularity. Acceptance that I forget stuff and
 		.
