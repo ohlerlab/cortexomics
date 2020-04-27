@@ -523,6 +523,9 @@ rule gffread:
       |  grep -P -e'\texon\t|^\#' | 
       gffread - -F -E -g {REF} -W -w {RNAFASTA} -o /dev/null
 
+      samtools faidx {RNAFASTA}
+      cut -f1,2 {RNAFASTA}.fai  > {trsizes} 
+
       #Note we are now minus the transcript and exon entries for these
       #now make GTF
 
@@ -544,8 +547,7 @@ rule gffread:
       refname={REF}
       cut -f1,2 {REF}.fai > ${{refname%fa}}chromsizes 
 
-      samtools faidx {RNAFASTA}
-      cut -f1,2 {RNAFASTA}.fai  > {trsizes}    
+
       """
 
 

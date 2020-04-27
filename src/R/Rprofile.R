@@ -1051,3 +1051,108 @@ vals <- function(x){
 }
 
 GRanges(1:2,1:2)%>%split(1:2)
+
+
+
+resize_grl_startfix<-function(grl,width){
+  #what follows is some slightly black magic using S4 vectors
+  #Integerlist which showings how much we'd need to trim that exon to get to to the desired transcript length
+  trim =  cumsum(width(grl)) - width 
+  #Where trim is greater than the exon width, we drop it
+  drop = trim >=  width(grl)
+  grl = grl[!drop]
+  #vector showing location of the new 3' end of each transcript
+  newends = cumsum(elementNROWS(grl))
+  #vector with the amount we need to trim each new 3' end by
+  endtrims=trim[IntegerList(as.list(elementNROWS(grl)))]@unlistData
+  #finally, use these to trim
+  grl@unlistData[newends] <- resize(grl@unlistData[newends], width(grl@unlistData[newends]) - endtrims  )
+  grl
+  
+}
+
+str_order_grl<-function(grl){order( start(grl)*(((strand(grl)!='-')+1)*2 -3) )}
+sort_grl_st <- function(grl)grl[str_order_grl(grl),]
+resize_grl_endfix <- function(grl,width){
+  grl = invertStrand(grl)%>%sort_grl_st
+  
+  grl = resize_grl_startfix(grl,width)
+  invertStrand(grl)%>%sort_grl_st
+}
+resize_grl <- function(grl,width,fix='start',check=TRUE){
+  stopifnot(all(width>0))
+  assert_that(all(all(diff(str_order_grl(grl))==1) ),msg = "grl needs to be 5'->3' sorted")
+  if(fix=='start'){
+    grl = resize_grl_startfix(grl,width)
+  }else if(fix=='end'){
+    grl = resize_grl_endfix(grl,width)
+  }else if(fix=='center'){
+    grlwidths = sum(width(grl)) 
+    diffs = (width - grlwidths)
+    
+    grl = resize_grl_startfix(grl,grlwidths - floor(diffs/2))
+    grl = resize_grl_endfix(grl,grlwidths - ceiling(diffs/2))
+    
+  }
+  if(check){
+    startstoolow <- any(start(grl)<=0)
+    if(any(startstoolow)){
+      stop(str_interp("${sum(startstoolow)} ranges extended below 1 .. e.g. ${head(which(startstoolow,1))}"))
+    }
+    grlseqs <- as.vector(unlist(use.names=F,seqnames(grl)[IntegerList(as.list(rep(1,length(grl))))]))
+    endstoohigh <- any((end(grl)>seqlengths(grl)[grlseqs])%in%TRUE)
+    if(any(endstoohigh)){
+      stop(str_interp("${sum(endstoohigh)} ranges extended below above seqlength .. e.g. ${head(which(endstoohigh,1))}"))
+    }
+  }
+  grl
+}
+trim_grl <- function(grl,bp,end='tp'){
+  if(end=='tp'){
+    resize_grl(grl,sum(width(grl)) - bp,fix='start')
+  }else if(end=='fp'){
+    resize_grl(grl,sum(width(grl)) - bp,fix='end')
+  }else {
+    stop("end should be fp or tp")
+  }
+}
+
+setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
+setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
+  if(is.character(offset)){
+    offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
+  } 
+  if(length(offset)==1) offset = rep(offset,length(offsetreads))
+  isneg <-  as.logical(strand(offsetreads)=='-')
+  offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
+  ends <- qwidth(offsetreads[isneg])-offset[isneg]
+  offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
+  offsetreads
+})
+
+fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
+tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
+strandshift<-function(gr,shift) shift(gr , ifelse( strand(gr)=='-',- shift,shift))
+
+get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200) {
+  require(GenomicAlignments)
+  riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
+  reads <- readGAlignments(bam,param=riboparam)
+  #
+  if(is.null(offsets)){
+  mcols(reads)$offset <- floor(qwidth(reads)/2)
+  }else{
+    mcols(reads)$offset <- 
+      data.frame(length=qwidth(reads),compartment='nucl')%>%
+      safe_left_join(offsets,allow_missing=TRUE)%>%.$offset
+  }
+  #
+  reads <- reads%>%subset(!is.na(mcols(reads)$offset))
+  # 
+  mcols(reads)$length <- width(reads)
+  reads%<>%subset(!is.na(offset))
+  psites <- apply_psite_offset(reads,c('offset'))%>%as("GRanges")
+  mcols(psites)$length <- mcols(reads)$length   
+  psites
+}
+#metaplots

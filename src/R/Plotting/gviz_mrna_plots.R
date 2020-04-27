@@ -103,6 +103,7 @@ make_track<-function(file,trackname,isneg=FALSE,...){
   }
   DataTrack(file,name = trackname,chromosome=vtr$transcript_id,stream=TRUE,importFunction = importfunction,ylim = ylims)
 }
+
 datafiles <- Sys.glob(file.path(root,'data/mergedbigwigs/*/*/*transcript*'))[c(1:4,21:24)]
 dTrack <- datafiles%>%
   data_frame(file=.)%>%

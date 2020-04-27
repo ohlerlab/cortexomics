@@ -151,7 +151,8 @@ pids = mstall%>%ungroup%>%distinct(Protein_IDs)
 
 pids%<>%mutate(pcat = case_when(
  (Protein_IDs==ebp1pid) ~ "Ebp1",
- (Protein_IDs=='P68040') ~ "P68040",
+ # (Protein_IDs=='P68040') ~ "P68040",
+ (PRotein_IDs=='Q99LG4') ~ 'Ttc5' ,
   sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
   sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
   sep_element_in(Protein_IDs,translset) ~ "translation-associated",
@@ -248,7 +249,8 @@ stochmats <- lapply(2:ncol(sigmat),function(j) {
 
 
 #plot the stochiometry heatmap
-catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","green"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
+# catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","green"),pcat = c("translation-associated","Rps","Rpl","Ebp1","P68040"))
+catcolors = data_frame(color=c('#000000',"#FFF200","#00AEEF","#BF1E2E","green"),pcat = c("translation-associated","Rps","Rpl","Ebp1","Ttc5"))
 #colors for fold changes
 colors = c(seq(-15,-log2(1.25),length=100),seq(-log2(1.25),log2(1.25),length=100),seq(log2(1.25),15,length=100))
 my_palette <- colorRampPalette(c("red", "black", "green"))(n = 299)

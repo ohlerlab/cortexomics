@@ -232,6 +232,61 @@ codonprofiles %>%saveRDS('data/codonprofiles.rds')
 
 
 
+cds_codgrl <- cdscodons%>%GRangesList%>%unlist%>%split(.,names(.)%>%str_extract('[^\\.]+$'))%>%sort_grl_st
+
+
+#codon scores based on occupancy
+codscoremap<-codonoccs%>%filter(time=='E13')%>%{hashmap(.$codon,.$occupancy)}
+
+#based on weighted usage (so frequency essentially)
+codscoremap<-allcodsigmean_isomerge%>%group_by(codon)%>%slice(1)%>%{hashmap(.$codon,.$weightedusage)}
+
+# codscoremap[['TGA']]=NA
+# codscoremap[['TAA']]=NA
+# codscoremap[['TAG']]=NA
+
+cds_codgrl@unlistData@metadata$occ = cds_codgrl@unlistData%>%names%>%str_extract('^[^\\.]+')%>%codscoremap[[.]]
+cdsoccs <- cds_codgrl@unlistData@metadata$occ%>%split(cds_codgrl@partitioning)
+
+cdsoccs_firsthund <- cdsoccs[elementNROWS(cdsoccs)>100]%>%{.[GRanges(names(.),IRanges(start=rep(1,length(.)),end=rep(100,length(.))))]}
+
+cdsoccs_firsthund%>%as.matrix%>%apply(2,function(x)quantile(x,c(0.25,0.75)))
+
+cdsoccs_firsthund%>%as.matrix%>%apply(2,function(x)quantile(x,c(0.5)))%>%txtplot
+cdsoccs_firsthund%>%as.matrix%>%apply(2,function(x)mean(x))%>%txtplot
+
+cdsnames <- names(cdsoccs_firsthund)
+cdsoccs_firsthundmat <- cdsoccs_firsthund%>%as.matrix%>%set_rownames(cdsnames)
+
+rampscores <- rowSums(cdsoccs_firsthundmat[,3:10],na.rm=T) - rowSums(cdsoccs_firsthundmat[,50+(3:10)],na.rm=T)
+
+cdsoccs_firsthundmat%>%apply(2,mean,na.rm=T)%>%txtplot
+
+mcshanedf<-fread('ext_data/mcshane_etal_2016_S1.csv')
+#
+mcshanethalfs<-mcshanedf%>%select(2,38,41)%>%set_colnames(c('gene_name','half_life','McShane_deg_cat'))
+#
+mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
+mcshanethalfs%<>%filter(half_life<300)
+mcshanethalfs$half_life %<>% {./24}
+
+gnamehm <- read_tsv('data/metainfo.tsv')%>%distinct(protein_id,gene_name)%>%{safe_hashmap(.$protein_id,.$gene_name)}
+halflifehm <- mcshanethalfs%>%{hashmap(.$gene_name,.$half_life)}
+
+cor.test(rampscores,halflifehm[[gnamehm[[cdsnames]]]],method='spearman',use='complete')
+txtplot(rampscores,halflifehm[[gnamehm[[cdsnames]]]])
+
+
+
+#now plot
+plotfile<- here(paste0('plots/','tmp','.pdf'))
+pdf(plotfile)
+qplot(rampscores,halflifehm[[gnamehm[[cdsnames]]]],size=I(0.1),geom='point')
+normalizePath(plotfile)
+dev.off()
+
+IntegerList()
+
 # codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
 # codonproftppos<-codonprofiles%>%distinct(readlen,codon)%>%mutate(tppos = 1-as.numeric(str_replace(readlen,'rl','')))
 
