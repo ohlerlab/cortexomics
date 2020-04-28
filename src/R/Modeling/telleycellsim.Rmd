@@ -7,8 +7,8 @@ output: html_notebook
 library(here)
 source(here('src/R/Rprofile.R'))
 
-#devtools::install_git(c('https://github.com/cran/SDMTools'))
-#source("https://z.umn.edu/archived-seurat")
+# devtools::install_git(c('https://github.com/cran/SDMTools'))
+# source("https://z.umn.edu/archived-seurat")
 library(here)
 
 library('DeconRNASeq')
@@ -30,7 +30,14 @@ if(!file.exists(here('data/ft_agg_df.rds'))){
   
   myvargenes = telleyseurat@var.genes
   telleyseurat@var.genes = telleyvargenes
-  
+
+  # tmp = as.data.frame(ss_emat)%>%{.[,ss_emat%>%colnames%>%str_detect('E14.96')]}%>%rowSums
+  # tmp2 = telleyseurat@data%>%{.[,ss_emat%>%colnames%>%tail(-1)%>%str_detect('E14.96')]}%>%rowSums
+  # library(txtplot)
+  # txtplot(tmp,tmp2)
+  # txtplot(log2(tmp+1),tmp2)
+
+
     
   ft_mat <- telleyseurat@data%>%colnames%>%str_split('[\\.\\_]')%>%tail(-1)%>%simplify2array%>%t%>%
       .[,1:2]%>%set_colnames(c('fttime','ftdiff'))%>%
@@ -42,7 +49,7 @@ if(!file.exists(here('data/ft_agg_df.rds'))){
   agg_counts<-lapply(unique(ft_mat$fttime)%>%setNames(.,.),function(fttime){
     lapply(unique(ft_mat$ftdiff)%>%setNames(.,.),function(ftdiff){
       telleyseurat
-      telleyseurat@data%>%{.[,(ft_mat$fttime==fttime) & (ft_mat$ftdiff==ftdiff)]}%>%rowSums%>%as.data.frame%>%
+      (2^telleyseurat@data)%>%{.[,(ft_mat$fttime==fttime) & (ft_mat$ftdiff==ftdiff)]}%>%rowSums%>%log2%>%as.data.frame%>%
       set_colnames(paste0(fttime,'_',ftdiff))
     })
   })
@@ -68,13 +75,38 @@ mybulkdf <- mybulkmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%left
 
 min_ss_sig <- ft_agg_df[,-1]%>%as.matrix%>%rowMedians
 
-shared_names <- ft_agg_df[min_ss_sig>100,]$gene_name%>%intersect(mybulkdf$gene_name)
-
+shared_names <- ft_agg_df[min_ss_sig>8,]$gene_name%>%intersect(mybulkdf$gene_name)
+message(str_interp('${length(shared_names)} genes in common'))
 mybulkdf <- mybulkdf%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,matches('total'),matches('ribo'))%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
 ft_aggmat <- ft_agg_df%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,everything())%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
 
 qplot(mybulkdf[[1]],ft_aggmat[[4]])
 
-(DeconRNASeq::DeconRNASeq(2^mybulkdf,2^ft_aggmat))
+deconres <- (DeconRNASeq::DeconRNASeq(2^mybulkdf,2^ft_aggmat))
+
+deconpropdf<-deconres$out.all%>%as.data.frame%>%mutate(dset=colnames(mybulkdf))%>%gather(ftset,prop,-dset)%>%
+  separate(ftset,c('ft_time','ft_diff'))%>%
+  mutate(dset=str_replace(dset,'_\\d$',''))%>%
+  group_by(dset,ft_time,ft_diff)%>%summarise(prop=mean(prop))
+
+
+deconpropdf%>%group_by(dset,ft_time)%>%summarise(prop=sum(prop))%>%spread(ft_time,prop)
+
+deconpropdf%>%group_by(dset,ft_diff)%>%summarise(prop=sum(prop))%>%spread(ft_diff,prop)
+
+
+deconpropdf%>%
+  group_by(dset,ft_time)%>%summarise(prop=sum(prop))%>%spread(ft_time,prop)
+
+
+
 
 ```
+
+```{r}
+
+```
+
+
+
+
