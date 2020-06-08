@@ -250,7 +250,7 @@ require(rstan)
 ################################################################################
 	
 # 'data/geneoptfits.rds'%>%file.remove
-# selgene='ENSMUSP00000110057_4528'
+ selgene='ENSMUSP00000110057_4528'
 
 if(!file.exists('data/geneoptfits.rds')){
 	#
