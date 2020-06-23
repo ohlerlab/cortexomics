@@ -166,12 +166,11 @@ get_bulk_from_cellmix<-function(tediff,propdiff){
     bulkcounts
   
 }
+```
 
+Fractions
 
-
-
-
-
+```{r}
 ##
 # 
 # exp2(log_ct_exprs)[21,]%>%setNames(dnames)

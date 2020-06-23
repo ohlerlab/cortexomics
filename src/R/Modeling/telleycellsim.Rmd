@@ -13,7 +13,8 @@ library(here)
 
 library('DeconRNASeq')
 
-# file.remove(here('data/ft_agg_df.rds'))
+stopifnot(!exists('FindVariableGenes'))
+
 if(!file.exists(here('data/ft_agg_df.rds'))){
   library('Seurat')
   ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
@@ -47,11 +48,11 @@ if(!file.exists(here('data/ft_agg_df.rds'))){
     })
   })
   
-  ft_agg_df <- agg_counts%>%map(.%>%bind_cols)%>%bind_cols
-    
   ft_agg_df$gene_name <- telleyseurat@data%>%rownames
   ft_agg_df%<>%select(gene_name,everything())
 
+  ft_agg_df <- agg_counts%>%map(.%>%bind_cols)%>%bind_cols
+  
 
   saveRDS(ft_agg_df,here('data/ft_agg_df.rds'))
 }else{
@@ -59,7 +60,7 @@ if(!file.exists(here('data/ft_agg_df.rds'))){
   ft_agg_df<-readRDS(here('data/ft_agg_df.rds'))
 }
 
-stopifnot('gene_name'%in%colnames(ft_agg_df))
+
 stopifnot(!exists('FindVariableGenes'))
 
 if(!exists('mscountvoom'))load(here('data/integrate_exprdata2.Rdata'))
