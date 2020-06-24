@@ -1,4 +1,3 @@
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/telleycellsim.Rmd
 
 # # install devtools if necessary
 # install.packages('devtools')
@@ -9,9 +8,12 @@
 # load
 library(xbioc)
 library(MuSiC)
+source('src/R/Rprofile.R')
 metainfo<-'data/metainfo.tsv'%>%fread
 
-load('data/integrate_exprdata2.Rdata')
+if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
+
+if(!exists('countexprdata')) load('data/integrate_exprdata2.Rdata')
 
 {
 	featuredata = tibble(gene_name=ss_emat[[1]])%>%left_join(metainfo%>%filter(isbest)%>%distinct(gene_name,protein_id,transcript_id,uprotein_id))%>%
@@ -33,7 +35,6 @@ load('data/integrate_exprdata2.Rdata')
 countexprdata%>%colnames
 
 
-ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
 
 clusters.type = pData(sscountexprdata)$cellType%>%unique%>%setNames(.,.)
 cl.type = as.character(sscountexprdata$cellType)
@@ -48,14 +49,69 @@ rownames(bestcountexprdata) = tibble(protein_id=rownames(bestcountexprdata))%>%l
 
 pData(sscountexprdata)$sampleID = rep(c(1,2),nrow(pData(sscountexprdata)))[1:nrow(pData(sscountexprdata))]
 
-music_res = music_prop(bulk.eset = bestcountexprdata, sc.eset = sscountexprdata,clusters = 'cellType',clusters.type=clusters.type,sample='sampleID')
+dtegenes = metainfo%>%filter(dTE)%>%.$gene_name
 
-cosdistres <- music_res[[1]] %>% as.data.frame%>%rownames_to_column('dset')%>%gather(ftset,music_prop,-dset)%>%
+genessets <- list(
+  allgenes=rownames(sscountexprdata),
+  dte_genes = rownames(sscountexprdata)%>%intersect(dtegenes),
+  non_dte_genes = rownames(sscountexprdata)%>%setdiff(dtegenes)
+)
+
+music_reslist = genessets%>%lapply(function(geneset){
+  music_prop(bulk.eset = bestcountexprdata, sc.eset = sscountexprdata[geneset,],clusters = 'cellType',clusters.type=clusters.type,sample='sampleID')
+})
+
+
+#now plot all sets
+music_reslist %>% seq_along%>%lapply(function(i){
+  musicres <- music_reslist[[i]]
+  tesetname = names(music_reslist)[[i]]
+
+
+library(naniar)
+
+gtdf1 <- musicres[[1]] %>% as.data.frame%>%rownames_to_column('dset')%>%gather(ftset,music_prop,-dset)%>%
   separate(ftset,c('ft_time','ft_diff'))%>%
-  mutate(dset=str_replace(dset,'_\\d$',''))%>%
   group_by(dset,ft_time,ft_diff)%>%
-  summarise(music_prop=mean(music_prop))%>%
-  identity
+  separate(dset,c('time','assay','rep'))%>%
+  spread(assay,music_prop)%>%
+  mutate(est_gte = ribo/total)
+
+
+telleyestgteplots<-lapply(list(quo(ft_diff),quo(ft_time)),function(telleyaxis){
+   
+gtdf <- gtdf1%>%
+  group_by(!!telleyaxis,time,rep)%>%
+  summarise(ribo=sum(ribo),total=sum(total))%>%
+  mutate(est_gte = ribo/total)%>%
+  mutate(log2_est_gte = log2(est_gte))%>%
+  ungroup%>%
+  mutate(ntime = as.numeric(as.factor(time)))
+gtdf$log2_est_gte%<>%replace(.,!is.finite(.),NA)
+
+mval = ldf$log2_est_gte%>%min
+ldf <- gtdf%>%ungroup%>%group_by(ntime,!!telleyaxis)%>%
+  mutate(log2_est_gte = replace(log2_est_gte,!is.finite(log2_est_gte),mval*1.1))  %>%
+  summarise(log2_est_gte=mean((log2_est_gte)))
+
+gtdf%>%  ggplot(aes(x=ntime,color=!!telleyaxis,y=log2_est_gte))+
+  geom_point(size=I(4))+
+  geom_line(data=ldf)+
+  geom_miss_point(shape=I(4),size=I(3))+
+  scale_x_continuous(name=paste0('Bulk Time Point'))+
+  scale_y_continuous(name=paste0('Estimated Relative Global TE (Ribo/RNA)'))+
+  theme_bw()
+
+})
+telleygtepanel = telleyestgteplots%>%ggarrange(nrow=2,plotlist=.)
+plotfile = paste0('plots/','telley_MuSiC_est',tesetname,'.pdf')
+pdf(width=10,h=8,file=plotfile)
+print(telleygtepanel)
+dev.off()
+plotfile%>%normalizePath(mustWork=TRUE)%>%message
+})  
+
+
 #now plot
 cspftdiff=cosdistres%>%
   #group_by(dset,ft_diff)%>%summarise(music_prop=sum(music_prop))%>%
@@ -93,8 +149,4 @@ dev.off()
 paste0('plots/','telley_MuSiC_bulk_both','.pdf')%>%normalizePath
 
 
-
-Est.mouse.bulk = music_prop.cluster(bulk.eset = Mouse.bulk.eset, sc.eset = Mousesub.eset, group.markers = IEmarkers, clusters = 'cellType', group = 'clusterType', samples = 'sampleID', clusters.type = clusters.type)
-
-load('https://xuranw.github.io/MuSiC/data/IEmarkers.RData')
 

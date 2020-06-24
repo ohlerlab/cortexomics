@@ -200,8 +200,7 @@ ggarrange(ncol=2,plotlist=list(cspftdiff,cspftt))
 dev.off()
 paste0('plots/','telley_cosdist_bulk_both','.pdf')%>%normalizePath
 
+plot(t,s/p)
 
 
 ```
-
-

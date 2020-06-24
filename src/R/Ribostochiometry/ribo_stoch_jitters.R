@@ -152,7 +152,7 @@ pids = mstall%>%ungroup%>%distinct(Protein_IDs)
 pids%<>%mutate(pcat = case_when(
  (Protein_IDs==ebp1pid) ~ "Ebp1",
  # (Protein_IDs=='P68040') ~ "P68040",
- (PRotein_IDs=='Q99LG4') ~ 'Ttc5' ,
+ # (Protein_IDs=='Q99LG4') ~ 'Ttc5' ,
   sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
   sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
   sep_element_in(Protein_IDs,translset) ~ "translation-associated",
@@ -223,6 +223,9 @@ message('getting stochiometry matrices')
 
 stopifnot('total'%>%is_in(mstall_trans$fraction%>%unique))
 
+
+
+stopifnot('Q99LG4'%in%mstall$Protein_IDs)
 
 #now matrix for our 
 sigmat = mstall_trans%>%
@@ -313,6 +316,7 @@ msid_cat <- distinct(mstall_trans,Protein_IDs,pcat)%>%{safe_hashmap(keys=.[[1]],
 gname <- mstall_trans%>%distinct(Protein_IDs,gene_name)%>%filter(!is.na(gene_name))%>%{safe_hashmap(.[[1]],.[[2]])}
 #
 
+dsetnames[[1]]->dset
 ribostochlists<-lapply(dsetnames,function(dset){
 	#now get the median of all rps
 	ribomsids<-rownames(stochmats[[dset]])%>%{.[msid_cat[[.]]%>%is_in(c('Rpl','Rps'))]}
@@ -330,13 +334,15 @@ ribostochlists<-lapply(dsetnames,function(dset){
 		mutate(gname = sigmat$Protein_IDs%>%gname[[.,default=.]] ) %>%
 		mutate(label = ifelse(
 			(abs(relativeLFQ)>2.5) & (pcat%in%c('Rps','Rpl'))|
-				((translsetname=='taset_manual') &(pcat%in%c('translation-associated'))),
+				((translsetname=='taset_manual') & (pcat%in%c('translation-associated'))),
 			gname,
 			'')
 		) %>%
 		mutate(pcat = factor(pcat,c('translation-associated','Ebp1','Rps','Rpl')))%>%
 		mutate(pcat = recode(pcat,'translation-associated'='translation\nassociated'))%>%
 		filter(!is.na(pcat))
+	# stopifnot('Q99LG4'%in%sigmat$Protein_IDs)
+	if(translsetname=='taset_manual' ) stopifnot(msid_cat[['Q99LG4']]=='translation-associated')
 	plot<-ggdf%>%
 		ggplot(.,aes(y=relativeLFQ,color=pcat,fill=pcat,x=pcat,label=label))+
 		geom_jitter(position=pos,alpha=I(0.5))+
