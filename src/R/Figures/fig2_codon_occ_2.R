@@ -1,6 +1,7 @@
 #first run
 #src/R/Figures/Figure2/codon_coverage.R
 if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
+	library(conflicted)
  conflict_prefer("intersect", "BiocGenerics")
 if(!exists('codonprofiles')) load('data/codon_coverage.Rdata')
 if(!exists('allcodsigmean_isomerge')) source(here('src/tRNA_array_analysis.R'))
@@ -10,6 +11,7 @@ stagecolsdisplay <- c(E12.5 = "#214098", E14 = "#2AA9DF", E15.5 = "#F17E22", E17
 stagecols <- stagecolsdisplay %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 stageconv <- names(stagecols) %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 
+stopifnot('balance' %in% colnames(allcodsigmean_isomerge))
 
 codonprofiles <- readRDS('data/codonprofiles.rds')
 
@@ -198,7 +200,9 @@ fig2 <- function(){
 	################################################################################
 	########now both
 	################################################################################
-			
+
+	conflict_prefer('rename','dplyr')	
+	conflict_prefer("setdiff", "BiocGenerics")		
 	codonoccs%<>%rename('dwell_time':=occupancy)
 	#Now merge with the tRNA data
 	tRNA_occ_df<-allcodsigmean_isomerge%>%
@@ -313,7 +317,8 @@ fig2 <- function(){
 		normalizePath(plotfile)%>%message
 		}
 	}
-
+	exportenv()
+	stop()
 	tRNA_occ_df_en%>%filter(time=='E13',fraction=='Poly')%>%lm(data=.,dwell_time ~ AA+abundance)	%>%anova
 	tRNA_occ_df_en%>%filter(fraction=='Poly')%>%lm(data=.,dwell_time ~ AA+time+codon+abundance)	%>%anova
 
@@ -389,14 +394,14 @@ fig2 <- function(){
 		normalizePath(plotfile)
 	}
 
+	usedcodonfreqsnorm <- usedcodonfreqs[,]%>%{./colSums(t(.))}
 	timeoccscores <- map_df(.id='time',times,function(itime){
 		timeoccvect <- tRNA_occ_df%>%filter(time==itime)%>%mutate(dwell_time=dwell_time-mean(na.rm=T,dwell_time))%>%{setNames(.$dwell_time,.$codon)[codons4occ]}
-		(t(usedcodonfreqs[,codons4occ])*(timeoccvect[codons4occ]))%>%colMeans(na.rm=T)%>%
+		usedcodonfreqsnorm[,names(timeoccvect)]%*%matrix(timeoccvect,ncol=1)%>%.[,1]%>%
 		enframe('protein_id','elongscore')
 	})
 
 	fractions <- unique(tRNA_occ_df$fraction) 
-	
 	timeSigscores <- map_df(.id='time',times,function(itime){
 		map_df(.id='fraction',fractions%>%setNames(.,.),function(fractioni){
 			timetrrnavect <- tRNA_occ_df%>%
@@ -404,8 +409,16 @@ fig2 <- function(){
 				 mutate(abundance=ifelse(abundance %in% -Inf,min(abundance[is.finite(abundance)],na.rm=T)-1,abundance))%>%
 				mutate(abundance=abundance-mean(na.rm=T,abundance))%>%				
 				{setNames(.$abundance,.$codon)[codons4occ]}
-			(t(usedcodonfreqs[,codons4occ])*(timetrrnavect[codons4occ]))%>%colMeans(na.rm=T)%>%
-			enframe('protein_id','abundance')
+			timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
+			
+			# (t(usedcodonfreqsnorm[,names(timetrrnavect)])%*%(timetrrnavect))%>%
+			# 	colMeans(na.rm=T)%>%
+			# 	enframe('protein_id','abundance')
+
+		usedcodonfreqsnorm[,names(timetrrnavect)]%*%matrix(2^timetrrnavect,ncol=1)%>%.[,1]%>%
+		log2%>%
+		enframe('protein_id','abundance')
+
 		})
 	})
 
@@ -416,8 +429,12 @@ fig2 <- function(){
 				 mutate(balance=ifelse(balance %in% -Inf,min(balance[is.finite(balance)],na.rm=T)-1,balance))%>%
 				 mutate(balance=balance-mean(na.rm=T,balance))%>%				
 				{setNames(.$balance,.$codon)[codons4occ]}
-			(t(usedcodonfreqs[,codons4occ])*(timetrrnavect[codons4occ]))%>%colMeans(na.rm=T)%>%
-			enframe('protein_id','balance')
+timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
+
+				usedcodonfreqsnorm[,names(timetrrnavect)]%*%matrix(2^timetrrnavect,ncol=1)%>%.[,1]%>%
+				log2%>%
+				enframe('protein_id','balance')
+
 		})
 	})
 
@@ -435,7 +452,7 @@ fig2 <- function(){
 		# filter(time!='P0')%>%
 		# group_slice(1:2)%>%
 		nest%>%
-		mutate(elongchange = map_dbl(data,~{lm(data=.,elongscore ~ seq_along(time))$coef[2]}))%>%
+		mutate(elongchange = map_dbl(data,~{lm(data=.,elongscore/mean(elongscore) ~ seq_along(time))$coef[2]}))%>%
 		mutate(tps = map_dbl(data,nrow))%>%
 		select(-data)
 
@@ -445,9 +462,11 @@ fig2 <- function(){
 		# filter(time!='P0')%>%
 		# group_slice(1:2)%>%
 		nest%>%
-		mutate(tRNA_score_change = map_dbl(data,~{lm(data=.,abundance ~ seq_along(time))$coef[2]}))%>%
+		mutate(tRNA_score_change = map_dbl(data,~{lm(data=.,(abundance) ~ seq_along(time))$coef[2]}))%>%
 		mutate(tps = map_dbl(data,nrow))%>%
 		select(-data)
+
+
 
 	avail_change_vs_te_df <- score_techange_df%>%
 		filter(fraction=='Total')%>%
@@ -461,7 +480,6 @@ fig2 <- function(){
 		mutate(avail_change = map_dbl(data,~lm.fit(matrix(.$balance),matrix(c(rep(1,5),.$ntime),nrow=5,ncol=2))$coef[2]))%>%
 		mutate(tps = map_dbl(data,nrow))%>%
 		select(-data)
-
 
 
 	make_density_threefact_fig(df=occchange_vs_te_df,

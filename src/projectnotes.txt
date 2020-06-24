@@ -2,12 +2,13 @@
 TAPs, meds, speed.
 
 ####Presently:
+
 - Simulate TEs
   - Draw from Telley's experiments and do a DESeq analysis.
     - Figure out how to draw from them.
 ####Then
 - Data onto telleys axes if poss
-
+- Get a look at what's causing differences in TElley
 
 
 

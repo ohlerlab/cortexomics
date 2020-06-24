@@ -14,5 +14,7 @@ if [ "$pattern" ]; then
 	fi
 fi
 
+mkdir -p cluster_log
+
 set -x 
-snakemake -j 50  -k -p --restart-times 1 --max-jobs-per-second 5 -s Snakefile --cluster-config ../src/config_pipeline.json  --rerun-incomplete --use-conda --drmaa=" -cwd -V -l h_vmem={cluster.h_vmem} -l h_rt={cluster.h_rt} -pe {cluster.pe} -j yes -P medium -o sge_log" $files
+snakemake -j 50  -k -p --restart-times 1 --max-jobs-per-second 5 -s Snakefile --cluster-config ../src/config_pipeline.json  --rerun-incomplete --use-conda --drmaa=" -D . --mem={cluster.mem}  --time={cluster.time} --ntasks-per-node {cluster.ntasks-per-node} -j yes -P medium -e {cluster_log.e} -o {cluster.log.o}" $files
