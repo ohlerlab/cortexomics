@@ -186,12 +186,11 @@ cor(
   assaydists%>%filter(assay=='MS')%>%.[,-c(1:2)]%>%unlist
 )
 
-
-
 txtplot(
   assaydists%>%filter(assay=='total')%>%.[,-c(1:2)]%>%unlist,
   assaydists%>%filter(assay=='ribo')%>%.[,-c(1:2)]%>%unlist
 )
+
 library(ComplexHeatmap)
 library(circlize)
 library(colorspace)

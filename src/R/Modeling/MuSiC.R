@@ -1,14 +1,16 @@
 
 # # install devtools if necessary
-# install.packages('devtools')
+# install.packages('xbioc')
+# BiocManager::install('xbioc')
 
 # # install the MuSiC package
+# devtools::install_github("renozao/xbioc")
 # devtools::install_github('xuranw/MuSiC')
 
 # load
 library(xbioc)
 library(MuSiC)
-source('src/R/Rprofile.R')
+base::source('src/R/Rprofile.R')
 metainfo<-'data/metainfo.tsv'%>%fread
 
 if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
@@ -50,12 +52,14 @@ rownames(bestcountexprdata) = tibble(protein_id=rownames(bestcountexprdata))%>%l
 pData(sscountexprdata)$sampleID = rep(c(1,2),nrow(pData(sscountexprdata)))[1:nrow(pData(sscountexprdata))]
 
 dtegenes = metainfo%>%filter(dTE)%>%.$gene_name
+telleycoregenes = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[1]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
 
 genessets <- list(
   allgenes=rownames(sscountexprdata),
   dte_genes = rownames(sscountexprdata)%>%intersect(dtegenes),
-  non_dte_genes = rownames(sscountexprdata)%>%setdiff(dtegenes)
-)
+  non_dte_genes = rownames(sscountexprdata)%>%setdiff(dtegenes),
+  telleycoregenes = telleycoregenes
+)[4]
 
 music_reslist = genessets%>%lapply(function(geneset){
   music_prop(bulk.eset = bestcountexprdata, sc.eset = sscountexprdata[geneset,],clusters = 'cellType',clusters.type=clusters.type,sample='sampleID')
@@ -89,10 +93,12 @@ gtdf <- gtdf1%>%
   mutate(ntime = as.numeric(as.factor(time)))
 gtdf$log2_est_gte%<>%replace(.,!is.finite(.),NA)
 
-mval = ldf$log2_est_gte%>%min
+mval = gtdf$log2_est_gte%>%min
+
 ldf <- gtdf%>%ungroup%>%group_by(ntime,!!telleyaxis)%>%
   mutate(log2_est_gte = replace(log2_est_gte,!is.finite(log2_est_gte),mval*1.1))  %>%
   summarise(log2_est_gte=mean((log2_est_gte)))
+
 
 gtdf%>%  ggplot(aes(x=ntime,color=!!telleyaxis,y=log2_est_gte))+
   geom_point(size=I(4))+
@@ -103,6 +109,7 @@ gtdf%>%  ggplot(aes(x=ntime,color=!!telleyaxis,y=log2_est_gte))+
   theme_bw()
 
 })
+
 telleygtepanel = telleyestgteplots%>%ggarrange(nrow=2,plotlist=.)
 plotfile = paste0('plots/','telley_MuSiC_est',tesetname,'.pdf')
 pdf(width=10,h=8,file=plotfile)

@@ -92,7 +92,7 @@ addfileinf <- function(file){
 
 if(!interactive()) mymemoise=identity
   gigsused <- function(x)system(paste0("cat /proc/",Sys.getpid(),"/status | grep VmSize"),intern=TRUE)%>%str_extract('\\d+')%>%as.numeric%>%divide_by(1e6)
-  message('memory in use ',gigsused())
+  # message('memory in use ',gigsused())
 
 
 # rm(foomat)
@@ -172,11 +172,11 @@ is_out_of_bounds <- function(gr,si = seqinfo(gr)){
 
 get_all_obsizes <- function(){.GlobalEnv%>%names%>%discard(~is.function(get(.)))%>%setNames(.,.)%>%map(~object.size(get(.)))}
 
-allobjsizes<-get_all_obsizes()
-allobjsizes%<>%enframe
-allobjsizes$value%<>%unlist
-allobjsizes$value%<>%divide_by(1e6)
-allobjsizes%>%arrange(desc(value))
+# allobjsizes<-get_all_obsizes()
+# allobjsizes%<>%enframe
+# allobjsizes$value%<>%unlist
+# allobjsizes$value%<>%divide_by(1e6)
+# allobjsizes%>%arrange(desc(value))
 # obsizes <- get_all_obsizes()
 
 # obsizes%>%enframe('object','size')%>%mutate(size=as.numeric(size)/1e6)%>%arrange(desc(size))

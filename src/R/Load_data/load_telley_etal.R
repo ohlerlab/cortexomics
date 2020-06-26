@@ -10,7 +10,7 @@ knitr::opts_chunk$set(root.dir = here::here(),eval=FALSE,cache=FALSE,echo=FALSE,
 isknitr<-isTRUE(getOption('knitr.in.progress'))
 #if(!isknitr) rmarkdown::render(knitr::spin(here('src/R/load_telley_etal.R'),knit=F),output_dir=here('Reports'),knit_root_dir=here())
 
-source('src/R/Rprofile.R')
+if(!exists('projectmemoise'))source('src/R/Rprofile.R')
 library('DeconRNASeq')
 
 
@@ -22,10 +22,9 @@ telleyfiles<-c(
 )
 library(readxl)
 
+library(readxl)
+
 modules::import(attach=TRUE,'dplyr')
-conflicted::conflict_prefer('filter','dplyr')
-conflicted::conflict_prefer('slice','dplyr')
-conflicted::conflict_prefer('matches','dplyr')
 
 
 t_wavetbl<-telleyfiles[[1]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
@@ -33,35 +32,41 @@ t_dynamicstbl<-telleyfiles[[2]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
 
 telleyfiles[[3]]%>%excel_sheets
 
-t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
-t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
+# t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
+# t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
+t_timecoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%read_excel(skip=1,sheet=1)%>%.[,1:2]%>%set_colnames(c('gene_name','Specificity'))
+t_diffcoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%read_excel(skip=1,sheet=1)%>%.[,3:4]%>%set_colnames(c('gene_name','Specificity'))
 
-
-t_timecoretbl%>%as.data.frame
-t_diffcoretbl%>%as.data.frame
-t_diffcoretbl$gene_name %in% gtf_gr$gene_name
+t_timecoretbl%<>%mutate(Time_core_Specificity = ifelse(Specificity<0,'Early','Late'))
+t_diffcoretbl%<>%mutate(Diff_core_Specificity = ifelse(Specificity<0,'AP','Neuron'))
 
 chronotypic_clusters<-telleyfiles['tclusters']%>%read_excel(sheet='Clusters')%>%rename(gene_name=`Gene symbol`)%>%rename(cluster=`tSNE cluster`)
 
-t_timecoretbl%>%data.frame
-
-
-str_detect(t_timecoretbl$gene_name,'a2g4')
-str_detect(t_timecoretbl$gene_name,'Ebp1')
-str_detect(t_diffcoretbl$gene_name,'a2g4')
-str_detect(t_diffcoretbl$gene_name,'Ebp1')
-t_diffcoretbl$gene_name%>%sort
 ################################################################################
 ######## Project Expression Data onto this
 ################################################################################
-	
-exprdata<-fread(here('pipeline/exprdata/transformed_data.txt'))
-exprdata%<>%mutate_at(vars(-gene_name),scale)
 
-countdata<-fread(here('pipeline/feature_counts/all_feature_counts'))
-countdata%<>%safe_left_join(mcols(gtf_gr)%>%as.data.frame%>%select(feature_id=gene_id,gene_name)%>%distinct)
-countdata%<>%select(matches('_ribo_|_total_|gene_name'))%>%select(gene_name,everything())
-countdata%<>%mutate_at(vars(-gene_name),~scale(log2(.+1)))
+coriddf<-rbind(t_timecoretbl%>%select(gene_name),t_diffcoretbl%>%select(gene_name))%>%
+	inner_join(metainfo%>%filter(is_gid_highest)%>%
+	select(gene_name,protein_id))
+
+libsizenorm<-function(countmat){
+	libsizes<-countmat%>%colMeans
+	countmat <- countmat %>% {sweep(.,2,STATS = libsizes[colnames(countmat)],FUN='/')}
+	countmat * 1e6
+}
+
+allcountmatnorm <- allcountmat%>%libsizenorm
+
+library(txtplot)
+
+exprdata = allcountmatnorm%>%
+	.[coriddf$protein_id,]%>%
+	as.data.frame%>%
+	mutate(gene_name = coriddf$gene_name)%>%
+	select(gene_name,everything())%>%
+	mutate_at(vars(-gene_name),list(~log(.)))
+
 
 t_timecoretbl_early <- t_timecoretbl%>%filter(Time_core_Specificity=='Early')
 t_timecoretbl_late <- t_timecoretbl%>%filter(Time_core_Specificity=='Late')
@@ -73,22 +78,36 @@ project_exprddata <- function(exprdata,t_coretbl,varname){
 	commongenes<-intersect(identity(exprdata$gene_name),identity(t_coretbl$gene_name))
 	# browser()
 	exprmat <- set_rownames(as.matrix(exprdata[,-1]),exprdata[,1])%>%.[commongenes,]
-	commoncoretbl <- matrix(unlist(t_coretbl[,2]),ncol=1)%>%set_rownames(t_coretbl[[1]])%>%.[commongenes,]
+	commoncoretbl <- matrix(unlist(t_coretbl[,2]),ncol=1)%>%set_rownames(t_coretbl$gene_name)%>%.[commongenes,]
 	message(paste0('common genes ',length(commongenes)))
 	# browser()
-	projection <- apply(exprmat,2,function(x) sum(na.omit(x*commontimecoretbl)))
+	projection <- apply(exprmat,2,function(x) sum(na.omit(x*commoncoretbl)))
 	projection%>%enframe('dataset',varname)%>%separate(dataset,c('time','assay','rep'))
 }
 library(tidyverse)
 
+telleyscoresampdf <- project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))
 #total time
-pdf(here('plots/telley/stage_vs_pdiff.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message});print(
-project_exprddata(exprdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(exprdata,t_diffcoretbl,'P_diff'))%>%{
-	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
-	geom_smooth()+
+pdf(here('plots/telley/stage_vs_pdiff.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message})
+print(
+	ggplot(data=telleyscoresampdf,aes(group=assay,color=assay,shape=assay,x=paste(time,rep),y=P_diff))+
+	geom_point(size=I(3))+
+	ylab('Telley Diff Score (more is Neuron-like)')+
+	theme_bw()
+)
+dev.off()
+
+pdf(here('plots/telley/stage_vs_ptime.pdf')%T>%{dir.create(dirname(.));normalizePath(.)%>%message})
+telleyscoresampdf%>%{
+	ggplot(data=.,aes(group=assay,color=assay,shape=assay,x=paste(time,rep),y=P_time))+
+	geom_point(size=I(3))+
+	ylab('Telley Time Score (more is Later)')+
 	theme_bw()
 }
-)
+dev.off()
+
+stop()
+
 print(project_exprddata(countdata,t_timecoretbl,'P_time')%>%safe_left_join(project_exprddata(countdata,t_diffcoretbl,'P_diff'))%>%{
 	qplot(data=.,group=assay,color=assay,shape=assay,x=time,y=P_diff)+
 	geom_smooth()+
