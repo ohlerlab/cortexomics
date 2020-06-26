@@ -1,4 +1,11 @@
-CLUTOBIN <- here('Applications/cluto-2.1.2/Linux-x86_64/vcluster')
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(magrittr)
+if(!exists('mscountvoom'))load('data/integrate_exprdata2.Rdata')
+isdarwin = grepl(x=system(intern=T,'uname -a'),pattern='Darwin')
+os = if(isdarwin) 'Darwin-i386' else 'Linux-x86_64' 
+CLUTOBIN <- here(str_interp('Applications/cluto-2.1.2/${os}/vcluster'))
 
 get_cluto_clusts<-function(clutomat,clustnum,
                            clutoinputfold= 'pipeline/clustering/cluto_clustering/',
@@ -29,6 +36,7 @@ get_cluto_clusts<-function(clutomat,clustnum,
   	name = str_interp('Cluto_K${clustnum}_Bis_${bisectstr}_${attr(clutomat,"obname")}')
   )
 }
+
 datamats=list()
 datamats['norm_raw'] = list(mscountvoom$E)
 
