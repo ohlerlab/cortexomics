@@ -773,6 +773,7 @@ get_seqoffset_model_elim <- mymemoise(get_seqoffset_model_elim)
 
 c(seqshiftmodel,seqshiftmodel_allvars,	seqshiftmodel_GAonly)
 
+
 psite_model <- Psite_model$new(bestscores,seqshiftmodel = map(modellist,2),referencefasta=REF,compartments)
 
 # psite_model%>%saveRDS(file.path(outfolder,'seqshiftmodel.rds'))

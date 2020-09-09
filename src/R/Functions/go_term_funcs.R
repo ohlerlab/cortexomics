@@ -96,7 +96,7 @@ if(!file.exists('data/GTOGO.rds')){
 
 GTOGO %<>% select(gene_name, go_id, ensembl_gene_id)
 
-rungo <- function(int.genes,GTOGO,my_ontology,background=NULL){
+rungo <- function(int.genes,GTOGO,my_ontology,background=NULL,algo='elim'){
   if(is.logical(int.genes)){
     stopifnot(any(int.genes))
     background = names(int.genes)
@@ -122,7 +122,7 @@ rungo <- function(int.genes,GTOGO,my_ontology,background=NULL){
   )
   
   #?runTest
-  results     <- runTest(go.obj, algorithm = "elim", statistic = "fisher")
+  results     <- runTest(go.obj, algorithm = algo, statistic = "fisher")
   results.tab <- GenTable(object = go.obj, elimFisher = results,topNodes = 100)
   results.tab%<>%mutate(Enrichment = Significant / Expected )
   results.tab%<>%mutate(elimFisher = as.numeric(elimFisher) )

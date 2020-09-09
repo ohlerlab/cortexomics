@@ -24,7 +24,6 @@ library(readxl)
 
 library(readxl)
 
-modules::import(attach=TRUE,'dplyr')
 
 
 t_wavetbl<-telleyfiles[[1]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
@@ -34,8 +33,8 @@ telleyfiles[[3]]%>%excel_sheets
 
 # t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
 # t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
-t_timecoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%read_excel(skip=1,sheet=1)%>%.[,1:2]%>%set_colnames(c('gene_name','Specificity'))
-t_diffcoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%read_excel(skip=1,sheet=1)%>%.[,3:4]%>%set_colnames(c('gene_name','Specificity'))
+t_timecoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%here%>%read_excel(skip=1,sheet=1)%>%.[,1:2]%>%set_colnames(c('gene_name','Specificity'))
+t_diffcoretbl <- 'ext_data/telley_weights_comb.xlsx'%>%here%>%read_excel(skip=1,sheet=1)%>%.[,3:4]%>%set_colnames(c('gene_name','Specificity'))
 
 t_timecoretbl%<>%mutate(Time_core_Specificity = ifelse(Specificity<0,'Early','Late'))
 t_diffcoretbl%<>%mutate(Diff_core_Specificity = ifelse(Specificity<0,'AP','Neuron'))
@@ -475,7 +474,7 @@ plotwaves <- function(data,wavecol) {
 	}
 
 }
-0
+
 t_wave_expr%>%plotwaves(`Time_core_Specificity`)
 
 t_wave_expr%>%plotwaves(`E12 wave`)

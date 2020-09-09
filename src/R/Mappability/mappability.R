@@ -5,25 +5,37 @@ library(here)
 library(tidyverse)
 library(magrittr)
 #fasta files
-fafile <- FaFile('my_GRCm38.p5.genome.chr_scaff.fa')
+fafile <- FaFile(here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'))
 
 #load the cds
 cds <- import(here('pipeline/my_gencode.vM12.annotation.cds.gtf'))
 exons <- import(here('pipeline/my_gencode.vM12.annotation.gtf'))%>%subset(type=='exon')
 #we need the cdsd to be 
-cdsmap<-cds%>%setNames(.,as.character(.))%>%mapToTranscripts(exons%>%split(.$transcript_id))
-mcols(cdsmap) <- mcols(cds)[cdsmap$xHits,]
 #load the tracks
-mappatrack <- import(here('pipeline/mappability/mappability_27.bedgraph'))
+unmappatrack <- import(here('pipeline/mappability/mappability_27.bedgraph'))
 #add CDS
-seqinfo(mappatrack) <- seqinfo(cdsmap)[
-	c(seqinfo(mappatrack)@seqnames,setdiff(seqinfo(cdsmap)@seqnames,seqinfo(mappatrack)@seqnames)),]
+seqinfo(unmappatrack) <- seqinfo(cdsmap)[
+	c(seqinfo(unmappatrack)@seqnames,setdiff(seqinfo(cdsmap)@seqnames,seqinfo(unmappatrack)@seqnames)),]
+unmappatrack%<>%coverage(weight='score')
 
-mappatrack%<>%coverage(weight='score')
+bestcds<-cds%>%split(.,.$protein_id)%>%.[best_protein_ids]%>%unlist
+bcdstr<-bestcds%>%{pmapToTranscripts(.,split(exons,exons$transcript_id)[.$transcript_id])}
+bcdstr <- GenomicRanges::reduce(bcdstr,with.revmap=TRUE)
+mcols(bcdstr) <- mcols(bestcds)[bcdstr$revmap%>%{.@unlistData[.@partitioning@end]},]
+names(bcdstr) <- bcdstr$protein_id
+unmappacovtracks <- unmappatrack[bcdstr]%>%setNames(bcdstr$protein_id)
+bestcdsmappab<-unmappacovtracks%>%mean
+
+unmapgr <- unmappacovtracks[is3nt]%>%as("GRanges")
+end(unmapgr) = ceiling(end(unmapgr)/3)*3
+start(unmapgr) = ifelse(start(unmapgr)==1,1,(lag(end(unmapgr),1,0)+1))
+unmappacovtracks =unmapgr%>%coverage(weight='score')
+
+
+stop()
 
 cdssamp <- cdsmap%>%sample(1000)
 
-stop()
 
 cdsmap$nomapbases <- mappatrack[cdsmap]%>%mean
 cdsmap$cds_id = paste0(seqnames(cdsmap),'_',start(cdsmap),'_',end(cdsmap))
@@ -57,3 +69,43 @@ mappahistplotfile <- here('plots/mapppbility/mappability.pdf')
 pdfexpr(mappahistplotfile,hist((floor(cdsmap_df$nomap_frac/0.1)*0.1),50))
 
 }
+
+
+#ideally what we want to do is include whole codons, if and only if the first basepair of the
+#codon is mappable.
+
+n3pid = 'ENSMUSP00000114761'
+bestcds%>%.[names(.)==n3pid]%>%
+bestcds%>%.[names(.)==n3pid]%>%width
+bestcds%>%.[names(.)==n3pid]%>%getSeq(x=fafile)%>%translate%>%as.character
+bestcds%>%subset(protein_id==n3pid)%>%{pmapToTranscripts(.,split(exons,exons$transcript_id)[.$transcript_id])}%>%width
+bcdstr%>%subset(protein_id==n3pid)%>%width%>%`%%`(3)
+is3nt = psitecov%>%runLength%>%sum%>%`%%`(3)%>%`==`(0)
+
+
+
+
+
+
+
+################################################################################
+########Plot mappability vs Entropy
+################################################################################
+	
+fread('pipeline/mappability/mappability_27.bedgraph')
+library(LSD)
+base::source('https://raw.githubusercontent.com/stineb/LSD/master/R/LSD.heatscatter.R')
+#now plot
+plotfile<- here(paste0('plots/','pme_vs_mappability','.pdf'))
+pdf(plotfile)
+	heatscatter(pmes,bestcdsmappab,ggplot=TRUE)+
+	ggtitle(paste0(scattertitle))+
+	scale_x_continuous(paste0('% Maximum Entropy'))+
+	scale_y_continuous(paste0('% Unmappable Bases'))+
+	ggtitle(paste0('PME vs Mappability'))+
+	theme_bw()
+dev.off()
+normalizePath(plotfile)
+
+bestcdsmappab
+

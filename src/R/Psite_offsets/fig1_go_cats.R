@@ -11,7 +11,8 @@ itime = 'P0'
 
 
 
-changedir = 1
+
+
 
 countexprdata <- readRDS(here('data/fig1countexprdata_w_high.rds'))
 # highcountgenes <- fData(countexprdata)%>%as.data.frame%>%filter(highcount)%>%.$gene_id

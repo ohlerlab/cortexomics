@@ -9,7 +9,7 @@ suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,DESeq2))
 suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,xtail))
 
 args <- c(
-  countfile='pipeline/exprdata/countexprset.rds',
+  countfile='data/tx_scaled_countData.tsv',
   uORFcountfile='SaTAnn/uORFs.feature_counts',
   outdir= 'xtail'
 )
@@ -17,13 +17,13 @@ args <- c(
 if(!interactive()) args[] = commandArgs(trailingOnly=TRUE)
 for(i in names(args)) assign(i,args[i])
 
-countexprdata <- readRDS(countfile)
+count_tbl <- fread(countfile)
 # count_tbl <- data.table::fread(countfile)
-count_tbl <- assayData(countexprdata)[['exprs']][countexprdata@featureData$is_gid_highest,]%>%
-  as.data.table%>%mutate(feature_id=fData(countexprdata)$gene_name[fData(countexprdata)$is_gid_highest])
+# count_tbl <- assayData(countexprdata)[['exprs']][countexprdata@featureData$is_gid_highest,]%>%
+  # as.data.table%>%mutate(gene_name=fData(countexprdata)$gene_name[fData(countexprdata)$is_gid_highest])
 # oldcounttbl<-count_tbl
-count_tbl$feature_id%>%table%>%.[.>1]
-count_tbl%>%{.$feature_id=='Satb2'}%>%which
+# count_tbl$gene_name%>%table%>%.[.>1]
+# count_tbl%>%{.$gene_name=='Satb2'}%>%which
 
 sampfile<-here('pipeline/sample_parameter.csv')
 timepoints = fread(sampfile)$time%>%unique
@@ -31,10 +31,10 @@ samples = fread(sampfile)%>%
   filter(is.na(fraction))%>%
   filter(!str_detect(sample_id,'test'))%>%
   .$sample_id
-count_tbl = count_tbl%>%select(feature_id,one_of(samples))
+count_tbl = count_tbl%>%select(gene_name,one_of(samples))
 
 # uorfcounts <- fread(uORFcountfile)
-# uorfcounts = uorfcounts%>%select(feature_id,one_of(samples))
+# uorfcounts = uorfcounts%>%select(gene_name,one_of(samples))
 # count_tbl <- count_tbl%>%rbind(uorfcounts)
 
 xtailfiles = here('pipeline',paste0(outdir,'/xtail_',timepoints[-1],'.txt'))%>%setNames(timepoints[-1])
@@ -47,36 +47,26 @@ tp1 = timepoints[1]
 matches = dplyr::matches
 # dir.create(xtailfiles[1]%>%dirname)
 
-
-
-# for(tp2 in timepoints[2:]){
 for(tp2 in (timepoints[-c(1)])){
-
     #samples to use
     allxtailcounts =   
       count_tbl%>%
-      dplyr::select(matches(paste0('feature_id|',tp1,'|',tp2)))
+      dplyr::select(matches(paste0('gene_name|',tp1,'|',tp2)))
     
-    xtailcounts = xtailcounts[!apply(xtailcounts,1,.%>%is.na%>%any),]
-    mrnatab <- xtailcounts%>%select(matches('total'))%>%as.data.frame%>%set_rownames(xtailcounts$feature_id)
-    ribotab <- xtailcounts%>%select(matches('ribo'))%>%as.data.frame%>%set_rownames(xtailcounts$feature_id)
+    xtailcounts = allxtailcounts[!apply(allxtailcounts,1,.%>%is.na%>%any),]
+    mrnatab <- xtailcounts%>%select(matches('total'))%>%as.data.frame%>%set_rownames(xtailcounts$gene_name)
+    ribotab <- xtailcounts%>%select(matches('ribo'))%>%as.data.frame%>%set_rownames(xtailcounts$gene_name)
     
     conditionvect <-    ifelse(str_detect(colnames(xtailcounts%>%select(matches('total'))),tp1),tp1,tp2)   
-
-    stop()
-
-
 
     xtailres <- xtail::xtail(mrnatab,ribotab,conditionvect,threads=20)
 
     xtailtable <- xtailres$resultsTable%>%rownames_to_column%>%set_colnames(
-      c("feature_id","mRNA_log2FC", "RPF_log2FC", "log2FC_TE_v1", "pvalue_v1", paste0(tp1,"_log2TE"), 
+      c("gene_name","mRNA_log2FC", "RPF_log2FC", "log2FC_TE_v1", "pvalue_v1", paste0(tp1,"_log2TE"), 
       paste0(tp2,"_log2TE"), "log2FC_TE_v2", "pvalue_v2", "log2fc", 
       "p_value", "adj_p_value")
     )
-
     write_tsv(xtailtable,xtailfiles[tp2])
-  
 }
 
 isgenenames <- function(v) v%>%head%>%str_length%>%`<`(8)%>%sum%>%`>`(8)
@@ -86,12 +76,12 @@ for(tp2 in (timepoints[-c(1)])){
   base_means <- rowMeans(assayData(countexprdata)[['exprs']]%>%sweep(.,2,FUN='/',STAT=DESeq2::estimateSizeFactorsForMatrix(.)))
   base_means <- base_means[fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest]]
   names(base_means) <- fData(countexprdata)$gene_name[fData(countexprdata)$is_gid_highest]
-  xtailtable$base_mean <- base_means[xtailtable$feature_id]
-  if(!isgenenames(xtailtable$feature_id)) {
+  xtailtable$base_mean <- base_means[xtailtable$gene_name]
+  if(!isgenenames(xtailtable$gene_name)) {
 
-    xtailtable$gene_name <- xtailtable$feature_id
-    xtail_exprmatch <- match(xtailtable$feature_id,fData(countexprdata)$gene_name)
-    xtailtable$feature_id <- fData(countexprdata)$gene_id[xtail_exprmatch]
+    xtailtable$gene_name <- xtailtable$gene_name
+    xtail_exprmatch <- match(xtailtable$gene_name,fData(countexprdata)$gene_name)
+    xtailtable$gene_name <- fData(countexprdata)$gene_id[xtail_exprmatch]
   } 
 
   write_tsv(xtailtable,xtailfiles[[tp2]])
@@ -159,7 +149,10 @@ for(tp2 in (timepoints[-c(1)])){
 # deseqte
 
 
+allxtail = xtailfiles%>%map_df(.id='time',fread)%>%group_by(gene_name)
 
+
+xtailfiles%>%tail(1)%>%fread%>%subset(gene_name=="Satb2")
 
 
 
@@ -167,7 +160,6 @@ stopifnot(xtailfiles%>%file.exists)
 
 library(txtplot)
 
-xtailtable%>%.$E145_log2TE%>%na.omit%>%txtdensity
 
 satb2fdata <- fData(countexprdata)[fData(countexprdata)$gene_name=='Satb2',]
 exprs(countexprdata)[fData(countexprdata)$gene_name=='Satb2',]
@@ -176,18 +168,19 @@ xtailtable[count_tbl$feature_id %in% satb2fdata$protein_id,]
 
 
 
-xtailfiles%>%map_df(fread)%>%group_by(feature_id)%>%filter(any(adj_p_value<0.05))%>%slice(1)
+xtailfiles%>%map_df(fread)%>%group_by(gene_name)%>%filter(any(adj_p_value<0.05))%>%slice(1)
 
-techange <- xtailfiles%>%map_df(fread)%>%group_by(feature_id)%>%filter(any((adj_p_value<0.05) & (abs(log2fc) > 0.32)))%>%slice(1)
+techange <- xtailfiles%>%map_df(fread)%>%group_by(gene_name)%>%filter(any((adj_p_value<0.05) & (abs(log2fc) > 0.32)))%>%slice(1)
 
 #I'd also like to try DESeq2 with splines
 oldxtailfiles <- xtailfiles%>%str_replace('xtail/' ,'xtail_old/')
 
+gid2gnm
 
-ovtable(
-oldxtailfiles[[4]]%>%fread%>%filter(adj_p_value<0.05)%>%.$feature_id,
-xtailfiles[[4]]%>%fread%>%mutate(feature_id = countexprdata@featureData$gene_id[as.numeric(as.character(.$feature_id))])%>%filter(adj_p_value<0.05)%>%.$feature_id
-)
+techange <- xtailfiles%>%map_df(fread)%>%group_by(gene_name)%>%filter(any((adj_p_value<0.05) & (abs(log2fc) > 0.32)))%>%slice(1)%>%.$gene_name
+oldxtailgenes=allTEchangedf%>%filter(up|down)%>%.$gene_name
+newxtailgenes=techange
+inclusiontable(oldxtailgenes,newxtailgenes)
 
 #Is satb2 delta TE?
 xtailfiles[[4]]%>%fread%>%mutate(feature_id = countexprdata@featureData$gene_name[as.numeric(as.character(.$feature_id))])%>%filter(feature_id%>%str_detect('Satb2'))
@@ -202,7 +195,7 @@ xtailfiles
 fread(here('pipeline',oldxtailfiles[[1]]))
 
 
-
+allTEchangedf<-read_tsv('tables/manuscript/go_all_highcount_updown.tsv')
 
 
 

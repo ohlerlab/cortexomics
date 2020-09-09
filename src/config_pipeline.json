@@ -1,108 +1,108 @@
-#snakemake -j 50  -k -p --restart-times 1 --max-jobs-per-second 5 -s Snakefile --cluster-config ../src/config_pipeline.json  --rerun-incomplete --use-conda --drmaa=" -D     . --mem={cluster.mem}  --time={cluster.time} --ntasks-per-node {cluster.ntasks-per-node} -j yes -P medium -e cluster_log -o cluster.log" $files
+{
     "__default__":
     {
-        "mem": "2g",
+        "mem": "2000",
         "time": "4:00:00",
-        "ntasks-per-node": " 4",
-        "A":"medium"
+        "ntasks-per-node": "4",
+        "A":"medium",
+        "log_e":"cluster_log/{rule}.{wildcards}.out",
+        "log_o":"cluster_log/{rule}.{wildcards}.error"
     },
-
     "collapse_reads":
     {
         "mem": "12G",
-        "ntasks-per-node": " 2"
+        "ntasks-per-node": "2"
     },
-    
     "trim_reads":
     {
-        "mem": "8G",
-        "ntasks-per-node": " 4"
+        "mem": "8000",
+        "ntasks-per-node": "4"
     },
     "trimming":
     {
-        "mem": "2G",
+        "mem": "2000",
         "time": "40:00:00",
-        "ntasks-per-node": " 4"
+        "ntasks-per-node": "4"
     },
     "filter_tRNA_rRNA":
     {
-        "mem": "8G",
-        "ntasks-per-node": " 4"
+        "mem": "8000",
+        "ntasks-per-node": "4"
     },
 
     "run_satann":
     {
-        "mem": "8G",
+        "mem": "8000",
         "time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
     "tophat2":
     {
-        "mem": "4G",
+        "mem": "4000",
         "time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
     "star":
     {
-        "mem": "4G",
+        "mem": "4000",
         "time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
 
     "riboWaltz":
     {
-        "mem": "4G",
+        "mem": "4000",
         "time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
     "htseq":
     {
-        "mem": "4g",
+        "mem": "4000",
 #"time": "40:00:00",
-        "ntasks-per-node": " 1"
+        "ntasks-per-node": "1"
     },
 
     "feature_counts":
     {
-        "mem": "2g",
+        "mem": "2000",
 #"time": "1:00:00",
-        "ntasks-per-node": " 2"
+        "ntasks-per-node": "2"
     },
 
     "rsem":
     {
-        "mem": "4G",
+        "mem": "4000",
         "time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
 
     "infer_experiment":
     {
-        "mem": "2G",
+        "mem": "2000",
 #"time": "40:00:00",
-        "ntasks-per-node": " 1"
+        "ntasks-per-node": "1"
     },
 
     "qc":
     {
-        "mem": "48G",
+        "mem": "48000",
 #"time": "40:00:00",
-        "ntasks-per-node": " 1"
+        "ntasks-per-node": "1"
     },
     "dupradar":
     {
-        "mem": "4g",
+        "mem": "4000",
 #"time": "40:00:00",
-        "ntasks-per-node": " 8"
+        "ntasks-per-node": "8"
     },
     "get_rf_offset":
     {
-        "mem": "8g",
-        "ntasks-per-node": " 8"
+        "mem": "8000",
+        "ntasks-per-node": "8"
     },
     "quant_riboseq":
     {
-        "mem": "12g",
-        "ntasks-per-node": " 8"
+        "mem": "12000",
+        "ntasks-per-node": "8"
     }
 }

@@ -163,7 +163,7 @@ getms<-function(msfile){
 }
 allms <- getms(msfile)
 allmsibaq <- getms(here('pipeline/ms_tables/ms_iBAQ_total_ms_tall.tsv'))
-allms <- allmsibaq
+#allms <- allmsibaq
 }
 
 {
@@ -182,10 +182,6 @@ ms_id2protein_id%<>%{select(.,-matches('gene_name'))}%>%
 
 #get the satb2 ids we want to look at
 allids <- readRDS('pipeline/allids.txt')
-# allids2<-allids %>%bind_rows(.,mutate(.,gene_name=paste0(gene_name,'_2')))
-
-# ms_id2protein_id%<>%safe_left_join(allids%>%distinct(protein_id,gene_name))
-
 ms_id2protein_id%<>%select(-matches('gene_name'))
 trgeneids <- mcols(cds)%>%as.data.frame%>%distinct(transcript_id,gene_id)
 ms_id2protein_id%<>%safe_left_join(trgeneids)
@@ -202,15 +198,10 @@ matched_ms%<>%group_by(ms_id)%>%filter(!all(is.na(signal)))
 #get our matrix and design df
 c(matchedms_mat,matched_ms_design)%<-% get_matrix_plus_design(matched_ms,ms_id)
 
-# ms_id2protein_id%>%mutate(id=seq_len(n()))%>%left_join(allids2%>%distinct(protein_id,gene_name))%>%group_by(id)%>%filter(n()>1)
-# #now we can calculate the minimum MS specific variance per gene.
-# ms_id2protein_id%>%left_join(allids%>%distinct(gene_id,protein_id))
-# ms_id2protein_id%>%mutate(id=seq_len(n()))%>%left_join(allids2%>%distinct(protein_id,gene_name))%>%group_by(id)%>%filter(n()>1)%>%head(2)%>%as.data.frame
-# ms_id2protein_id%>%as.data.frame%>%head
-
-#deal with the few cases in which the same gene name is linked to multiple gene IDs
-
-
+ibaqMatl2<-allmsibaq%>%
+	semi_join(ms_id2protein_id%>%distinct(ms_id,protein_id))%>%
+	group_by(ms_id)%>%filter(!all(is.na(signal)))%>%
+	get_matrix_plus_design(.,ms_id)
 
 test_that("We are matching stuff with dashes in the uniprot ids",{
   expect_true(ms_id2protein_id%>%filter(protein_id%in%satb2ids)%>%.$ms_id%>%n_distinct%>%`>`(1))
@@ -395,7 +386,6 @@ countvoomgenenames<-data.frame(protein_id=rownames(countvoom))%>%
 stopifnot(all(allTEchangedf$gene_name %in% countvoomgenenames))
 
 
-
 }
 
 
@@ -463,6 +453,7 @@ test_that("the library size numbers in a limma object work as I think they do",{
 
 voomeffects <- mscountvoom$design%>%colnames
 
+
 assert_that(identical(c("(Intercept)", "TE", "MS_dev", "ns(time, SPLINE_N)1", "ns(time, SPLINE_N)2",
 "ns(time, SPLINE_N)3", "ns(time, SPLINE_N)4", "TE:ns(time, SPLINE_N)1",
 "TE:ns(time, SPLINE_N)2", "TE:ns(time, SPLINE_N)3", "TE:ns(time, SPLINE_N)4",
@@ -476,6 +467,7 @@ mscountvoomgenenames<-data.frame(uprotein_id=rownames(mscountvoom))%>%
 stopifnot(all(mscountvoomgenenames%in%allTEchangedf$gene_name))
 
 }
+
 ################################################################################
 ########Fix the count expression data
 ################################################################################
@@ -499,7 +491,6 @@ featuredata$is_gid_highest <- data.frame(
   mutate(is_gid_highest = seq_len(n())==which.max(rowmed))%>%
   ungroup%>%arrange(origorder)%>%
   .$is_gid_highest
-
 
 featuredata$length = sum(width(cds%>%split(.,.$protein_id)))[featuredata$protein_id]
 
@@ -754,7 +745,6 @@ upids_w_sig_ms_dev <- timeff_ciddf%>%filter(adj.P.Val<0.05,assay%>%str_detect('M
 
 stopifnot(timeff_ciddf$assay%>%unique%>%identical(c('all','TE','MSdev')))
 
-
 ###
 
 # ################################################################################
@@ -873,5 +863,6 @@ exprdf%>%filter(assay=='MS')
 
 
 
-save.image('data/integrate_exprdata2.Rdata')
- # load('data/integrate_exprdata2.Rdata')
+# save.image('data/integrate_exprdata2.Rdata')
+ load('data/integrate_exprdata2.Rdata')
+

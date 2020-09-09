@@ -4,6 +4,18 @@ library(GenomicFeatures)
 MAPQTHRESH <- 200
 
 source('src/R/Rprofile.R')
+ribo_TE_tbl <- countvoom$E[fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%as.data.frame%>%
+	rownames_to_column('protein_id')%>%
+	gather(dataset,val,-protein_id)%>%
+	mutate(time = str_extract(dataset,'[^_]+'),type='Ribo')%>%
+	separate(dataset,into=c('time','assay','replicate'))%>%
+	spread(assay,val)%>%
+	group_by(protein_id,time)%>%
+	summarise(Ribo = mean(ribo), TE = mean(ribo) -  mean(total) )
+
+ribo_TE_tbl%<>%safe_left_join(x=.,y=counttbl_reps%>%filter(assay=='total')%>%select(protein_id=feature_id,time,highcount)%>%distinct)
+ribo_TE_tbl%<>%safe_left_join(x=.,y=counttbl_reps%>%filter(assay=='ribo')%>%distinct(protein_id=feature_id,time,highcountribo = highcount))
+ribo_TE_tbl$highcount = ribo_TE_tbl$highcountribo
 
 ################################################################################
 ########This will compare out TE differential genes to others using a few different measures
@@ -65,26 +77,6 @@ starts = cds%>%
 	{.[as(ifelse( any(strand(.)=='+') , 1, elementNROWS(.)),'IntegerList')]} %>%
 	resize(3,'start')
 
-bams <- here('pipeline/star/data/*/*.bam')%>%Sys.glob%>%
-	str_subset(neg=TRUE,'transcript')%>%
-	str_subset('_ribo_|total')
-
-startstoppsites <- mclapply(bams,F=get_genomic_psites,c(stops,starts)%>%unlist)
-startstoppsites %<>% setNames(bams%>%dirname%>%basename)
-
-#get dfs with the counts over codons
-startcountsdf <- startstoppsites%>%map_df(.id='sample',.%>%countOverlaps((unlist(starts)),.)%>%data.frame(startcount=.,protein_id=(unlist(starts)$protein_id)))
-stopcountsdf <- startstoppsites%>%map_df(.id='sample',.%>%countOverlaps((unlist(stops)),.)%>%data.frame(stopcount=.,protein_id=(unlist(stops)$protein_id)))
-
-startstopcountdf<-allsegcounts_nz%>%
-	select(sample,protein_id,total,centercount,length)%>%
-	left_join(startcountsdf)%>%
-	left_join(stopcountsdf)%>%
-	safe_left_join(protid_gid_df)
-
-cor(use='complete',tmp$count,tmp$startcount)
-txtplot(tmp$count,tmp$startcount)
-
 
 allTEchangedf$gene_id %>%inclusiontable(tr_gid_df$gene_id)
 allTEchangedf$gene_id %>%inclusiontable(transcript_fp_utrlen%>%left_join(tr_gid_df)%>%.$gene_id)
@@ -113,6 +105,27 @@ allTEchangedf%>%
 dev.off()
 normalizePath('plots/figures/figure2/cumdist_TEchange_tplen.pdf')
 
+stop()
+
+bams <- here('pipeline/star/data/*/*.bam')%>%Sys.glob%>%
+	str_subset(neg=TRUE,'transcript')%>%
+	str_subset('_ribo_|total')
+
+startstoppsites <- mclapply(bams,F=get_genomic_psites,c(stops,starts)%>%unlist)
+startstoppsites %<>% setNames(bams%>%dirname%>%basename)
+
+#get dfs with the counts over codons
+startcountsdf <- startstoppsites%>%map_df(.id='sample',.%>%countOverlaps((unlist(starts)),.)%>%data.frame(startcount=.,protein_id=(unlist(starts)$protein_id)))
+stopcountsdf <- startstoppsites%>%map_df(.id='sample',.%>%countOverlaps((unlist(stops)),.)%>%data.frame(stopcount=.,protein_id=(unlist(stops)$protein_id)))
+
+startstopcountdf<-allsegcounts_nz%>%
+	select(sample,protein_id,total,centercount,length)%>%
+	left_join(startcountsdf)%>%
+	left_join(stopcountsdf)%>%
+	safe_left_join(protid_gid_df)
+
+cor(use='complete',tmp$count,tmp$startcount)
+txtplot(tmp$count,tmp$startcount)
 
 startstopcountdf%<>%mutate(startcountfrac = startcount / (total/length))
 

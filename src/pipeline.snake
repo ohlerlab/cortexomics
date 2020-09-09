@@ -1,3 +1,4 @@
+
 # the qc step at the moment assumes that the data is single ended
 import csv
 import glob
@@ -156,50 +157,56 @@ MAPPABILITY_LENGTHS = [16,20,27]
 
 ALIGNER_TO_USE='star'
 
+
+#this configures whether we want to trim ids from e.g. ENSG0000001.1 to ENSG000001
+# if config['TRIM_IDS']: 
+mod_id_sed_cmd = r''' sed -r 's/((transcript_id|gene_id|protein_id|ID|Parent|exon_id|havana_gene|havana_transcript)\W+\w+)\.[0-9]+/\1/g' '''
+# else:
+  # mod_id_sed_cmd = ' cat '
+
+mainribosamples=list(filter(lambda s:  'ribo' in s,samples))
+
 rule all:
   input:
     FASTQS,
     # ms_total_file,
     # ms_spec_file,
     # [fastq.replace('input/','cutadapt_reads/') for fastq in ribofastqs],
-    [fastq.replace('input/','collapse_reads/') for fastq in ribofastqs],
+    # [fastq.replace('input/','collapse_reads/') for fastq in ribofastqs],
     # [fastq.replace('input/','trim_reads/') for fastq in ribofastqs],
-    expand("processed_reads/{sample}/.done", sample = samples),
+    # expand("processed_reads/{sample}/.done", sample = samples),
     # expand("cutsequences/{sample}/cutseqs.txt.gz", sample = samples),
     # GTF_orig,
     # GFF_orig,
     #expand("rsem/data/{sample}/.done", sample = samples),
-    expand("fastqc/data/{sample}/.done", sample = samples),
+    # expand("fastqc/data/{sample}/.done", sample = samples),
     #    "fastqc/summary/fastqc_summary.tsv",
-    expand("star/data/{sample}/.done", sample = samples),
+    # expand("star/data/{sample}/.done", sample = samples),
     # expand("tophat2/data/{sample}/.done", sample = ribosamples),
     #expand("infer_experiment/data/{sample}/.done", sample = samples),
-    expand("qc/data/{sample}/.done", sample = samples),
-    expand("multiqc/multiqc_report.html"),
+    # expand("qc/data/{sample}/.done", sample = samples),
+    # expand("multiqc/multiqc_report.html"),
     
-    # # # expand("dupradar/data/{sample}/.done", sample = samples),
-    expand('feature_counts_readrange/data/{sample}/{generegions}/{readrange}/feature_counts', sample=RIBO_TOTAL_DICT.keys(), generegions=GENEREGIONS+TRNAs, readrange=READRANGES),
-    expand("feature_counts/data/{sample}/feature_counts", sample = nontestribosamples),
-    expand("feature_counts/all_feature_counts"),
     # # expand("feature_counts/data/{sample}/{generegions}/{readrange}/.done", sample = samples, generegions = GENEREGIONS+TRNAs, readrange = READRANGES),
     # # # # expand("kallisto/data/{sample}/.done", sample = samples),
     # expand("bigwigs/{group}/{strand}/{istrans}.done",group = samples,strand=strands,istrans=istransvals),
     # expand("mergedbigwigs/{group}/{strand}/{istrans}.done",group = GROUPS,strand=strands,istrans=istransvals),
-    # # expand("ribotaper/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
-    # # expand("ribotapermetaplots/{sample}/.done",sample=list(RIBO_TOTAL_DICT.keys())),
     # ('ms_tables/.done'),
     # expand('exprdata/{clusterdata}.txt',clusterdata=clusterdata),
-    ('xtail/.done'),
+    # ('xtail/.done'),
     # expand('sequence_analysis/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
     # expand('cluster_assessment/{clusterdata}/{clustermethod}/.done',clusterdata=clusterdata,clustermethod=clustermethods),
-    expand("riboseq_quant/data/{sample}/segment_counts_df.tsv", sample = ribosamples),
-    expand("SaTAnn/{sample}/.done", sample = ribosamples),
+    # expand("riboseq_quant/data/{sample}/segment_counts_df.tsv", sample = ribosamples),
+    # expand("SaTAnn/{sample}/.done", sample = ribosamples),
     # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
-    expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
-    expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    # expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    # expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('riboWaltz/{sample}/.done',sample=ribosamples),
     # expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
+    expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
+    expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
+    expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples)
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -284,7 +291,7 @@ rule collapse_reads:
        set -evx
      
        mkdir -p collapse_reads/{sample}/
-     
+    
        zcat {input}  \
          | ~/work/bin/collapse_reads.pl {wildcards.sample} \
          2> {colreadstatfile} \
@@ -503,54 +510,67 @@ KMERSIZE=6
 chromsizes = REF.replace('.fa','.chromsizes')
 trsizes = GTF.replace('.gtf','.trsizes')
 
-rule gffread:
-  input: REF,GTF_orig
+# rule gffread:
+#   input: REF,GTF_orig
+#   conda: '../envs/gffread'
+#   output: GTF,CDSGTF,RNAFASTA,CDSFASTA,BED,chromsizes,trsizes
+#   shell:r""" 
+#       # set -x
+#       #with filtering output all sequences
+#       cat {GTF_orig} \
+#       | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
+#       > {GTF}
+
+#       cat {GFF_orig} \
+#       | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
+#       > {GFF}
+#       #needs gff - output exon sequences
+#       cat {GFF_orig} \
+#       | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
+#       |  grep -P -e'\texon\t|^\#' | 
+#       gffread - -F -E -g {REF} -W -w {RNAFASTA} -o /dev/null
+
+#       samtools faidx {RNAFASTA}
+#       cut -f1,2 {RNAFASTA}.fai  > {trsizes} 
+
+#       #Note we are now minus the transcript and exon entries for these
+#       #now make GTF
+
+#       #| grep -P -e'\tCDS\t|^\#' 
+#      #with filtering, output the coding sequences filteirng out the ones that aren't in frame, have a stop codon, are pseudogenes etc.
+      
+#       cat {GFF_orig}  \
+#         | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
+#         | gffread - -C -V -J --no-pseudo  -F -E -g {REF} \
+#         -W -w {ANNOBASE}.coding.transcript.fa -x {CDSFASTA} -y {ANNOBASE}.protein.fa -T \
+#         -o /dev/stdout \
+#         | awk -v FS="\t" -v OFS="\t" '{{if($3=="CDS"){{$3="exon";print $0}}}}' \
+#          > {CDSGTF}
+
+#       #now make bed
+#       cat {GTF_orig} | awk '{{print $1,$4,$5,"name",$6,$7}}' > {BED}
+
+#       samtools faidx {REF} 
+#       refname={REF}
+#       cut -f1,2 {REF}.fai > ${{refname%fa}}chromsizes 
+
+
+#       """
+
+
+rule makeGTF:
+  input: GTF=GTF_orig
+  output: GTF
   conda: '../envs/gffread'
-  output: GTF,CDSGTF,RNAFASTA,CDSFASTA,BED,chromsizes,trsizes
-  shell:r""" 
+  #conda: '~/miniconda3/envs/seq/bin/gffread'
+  shell: r""" 
       # set -x
       #with filtering output all sequences
-      cat {GTF_orig} \
-      | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
-      > {GTF}
+      zless {input.GTF} \
+      | {mod_id_sed_cmd} \
+      | gffread -F -T -o {GTF}
 
-      cat {GFF_orig} \
-      | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
-      > {GFF}
-      #needs gff - output exon sequences
-      cat {GFF_orig} \
-      | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
-      |  grep -P -e'\texon\t|^\#' | 
-      gffread - -F -E -g {REF} -W -w {RNAFASTA} -o /dev/null
-
-      samtools faidx {RNAFASTA}
-      cut -f1,2 {RNAFASTA}.fai  > {trsizes} 
-
-      #Note we are now minus the transcript and exon entries for these
-      #now make GTF
-
-      #| grep -P -e'\tCDS\t|^\#' 
-     #with filtering, output the coding sequences filteirng out the ones that aren't in frame, have a stop codon, are pseudogenes etc.
-      
-      cat {GFF_orig}  \
-        | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
-        | gffread - -C -V -J --no-pseudo  -F -E -g {REF} \
-        -W -w {ANNOBASE}.coding.transcript.fa -x {CDSFASTA} -y {ANNOBASE}.protein.fa -T \
-        -o /dev/stdout \
-        | awk -v FS="\t" -v OFS="\t" '{{if($3=="CDS"){{$3="exon";print $0}}}}' \
-         > {CDSGTF}
-
-      #now make bed
-      cat {GTF_orig} | awk '{{print $1,$4,$5,"name",$6,$7}}' > {BED}
-
-      samtools faidx {REF} 
-      refname={REF}
-      cut -f1,2 {REF}.fai > ${{refname%fa}}chromsizes 
-
-
-      """
-
-
+    """
 
 # rule make_seqc_gtf:
 #   input: GFF_orig
@@ -918,55 +938,45 @@ rule infer_experiment:
           """
 
 
-# rule make_salmon_index:
-#   threads: 8
-#   run:
-#     shell(""" salmon index -p 8 --perfectHash -k {KMERSIZE} -t {RNAFASTA} -i salmonindex""")
+# def get_sample_fastqs(wc,mate='1',folder='processed_reads',seqfilesdf=seqfilesdf):
+#    #correct zcat strings based on read pairs
+#   filedf = (seqfilesdf.loc[[wc['sample']]])
+#   filedf = filedf.loc[filedf.mate==mate,]
+#   matefiles = [folder+'/'+wc['sample']+'/'+f for f in filedf.file_id]
+#   # import ipdb;ipdb.set_trace()
+#   return(matefiles)
 
-# rule salmon:
-#   input:
-#     'star/data/{sample}/.done'
-#      output:
-#       done = touch('salmon/data/{sample}/.done')
-#      threads: 8
-#      GTF = GTF_DICT[wildcards['sample']]
-#           protocol = PROTOCOL_DICT[wildcards['sample']]
-#           if (protocol == 'no'):
-#                protocol = 0
-#           elif (protocol == 'yes'):
-#                protocol = 1
-#           elif (protocol == 'reverse'):
-#                protocol = 2
-#           else:
-#                sys.exit('Protocol not known!')
+# get_sample_fastqs2 = partial(get_sample_fastqs,mate='2')
 
-#            library = LIBRARY_DICT[wildcards['sample']]
+dpfasta = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
+rule make_salmon_index:
+  threads: 8
+  output: salmonindex = touch('salmonindex/.done')
+  run:
+    shell(""" salmon index -p {threads} --perfectHash -k 21 -t {dpfasta} -i salmonindex""")
 
-#           if (library == 'PAIRED'):
-#             if protocol == ''
-#                FORMATSTRING = 'I'
-#           else:
-#                library = ''
+rule salmon:
+  input:fastqs='processed_reads/{sample}/.done',salmonindex='salmonindex/.done'
+  params:
+    salmonindex = lambda wc,input: input.salmonindex.replace('.done',''),
+  output:
+      done = touch('salmon/data/{sample}/.done')
+  threads: 4
+  shell:r"""
 
-#           TARGETFASTA
+      set -ex
+      mkdir -p salmon/reports/{wildcards.sample}
+      mkdir -p salmon/data/{wildcards.sample}
+      salmon quant \
+      -p {threads} \
+      -l SR \
+      --seqBias \
+      -i {params.salmonindex} \
+      -r processed_reads/{wildcards.sample}/*.fastq.gz \
+      --output salmon/data/{wildcards.sample} \
+      --validateMappings
 
-#           FORMATSTRING = format1+format2+format3
-
-#           shell(r"""
-#           set -ex
-#           mkdir -p salmon/reports/{wildcards.sample}
-#           mkdir -p salmon/data/{wildcards.sample}
-#       salmon quant \
-#       -l {FORMATSTRING} \
-#       --seqBias --gcBias \
-#       -g transcript_gene_map.tsv \
-#       -t {TARGETFASTA} \
-#       --fldMean 433 --fldSD 186 -a star/data/E13_total_1/E13_total_1.star_transcript.bam --output salmon/data/E13_total_1/E13_total_1
-
-#           {SCRIPTDIRsalmon -m -@ {threads} -i {input} {read_pattern} -o $(dirname {output}) \
-#           -r star/reports/{wildcards.sample} -t {TMPDIR} -l NoSharedMemory -x {STARINDEX} 
-#           """)
-
+"""
 
      
 transcript_gene_map = 'transcript_gene_map.tsv'
@@ -1239,18 +1249,20 @@ rule kallisto:
     # -g {GTF}\
 
 
-RIBOTAPERDIR="$HOME/Applications/ribotaper-1.3.1a/scripts/"
+RIBOTAPERDIR="$HOME/work/Applications/ribotaper-1.3.1a/scripts/"
+RIBOTAPERDIR=""
 RIBOTAPERANNOTDIR="Ribotaper_annot"
 
 rule make_ribotaper_annot:
-  input: GTF_orig = '/fast/projects/cubit/0.12.0/static_data/annotation/GENCODE/M12/GRCm38/gencode.vM12.annotation.gtf'
-  output: touch(RIBOTAPERANNOTDIR+"/.done")
+  input: GTF_orig=GTF_orig
+  output: touch(RIBOTAPERANNOTDIR+"/.done"),RIBOTAPERANNOTDIR+"/unique_ccds.bed"
   run:
     shell(r"""
       set -ex
 
       mkdir -p {RIBOTAPERANNOTDIR}
-      {RIBOTAPERDIR}/create_annotations_files.bash $(readlink -f {input.GTF_orig}) $(readlink -f {REF}) 'false' 'false' {RIBOTAPERANNOTDIR}
+      cd {RIBOTAPERANNOTDIR}
+      {RIBOTAPERDIR}create_annotations_files.bash $(readlink -f {input.GTF_orig}) $(readlink -f {REF}) 'false' 'false' {RIBOTAPERANNOTDIR}
       """)
 
 rule make_ribotaper_metaplots:
@@ -1267,31 +1279,49 @@ rule make_ribotaper_metaplots:
       bam=$(readlink -f {input.ribobam})
       cd ribotapermetaplots/{wildcards.sample}
       rm -rf metaplots
-      {RIBOTAPERDIR}/create_metaplots.bash $bam $bed {wildcards.sample}
+      {RIBOTAPERDIR}create_metaplots.bash $bam $bed {wildcards.sample}
       """)
+
+rule ribotaper:
+  input:  
+    ribo_bam='star/data/{sample}/{sample}.bam',
+    rna_bam='star/data/{sample}/{sample}.bam',
+    annodir=RIBOTAPERANNOTDIR+"/.done",
+    cutofffile="../ext_data/orfquant_manual_offsets.tsv",
+  output: 'ribotaper/{sample}/.done'
+  threads: 8
+  params:
+    annotdir = lambda wc,input: input.annodir.replace('.done','')
+  shell: r"""
+
+    {RIBOTAPERDIR}Ribotaper.sh {input.ribo_bam} {input.rna_bam} {params.annotdir} \
+    $( cut -f 2 {input.cutofffile} | tail -n+2 | tr '\n' ',' |sed 's/,$//g') \
+    $( cut -f 1 {input.cutofffile} | tail -n+2 | tr '\n' ',' |sed 's/,$//g') \
+    {threads}
+    """
 
 
 skribo_rnafold = 'skribo_rnafold'
-rnafoldbin = '/fast/users/harnettd_c/Applications/scikit-ribo/scikit_ribo/'
+rnafoldbin = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/Applications/scikit-ribo/scikit_ribo'
 skindexfold = 'skribo_index'
 rule scikit_rnafold:
   input: RNAFASTA,
   output: skribo_rnafold
-  run:
-    shell(r"""
+  conda: '../envs/scikit-ribo'
+  shell: r"""
       set -xv
-    python {rnafoldbin}//call_rnafold.py\
+    python {rnafoldbin}/call_rnafold.py \
     -f shortname_my_gencode.vM12.annotation.transcript.fa \
     -r {rnafoldbin} \
     -p testskribo \
     -o {skribo_rnafold} 
-    """)
+    """
 
     # gtf=<gtf-file-location>
     # fasta=<ref-genome-fasta-location>
     # bam=<bam-file-location> # from STAR
     # rnafold=<path to the Rnafold file> # the file generated by call_rnafold.py
-    # prefix=<prefix-to-use> # defined by user
+    # prefix=<prefix-to-use> # defined by userG
     # index_folder=<index-output-folder>
     # RNA=<RNAseq-TPM-file-location> # gene level TPM generated with salmon or kallisto
     # output=<output-folder>
@@ -1301,31 +1331,31 @@ rule scikit_rnafold:
 rule scikit_ribo_build:
   input: skribo_rnafold
   output: touch('skindexfold/{sample}/.done')
-  run:
-    shell(r"""
+  # conda: '../envs/scikit-ribo'
+  shell:r"""
 
     mkdir -p {skindexfold}/{wildcards.sample}
-    scikit-ribo-build.py \
+    {rnafoldbin}/scikit-ribo-build.py \
     -g test.gtf \
     -f {REF} \
     -p testskribo \
     -r {skribo_rnafold} \
     -t kallisto/data/{wildcards.sample}/out.d/abundance.tsv\
     -o {skindexfold}/{wildcards.sample}
-""")
+"""
 
 
 rule scikit_ribo:
   input: 'skindexfold/{sample}/.done'
   output: touch('scikitribo/{sample}/.done')
-  run:
-    shell(r"""
+  conda: '../envs/scikit-ribo'
+  shell: r"""
 
     scikit-ribo-run.py \
     -i star/data/{wildcards.sample}/{wildcards.sample}.bam \
     -f {skindexfold} \
     -p testskribo \
-    -o scikitribo/{wildcards.sample}/ """)
+    -o scikitribo/{wildcards.sample}/ """
 
 
 #this is going to count reads in each library over 5'UTRS, CDS, and 3' UTRs
@@ -1501,23 +1531,6 @@ riboqcanno='riboqc/'+Path(GTF).name.replace('.gtf','.matchchrs.gtf')+'_Rannot'
 #      R -e ' library(RiboseQC); prepare_annotation_files("{params.outdir}","{params.twobitfile}","{params.gtfmatchchrs}","{params.speciesname}","{params.annobase}",forge_BS=FALSE,genome_seq=FaFile("{REF}")) '
 
 #  """
-RIBOSEQCPACKAGE = '~/work/Applications/RiboseQC'
-# RIBOSEQCPACKAGE = config['RIBOSEQCPACKAGE']
-
-rule make_riboseqc_anno:
-  input : 
-    GTF,
-    REF,str(REF)+'.fai'
-  output: Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
-  params:
-    annobase = Path(GTF).name.replace('.gtf','').replace('.gz',''),
-    gtfmatchchrs = lambda wc,input: input[0].replace('.gtf','.matchchrs.gtf')
-  shell:r"""
-    set -x
-    awk -vOFS="\t" '{{print $1,0,$2}}' {REF}.fai | bedtools intersect -b - -a {GTF} > {params.gtfmatchchrs}
-    mkdir -p $(dirname {output[0]})
-    R -e 'devtools::load_all("{RIBOSEQCPACKAGE}");args(prepare_annotation_files) ;prepare_annotation_files(annotation_directory=".",gtf_file="{params.gtfmatchchrs}",annotation_name="{params.annobase}",forge_BS=FALSE, genome_seq=FaFile("{REF}"))'
- """
 
 
 
@@ -1546,20 +1559,7 @@ rule make_chrnamefile:
 #      """
 
 
-rule run_riboseqc:
-   input: Path(GTF).with_suffix('.matchchrs.gtf_Rannot'),bam=ALIGNER_TO_USE+'/data/{sample}/{sample}.bam'
-   output: touch('riboseqc/data/{sample}/.done'),'riboseqc/data/{sample}/_for_SaTAnn','riboseqc/reports/{sample}/riboseqcreport.html'
-   threads: 4
-   params:
-     annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF_orig).name.replace('.gtf','.matchchrs.gtf_Rannot')),
-     outname = lambda wc,output: output[0].replace('.done',''),
-     report_file = lambda wc: 'riboseqc/reports/'+wc['sample']+'/'+'riboseqcreport.html',
-   shell:r"""
-         set -x
-         mkdir -p {params.outname}
-         mkdir -p riboseqc/reports/{wildcards.sample}
-         R -e 'devtools::load_all("{RIBOSEQCPACKAGE}");RiboseQC::RiboseQC_analysis("{params.annofile}", bam="{input.bam}",rescue_all_rls=TRUE,dest_names="{params.outname}", genome_seq = "{REF}", report_file="{params.report_file}")'
-     """
+
 
 rule get_offset_model:
   input:
@@ -1580,20 +1580,59 @@ rule quant_riboseq:
   shell:r"""Rscript ../src/R/Psite_offsets/segment_counts.R {input} $(dirname {output})"""
 
 
-rule run_satann:
-  input : 'riboseqc/data/{sample}/.done',Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
-  output: touch('SaTAnn/{sample}/.done')
+RIBOSEQCPACKAGE = '/fast/work/users/dharnet_m/Applications/RiboseQC'
+RIBOSEQCPACKAGE = 'RiboseQC'
+rule make_riboseqc_anno:
+  input : 
+    GTF,
+    REF,str(REF)+'.fai'
+  output: Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
+  params:
+    annobase = Path(GTF).name.replace('.gtf','').replace('.gz',''),
+    gtfmatchchrs = lambda wc,input: input[0].replace('.gtf','.matchchrs.gtf')
+  shell:r"""
+    set -x
+    awk -vOFS="\t" '{{print $1,0,$2}}' {REF}.fai | bedtools intersect -b - -a {GTF} > {params.gtfmatchchrs} 
+    mkdir -p $(dirname {output[0]})
+    R -e 'library("{RIBOSEQCPACKAGE}"); prepare_annotation_files(annotation_directory=".",gtf_file="{params.gtfmatchchrs}",annotation_name="{params.annobase}",forge_BS=FALSE, genome_seq=FaFile("{REF}"))'
+ """
+
+rule run_riboseqc:
+   input: Path(GTF).with_suffix('.matchchrs.gtf_Rannot'),bam=ALIGNER_TO_USE+'/data/{sample}/{sample}.bam'
+   output: touch('riboseqc/data/{sample}/{par}.done'),'riboseqc/data/{sample}/{par}_for_ORFquant',report='riboseqc/reports/{sample}/{par}_riboseqcreport.html',
+   threads: 4
+   params:
+     # rescue_all_rls = lambda wc: 'rescue_all_rls=TRUE' if 'allrls' in wc.par else '',
+     # manual_cutoffs = lambda wc: 'offsets_df=read.table("../ext_data/orfquant_manual_offsets.tsv")' if 'manualcutoffs' in wc.par else '',
+     par = lambda wc: (','+','.join(filter(lambda x: x is not None,[
+      ('rescue_all_rls=TRUE' if 'allrls' in wc.par else None) , 
+      ('offsets_df=read.table("../ext_data/orfquant_manual_offsets_colflip.tsv",head=T)' if 'manualcutoffs' in wc.par else None)
+    ]))+',').replace(',,',','),
+     annofile = lambda wc,input: input[0].replace('annot.done',Path(GTF_orig).name.replace('.gtf','.matchchrs.gtf_Rannot')),
+     outname = lambda wc,output: output[0].replace('.done',''),
+   shell:r"""
+         set -x
+         mkdir -p {params.outname}
+         mkdir -p riboseqc/reports/{wildcards.sample}
+         echo {params.par}
+         R -e 'library("{RIBOSEQCPACKAGE}");RiboseQC_analysis("{params.annofile}" ,bam="{input.bam}" {params.par} dest_names="{params.outname}", genome_seq = "{REF}", report_file="{output.report})'
+     """
+
+#####Added pulling ORFquant from the config
+ORFquantPACKAGE ='/fast/work/users/dharnet_m/Applications/ORFquant'
+ORFquantPACKAGE ='ORFquant'
+rule run_ORFquant:
+  input : 'riboseqc/data/{sample}/{par}.done',annofile=Path(GTF).with_suffix('.matchchrs.gtf_Rannot')
+  output: touch('ORFquant/{sample}/{par}.done')
   params: 
-    for_satannfile = lambda wc,input: 'c("'+('","'.join(['riboseqc/data/'+s+'/''_for_SaTAnn' for s in [wc['sample']] ]))+'")',
-    annofile = lambda wc,input: 'riboseqc/'+Path(GTF).name.replace('.gtf','.matchchrs.gtf_Rannot'),
+    for_ORFquantfile = lambda wc,input: 'c("'+('","'.join(['riboseqc/data/'+s+'/'+wc['par']+'_for_ORFquant' for s in [wc['sample']] ]))+'")',
+
     outputdir = lambda wc,output: output[0].replace('.done','')
   threads: 10
   shell:r"""
     set -ex
       mkdir -p {params.outputdir}
-
-      R -e 'devtools::load_all("/fast/AG_Ohler/Eelco/RP/Senescence_ribo/applications/SaTAnn");run_SaTAnn(for_SaTAnn_file = {params.for_satannfile},annotation_file = "{params.annofile}",genome_seq = "{REF}", n_cores = {threads},prefix="{params.outputdir}") '
-        
+      R -e 'library("{RIBOSEQCPACKAGE}");library("{ORFquantPACKAGE}");run_ORFquant(for_ORFquant_file = {params.for_ORFquantfile},annotation_file = "{input.annofile}", n_cores = {threads},prefix="{params.outputdir}")'
       """
 
 
@@ -1909,18 +1948,93 @@ rule createmappability_bedgraph:
 #  bedGraphToBigWig ${{MY_TMP_DIR}}/nomap.bg {trsizes} {output[0]}
 
 """
+dpGTF='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.annotation.gtf'
+TRFASTA='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
 
-#echo -e "chr1\t10000000\t10000030\tchr1_10000000_10000030" | bedtools getfasta -s -fi my_GRCm38.p5.genome.chr_scaff.fa -bed -  -name | sed '$!N;s/\n/_/' | tr -d '>' | perl -F'_' -lane '$i=0;while($i<=(length($F[3])-10)){print $F[0] ,"_",$F[1]+$i," ",substr $F[3],$i,10 ; $i = $i +1}'
+#/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/deepshapemakeref.sh
+rule star_transcript:
+  input:
+    fastq='processed_reads/{sample}/{sample}.fastq.gz',
+    transcriptindexfold=directory('deepshape/StarIndex/transcript'),
+  output: 
+    bam='star_transcript/data/{sample}/{sample}.sort.bam',
+    bai='star_transcript/data/{sample}/{sample}.sort.bam.bai',
+  params:
+    bamnosort=lambda wc,output: output.bam.replace('sort.','')
+  shell:r"""
 
-#echo -e "chr1\t10000000\t10000030\tchr1_10000000_10000030" | bedtools getfasta -s -fi my_GRCm38.p5.genome.chr_scaff.fa -bed -  -name | sed '$!N;s/\n/_/' | tr -d '>' | perl -F'_' -lane '$i=0;while($i<=(length($F[3])-10)){print $F[0] ,"_",$F[1]+$i," ",substr $F[3],$i,10 ; $i = $i +1}'
+  mkdir -p star_transcript/data/{wildcards.sample}/{wildcards.sample}.fastq.gz
 
-#samtools view mappability/mappa_27.bam | grep -Fve 'NH:i:1' | cut -d '_' -f 1,2 | gzip > mappability_27.txt.gz
+  STAR --runThreadN 15 --genomeDir {input.transcriptindexfold} \
+    --readFilesIn <(zcat {input.fastq}) \
+    --outFileNamePrefix star_transcript/{wildcards.sample}.transcript_ \
+    --outSAMtype BAM Unsorted \
+    --outSAMmode NoQS \
+    --outSAMattributes NH NM \
+    --seedSearchLmax 10 \
+    --outFilterMultimapScoreRange 0 \
+    --outFilterMultimapNmax 255 \
+    --outFilterMismatchNmax 1 \
+    --outFilterIntronMotifs RemoveNoncanonical
 
-#-transcriptome_only 
-           
-#samtools view mappability/mappability_27.bam  | grep -ve 'NH:i:1'     | awk -vFS="_" -vOFS="\t" '{{print $1,$2-1,$2}}' | uniq     | bedtools sort -i /dev/stdin     | bedtools merge  -prec 1 
+  mv star_transcript/{wildcards.sample}.transcript_Aligned.out.bam {params.bamnosort}
+  samtools sort {params.bamnosort} -o {output.bam}
+  samtools index {output.bam}
 
-#rule run_template:
-#  input: templatefinput
-#  output: touch('run_template/.done')
-#  shell: r"""template {input} $(dirname {output})"""
+  """
+
+DPDIR='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/Applications/DeepShape/DeepShape-prime/'
+offsets2col='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/offsets_manual.2col.tsv'
+rule dpprimeformatbam:
+  input: bam='star_transcript/data/{sample}/{sample}.sort.bam'
+  output: refabs='deepshapebamdata/{sample}.bam.reformat.absolute',ref='deepshapebamdata/{sample}.bam.reformat'
+  conda: '../envs/biopython2.7'
+  shell:r"""
+
+   samtools view \
+     {input.bam} | \
+     awk '{{if(length($10)>=25 && length($10)<=36){{print $1"\t"$3"\t"$4"\t"length($10);}}}}' | \
+     awk -F"|" '{{printf $1"\t"$2; for(i=8;i<=NF-1;i++){{if($i~/CDS:/) {{gsub("CDS:","",$i); gsub("-","\t",$i); printf "\t"$i;}}}} printf $NF"\n"}}' \
+     > {output[1]}
+
+    python {DPDIR}/ParseBam2RiboPos.py \
+      {dpGTF} \
+      {TRFASTA} \
+      {offsets2col} \
+      {output.ref} \
+      {output.refabs}
+  """
+
+
+rule dpprime:
+  input: dpbam='deepshapebamdata/{sample}.bam.reformat.absolute',transcriptfasta=TRFASTA,
+  output: file='deepshapeprime/{sample}/runlog_199.txt',
+  conda: '../envs/biopython2.7'
+  threads: 8
+  shell:r"""
+    mkdir -p $( dirname {output.file} ) 
+
+    python {DPDIR}/DeepShape-prime.py \
+    {input.dpbam} \
+    {input.transcriptfasta} \
+    $(dirname {output.file}) \
+    200
+  """
+  
+rule dpprimecov:
+  input: tpms=rules.dpprime.output.file,bamreformat=rules.dpprimeformatbam.output.refabs
+  output: distsig='dpprimecov/{sample}/dpprime_dist_ribosig.tsv'
+  shell:r"""
+    mkdir -p $(dirname {output.distsig})
+    set -x
+    #"tpms to reads"
+    join -1 6 -2 1 <(sort -k 6 {input.bamreformat}) <(cat {input.tpms} | cut -f 1,2 | sort -k 1) | sort -k 2 > {input.bamreformat}.withtpm
+    # "sum tpms"
+    datamash -t' ' -g 2 sum 8 < {input.bamreformat}.withtpm > {input.bamreformat}.readtpms
+    # "distribute read signal"
+    join -1 2 -2 1 {input.bamreformat}.withtpm {input.bamreformat}.readtpms | awk '{{print $0,$8/$9}}' | datamash -t' ' -g 2,6 sum 10 > {output.distsig}
+
+    [[ -s {output.distsig} ]] || rm {output.distsig}
+
+"""
+

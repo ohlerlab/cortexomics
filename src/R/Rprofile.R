@@ -29,6 +29,8 @@ library(GenomicRanges)
 library(limma)
 library(broom)
 library(hashmap)
+library(txtplot)
+library(multitaper)
 
 safe_hashmap<-setRefClass("Safe_Rcpp_Hashmap",
       contains="Rcpp_Hashmap",
@@ -163,12 +165,18 @@ safe_left_join = function (x, y, by = NULL, verbose = TRUE,allow_missing=FALSE,a
 }
 
 is_offchr<-function(gr,si){
-  seqinfo(gr)<-si
-  end(gr) > seqlengths(gr)[as.character(seqnames(gr))]
+  if(is(gr,'GenomicRangesList')){
+   (end(gr) > split(seqlengths(gr)[as.character(unlist(seqnames(gr)))],gr@partitioning) ) %in% TRUE
+  }else{
+    seqinfo(gr)<-si
+    end(gr) > seqlengths(gr)[as.character(seqnames(gr))]
+
+  }
 }
 is_out_of_bounds <- function(gr,si = seqinfo(gr)){
   start(gr)<1 | is_offchr(gr,si) 
 }
+
 
 get_all_obsizes <- function(){.GlobalEnv%>%names%>%discard(~is.function(get(.)))%>%setNames(.,.)%>%map(~object.size(get(.)))}
 
@@ -644,13 +652,11 @@ ftestvect<-function(psit,k=24,bw=12){
 }
 
 
-library(R6)
-
 #could include the lengths and variables it needs
 #could include a method for getting the data
 #and a method for shiftng a granges object
 get_predictedshifts<-function(seqshiftmodel,data4readshift,probcutoff=0.5){
-
+  require(ranger)
   outpred <- predict(seqshiftmodel,data=data4readshift)$prediction
 
   if(is.matrix(outpred)){
@@ -667,7 +673,7 @@ get_predictedshifts<-function(seqshiftmodel,data4readshift,probcutoff=0.5){
 
 }
 
-
+library(R6)
 Psite_model<-R6Class("Psite_model",
   public = list(
     offsets=NULL,
@@ -703,8 +709,6 @@ Psite_model<-R6Class("Psite_model",
       self$compartments <- as(compartments,'List')
       self$referencefasta <- referencefasta
   },
-
-
   get_cds_offsets = function(reads_tr){
 
     if('compartment'%in%colnames(self$offsets)) {
@@ -720,7 +724,12 @@ Psite_model<-R6Class("Psite_model",
       mcols(reads_tr)$length <- possibly(qwidth,otherwise=width(reads_tr))(reads_tr)
     }
     
-    phasecol <- if('phase'%in%colnames(self$offsets)) 'phase' else NULL
+    if('phase'%in%colnames(self$offsets)){
+      phasecol <-  NULL
+    }else{
+      phasecol <- 'phase'
+      assert_that(all(has_name(mcols(reads_tr),phasecol)))
+    }
     joincols <- c('length',compartmentcol,phasecol)
 
     assert_that(all(has_name(mcols(reads_tr),joincols)))
@@ -747,7 +756,15 @@ Psite_model<-R6Class("Psite_model",
       }
       
       data4readshift <- get_seqforrest_data(seqoffreads,self$referencefasta,nbp)
-      browser()
+      data4readshift$phase = mcols(seqoffreads)$phase
+
+      if(any(is.na(mcols(seqoffreads)$phase))){
+        message('removing reads with phase NA')
+        seqoffreads = seqoffreads[!is.na(mcols(seqoffreads)$phase),]
+      }
+
+
+
       if(self$rl_sep_seqmodel){
         seqshift <- rep(NA,nrow(data4readshift))
         dlens <-unique(data4readshift[,'length'])
@@ -764,19 +781,37 @@ Psite_model<-R6Class("Psite_model",
         stopifnot(!any(is.na(seqshift)))
 
       }
+      # browser()
+      slice = dplyr::slice
+      datcols = data4readshift%>%colnames
+      rowuniquelist = data4readshift%>%group_by(!!!syms(datcols))%>%{list(slice(.,1),group_indices(.))}
+      uniquerows = rowuniquelist[[1]]
+      
+      seqshift <- get_predictedshifts(self$seqshiftmodel,uniquerows)
 
-      seqshift <- get_predictedshifts(self$seqshiftmodel,data4readshift,prob=0.5)
+      seqshift <- seqshift[rowuniquelist[[2]]]
+      which(!(seqshift<=data4readshift$length))
+      badind = 20506
+      rowuniquelist[[2]][badind]
+      seqshift[badind]
+      data4readshift[badind,]
+      uniquerows[rowuniquelist[[2]][badind],]$length
+      
+      stopifnot(all(seqshift<=data4readshift$length))
       return(seqshift)
-
   },
 
   get_offsets = function(seqoffreads,nbp=2){
-      self$get_cds_offsets(seqoffreads) + self$get_seq_offsets(seqoffreads)
+
+      self$get_seq_offsets(seqoffreads)
   },
 
   get_psites = function(offsetreads,filterreads=FALSE){
 
-
+    if(any(is.na(mcols(offsetreads)$phase))){
+        message('removing reads with phase NA')
+        offsetreads = offsetreads[!is.na(mcols(offsetreads)$phase),]
+    }
     offset <- self$get_offsets(offsetreads)
     mcols(offsetreads)$psite <- !is.na(offset)
     #we can also just use a pre-made shift that's in the reads' mcols
@@ -785,11 +820,9 @@ Psite_model<-R6Class("Psite_model",
     } 
     #or a single number
     if(length(offset)==1) offset = rep(offset,length(offsetreads))
-    isneg <-  as.logical(strand(offsetreads)=='-')
-    offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
-    ends <- qwidth(offsetreads[isneg])-offset[isneg]
-    offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
 
+    offsetreads <- apply_psite_offset(offsetreads,offset)
+    
     if(filterreads){ 
       offsetreads <- offsetreads[mcols(offsetreads)$psite]
     }
@@ -797,14 +830,14 @@ Psite_model<-R6Class("Psite_model",
   })
 )
 
-# if(exists('psite_model')){
-#   psite_model <- Psite_model$new(
-#     offsets=psite_model$offsets,
-#     seqshiftmodel=psite_model$seqshiftmodel,
-#     compartments=psite_model$compartments,
-#     referencefasta=psite_model$referencefasta
-# )
-# }
+if(exists('psite_model')){
+  psite_model <- Psite_model$new(
+    offsets=psite_model$offsets,
+    seqshiftmodel=psite_model$seqshiftmodel,
+    compartments=psite_model$compartments,
+    referencefasta=psite_model$referencefasta
+)
+}
 
 
 get_cds_offsets = function(reads_tr,offsets,compartments){
@@ -855,24 +888,17 @@ fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
 strandshift<-function(gr,shift) shift(gr , ifelse( strand(gr)=='-',- shift,shift))
 
+
+
 get_seqforrest_data <- function(trainreads,seq,nbp=2,trim=TRUE){
 
   stopifnot('length' %in% colnames(mcols(trainreads)))
   stopifnot(all(seqnames(trainreads)%in%seqinfo(seq)@seqnames))
 
-  # if(is(trainreads,"GAlignments")){
-    # trainreads<-trainreads[njunc(trainreads)==0]
-    # trainreads <- GRanges(trainreads)
-  # }
+  fp<-trainreads%>%as("GRanges")%>%resize(nbp,'start')%>%resize(nbp*2,'end')
 
-  fp<-trainreads%>%resize(nbp,'start')%>%as("GRanges")%>%resize(nbp*2,'end')
-  # fp_inbounds <- !is_out_of_bounds(fp,seqinfo(seq))
+  tp <- trainreads%>%as("GRanges")%>%resize(nbp,'end')%>%resize(nbp*2,'start')
 
-  tp <- trainreads%>%resize(nbp,'end')%>%as("GRanges")%>%resize(nbp*2,'start')
-  # tp_inbounds <- !is_out_of_bounds(tp,seqinfo(seq))
-  
-  # inbounds <- fp_inbounds & tp_inbounds
-  # inbounds%>%table
   
   startseq <- getSeq(seq,fp)
   endseq <- getSeq(seq,tp)
@@ -983,25 +1009,58 @@ inclusiontable<-function(a,b){
 
 
 
-# conflict_prefer('has_name','assertthat')
-
-get_genomic_psites <- function(bam,windows,mapqthresh=200,psite_model) {
+#define methods so I can 'apply_psite_offset' either to GAlignments objets or just GRanges objects
+setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
+setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
+  if(is.character(offset)){
+    offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
+  } 
+  if(length(offset)==1) offset = rep(offset,length(offsetreads))
+  isneg <-  as.logical(strand(offsetreads)=='-')
+  offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
+  ends <- qwidth(offsetreads[isneg])-offset[isneg]
+  offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
+  offsetreads
+})
+#function to get GRanges objects of the psites
+get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'='chrM')) {
   require(GenomicAlignments)
+  require(hashmap)
   riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
   reads <- readGAlignments(bam,param=riboparam)
-
-  mcols(reads)$cdsshift <- get_cds_offsets(reads,psite_model$offsets,psite_model$compartments)
-
-  reads <- reads%>%subset(width %in% psite_model$offsets$length)
-  
-  mcols(reads)$length <- width(reads)
-  reads%<>%subset(!is.na(cdsshift))
-  psites <- apply_psite_offset(reads,c('cdsshift'))%>%as("GRanges")
-  mcols(psites)$length <- mcols(reads)$length   
+  mcols(reads)$length <- qwidth(reads)
+  #
+  #if no 'offsets' data then just take read midpoints (e.g. for RNAseq)
+  if(is.null(offsets)){
+    mcols(reads)$offset <- floor(qwidth(reads)/2)
+  }else{
+    #else check we have offsets
+  stopifnot('length' %in% colnames(offsets))
+  stopifnot('offset' %in% colnames(offsets))
+  stopifnot('comp' %in% colnames(offsets))
+    #
+    #define our compartment for all of the seqnames in the object
+    comps = comps[names(comps)%in%seqnames(reads)]
+    useqnms <- as.character(unique(seqnames(reads)))%>%setdiff(names(comps))
+    compmap = safe_hashmap(c(useqnms,names(comps)),c(rep('nucl',length(useqnms)),comps))
+    stopifnot(all(compmap$values()%in%offsets$comp))
+    #now fetch an offset for all of our 
+    mcols(reads)$offset <-
+      data.frame(length=mcols(reads)$length,
+        comp=compmap[[as.character(seqnames(reads))]])%>%
+      safe_left_join(offsets%>%select(offset,length,comp),allow_missing=TRUE,by=c('length','comp'))%>%.$offset
+  }
+  #get rid of the reads that have no offset
+  reads <- reads%>%subset(!is.na(mcols(reads)$offset))
+  psites <- apply_psite_offset(reads,c('offset'))%>%as("GRanges")
+  #annotate psites with length
+  mcols(psites)$length <- mcols(reads)$length
   psites
 }
 
-
+# mapqthresh=200
+# riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=testregion%>%unlist)
+# reads <- readGAlignments(bams[1],param=riboparam)
 
 
 
@@ -1052,7 +1111,41 @@ vals <- function(x){
 
 GRanges(1:2,1:2)%>%split(1:2)
 
+#exonsexp->exons_grl
+# cds[bestcds]->trspacegr
+spl_mapFromTranscripts <- function(trspacegr,exons_grl){
 
+  exons_tr<-exons_grl%>%unlist%>%mapToTranscripts(exons_grl)%>%.[names(.)==seqnames(.)]
+  # grlcs = exons_grl%>%sort_grl_st%>%width%>%cumsum%>%IntegerList
+  
+  # grlcs%>%head%>%{pc(.,rep(1,length(.)))}
+  
+  # grlcs%>%{.[IntegerList(as.list(-elementNROWS(.)))]}
+
+  # lastelems <- elementNROWS(grlcs)%>%as.list%>%IntegerList%>%setNames(NULL)
+  # pc(rep(1,length(grlcs)),grlcs+1)[-1 * lastelems]
+
+
+  # exons_grl%>%unlist%>%.[exons_tr[subjectHits(ov)]$xHits]
+  ov <- findOverlaps(trspacegr,exons_tr)
+  # trspacegr[testpid]
+
+  # exons_grl[seqnames(trspacegr)]
+
+  # exons_grl%>%unlist%>%setNames(paste0('exon_',seq_along(.)))%>%
+
+
+  # mergeByOverlaps(trspacegr,exons_tr)
+
+  trspacegr_spl <- suppressWarnings({trspacegr[queryHits(ov)]%>%pintersect(exons_tr[subjectHits(ov)])})
+  genomic_trspacegr <- mapFromTranscripts(
+  trspacegr_spl,
+  # exons_tr[subjectHits(ov)]%>%split(.,seqnames(.))
+  exons_grl
+  )
+  genomic_trspacegr$xHits <- queryHits(ov)[genomic_trspacegr$xHits]
+  genomic_trspacegr
+}
 
 resize_grl_startfix<-function(grl,width){
   #what follows is some slightly black magic using S4 vectors
@@ -1090,8 +1183,8 @@ resize_grl <- function(grl,width,fix='start',check=TRUE){
     grlwidths = sum(width(grl)) 
     diffs = (width - grlwidths)
     
-    grl = resize_grl_startfix(grl,grlwidths - floor(diffs/2))
-    grl = resize_grl_endfix(grl,grlwidths - ceiling(diffs/2))
+    grl = resize_grl_startfix(grl,grlwidths + ceiling(diffs/2))
+    grl = resize_grl_endfix(grl,grlwidths + diffs)
     
   }
   if(check){
@@ -1134,25 +1227,98 @@ fp <-function(gr)ifelse(strand(gr)=='-',end(gr),start(gr))
 tp <-function(gr)ifelse(strand(gr)=='-',start(gr),end(gr))
 strandshift<-function(gr,shift) shift(gr , ifelse( strand(gr)=='-',- shift,shift))
 
-get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200) {
+
+#define methods so I can 'apply_psite_offset' either to GAlignments objets or just GRanges objects
+setGeneric('apply_psite_offset',function(offsetreads,offset) strandshift(offsetreads,offset))
+setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
+  if(is.character(offset)){
+    offset = rowSums(as.matrix(mcols(offsetreads)[,offset]))
+  } 
+  if(length(offset)==1) offset = rep(offset,length(offsetreads))
+  isneg <-  as.logical(strand(offsetreads)=='-')
+  offsetreads[!isneg] <- qnarrow(offsetreads[!isneg],start=offset[!isneg]+1,end = offset[!isneg]+1)
+  ends <- qwidth(offsetreads[isneg])-offset[isneg]
+  offsetreads[isneg] <- qnarrow(offsetreads[isneg],start=ends,end = ends  ) 
+  offsetreads
+})
+#function to get GRanges objects of the psites
+get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'='chrM')) {
   require(GenomicAlignments)
+  require(hashmap)
   riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
   reads <- readGAlignments(bam,param=riboparam)
-  #
+  # browser()
+  mcols(reads)$length <- qwidth(reads)
+
+  #if no 'offsets' data then just take read midpoints (e.g. for RNAseq)
   if(is.null(offsets)){
-  mcols(reads)$offset <- floor(qwidth(reads)/2)
+    mcols(reads)$offset <- floor(qwidth(reads)/2)
   }else{
-    mcols(reads)$offset <- 
-      data.frame(length=qwidth(reads),compartment='nucl')%>%
-      safe_left_join(offsets,allow_missing=TRUE)%>%.$offset
+    #else check we have offsets
+  stopifnot('length' %in% colnames(offsets))
+  stopifnot('offset' %in% colnames(offsets))
+  stopifnot('comp' %in% colnames(offsets))
+
+    #define our compartment for all of the seqnames in the object
+    useqnms <- as.character(unique(seqnames(reads)))%>%setdiff(names(comps))
+    compmap = safe_hashmap(c(useqnms,names(comps)),c(rep('nucl',length(useqnms)),comps))
+    stopifnot(all(compmap$values()%in%offsets$comp))
+    #now fetch an offset for all of our 
+    mcols(reads)$offset <-
+      data.frame(length=mcols(reads)$length,
+        comp=compmap[[as.character(seqnames(reads))]])%>%
+      safe_left_join(offsets%>%select(offset,length,comp),allow_missing=TRUE,by=c('length','comp'))%>%.$offset
   }
-  #
+  #get rid of the reads that have no offset
   reads <- reads%>%subset(!is.na(mcols(reads)$offset))
-  # 
-  mcols(reads)$length <- width(reads)
-  reads%<>%subset(!is.na(offset))
   psites <- apply_psite_offset(reads,c('offset'))%>%as("GRanges")
-  mcols(psites)$length <- mcols(reads)$length   
+  #annotate psites with length
+  mcols(psites)$length <- mcols(reads)$length
   psites
 }
-#metaplots
+
+#devtools::install_git(c('https://github.com/cran/ifultools'))
+#devtools::install_git(c('https://github.com/cran/wmtsa'))
+DWPT         =       function(signal){
+  library(wmtsa);
+  TR_lth          =       length(signal);
+  if(TR_lth       <       64){
+          signal  =       c(signal,rep(0,64-length(signal)));
+  }
+  W1              =       wavMODWPT(signal, wavelet="s4",n.levels=6);
+  W2              =       wavShift(W1);
+  bands           =       32:51;# use the 0.2~0.5 Hz components only.
+  mx              =       matrix(0,nrow=length(bands),ncol=length(signal));
+  for(i in 1:length(bands)){
+          tmp     =       paste("w6.",bands[i],sep="");
+          mx[i,]  =       W2$data[[tmp]];
+  }
+  ID_signal       =       which(signal>0);        #the positions with signal;
+  mx[,-ID_signal] =       0;                      #remove noise;
+  minus3nt        =       mx[-11,];
+  only3nt         =       mx[11,];
+  BKgrnd          =       apply(minus3nt,2,max);
+  ID1             =       which(only3nt > BKgrnd);#the positions with 3nt energy higher than other frequency;
+  higher3nt       =       signal;
+  higher3nt[-ID1] =       0;
+  out             =       higher3nt[1:TR_lth];
+}
+
+
+library(R6)
+
+l=1000
+s=10
+
+# txtplot(1:10,sapply(1:10, function(s) c(3,2,1)%>%multiply_by(s)%>%rep(l)%>%{.[666]=100;.}%>%ftestvect%>%.[1]%>%round(3)%>%divide_by(l)%>%sqrt))
+
+# txtplot(1:10,sapply(1:10, function(s) c(3,2,1)%>%multiply_by(s)%>%rep(l)%>%{.[667]=100;.}%>%DWPT%>%sum%>%divide_by(l)))
+
+
+
+fmcols <- function(grl,...){
+  with(grl@unlistData@elementMetadata,...)[start(grl@partitioning)]
+}
+fmcols_List <- function(grl,...){
+  with(grl@unlistData@elementMetadata,...)%>%split(grl@partitioning)
+}

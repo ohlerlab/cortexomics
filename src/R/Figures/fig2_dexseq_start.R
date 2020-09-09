@@ -13,35 +13,6 @@ fmcols <- function(grl,...){
 fmcols_List <- function(grl,...){
   with(grl@unlistData@elementMetadata,...)%>%split(grl@partitioning)
 }
-get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'='chrM')) {
-  require(GenomicAlignments)
-  riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
-  reads <- readGAlignments(bam,param=riboparam)
-  mcols(reads)$length <- qwidth(reads)
-  stopifnot('comp' %in% colnames(offsets))
-  #
-  if(is.null(offsets)){
-    mcols(reads)$offset <- floor(qwidth(reads)/2)
-  }else{
-    useqnms <- as.character(unique(seqnames(reads)))%>%setdiff(names(comps))
-
-    compmap = safe_hashmap(c(useqnms,names(comps)),c(rep('nucl',length(useqnms)),comps))
-    stopifnot(all(compmap$values()%in%offsets$comp))
-    
-    mcols(reads)$offset <-
-      data.frame(length=mcols(reads)$length,
-        comp=compmap[[as.character(seqnames(reads))]])%>%
-      safe_left_join(offsets%>%select(offset,length,comp),allow_missing=TRUE,by=c('length','comp'))%>%.$offset
-  }
-  #
-  reads <- reads%>%subset(!is.na(mcols(reads)$offset))
-  #
-  # mcols(reads)$length <- width(reads)
-  reads%<>%subset(!is.na(offset))
-  psites <- apply_psite_offset(reads,c('offset'))%>%as("GRanges")
-  mcols(psites)$length <- mcols(reads)$length
-  psites
-}
 
 anno <- projmemoise(function(...){rtracklayer::import(...)})(here('../Ebp1_ribo/pipeline/gencode.vM12.annotation.gtf'))
 #We want a function that 

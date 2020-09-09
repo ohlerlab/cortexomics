@@ -21,17 +21,11 @@ stageconv = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
 # countexprdata <- readRDS(countfile)
 # countfile='pipeline/exprdata/countexprset.rds'
 
-TEs = Sys.glob('pipeline/xtail/*.txt')%>%setNames(.,basename(.))%>%map_df(.%>%fread%>%select(feature_id,dplyr::matches('log2TE')))
-
+TEs = Sys.glob('pipeline/xtail/*.txt')%>%setNames(.,basename(.))%>%map_df(.%>%fread%>%select(feature_id=gene_name,dplyr::matches('log2TE')))
 TEs = bind_rows(
 	TEs%>%select(feature_id,E13_log2TE)%>%group_by(feature_id)%>%summarise(val=mean(E13_log2TE))%>%mutate(time = 'E13'),
 	TEs%>%select(-E13_log2TE)%>%gather(time,val,-feature_id)%>%mutate(time = str_extract(time,'[^_]+'))
 )
-
-TEs%<>%inner_join(.,
-	as.data.frame(fData(countexprdata))%>%filter(is_gid_highest)%>%select(feature_id=gene_id,gene_name,protein_id)%>%distinct
-)
-
 
 TEs%<>%select(-feature_id)
 TEs%<>%select(feature_id = gene_name,everything())
@@ -42,11 +36,10 @@ TEs%<>%select(feature_id = gene_name,everything())
 # 	mutate(time = ifelse(time=='','timeE13',time))%>%
 # 	mutate(time = str_replace(time,'time',''))
 
-
 TEs %<>%mutate(type='TE')
 
 # countexprdata%>%saveRDS(here('data/fig1countexprdata.rds'))
-countexprdata <- readRDS(here('data/fig1countexprdata.rds'))
+# countexprdata <- readRDS(here('data/fig1countexprdata.rds'))
 
 fData(countexprdata)$gene_id%>%n_distinct
 
@@ -56,9 +49,11 @@ conflict_prefer('rowMedians','Biobase')
 
 exprs(countexprdata)[mscountrows,'E13_ribo_1',drop=F]%>%rowMedians%>%add(1)%>%log2%>%txtdensity
 
+fData(countexprdata)$protein_id%>%intersect(rownames(exprs(countexprdata)))
+mRNAvals = exprs(countexprdata)[,]
 
-mRNAvals = exprs(countexprdata)[fData(countexprdata)$is_gid_highest,]
-mRNAvals <- countvoom$E[fData(countexprdata)$protein_id,][fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%as.data.frame%>%
+mRNAvals <- countvoom$E[fData(countexprdata)$protein_id,][fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%
+	as.data.frame%>%
 	rownames_to_column('protein_id')%>%
 	select(protein_id,dplyr::matches('total'))%>%
 	gather(dataset,val,-protein_id)%>%

@@ -4,8 +4,8 @@ library(magrittr)
 library(tidyverse)
 library(GenomicRanges)
 library(txtplot)
-source(here("src/R/Rprofile.R"))
-load('data/integrate_exprdata2.Rdata')
+base::source(here("src/R/Rprofile.R"))
+if(!exists('allcountmat'))load('data/integrate_exprdata2.Rdata')
 stopifnot(exists('bestmscountvoom'))
 stopifnot(exists('best_protein_ids'))
 GRanges(1:2,1:2)%>%split(1:2)
@@ -25,9 +25,12 @@ stageconv <- names(stagecols) %>% setNames(c("E13", "E145", "E16", "E175", "P0")
 {
 gtf='pipeline/my_gencode.vM12.annotation.gtf'
 if (!exists("gtf_gr")) gtf_gr <- rtracklayer::import(con = gtf, format = "gtf")
-exons <- gtf_gr %>% subset(type == "exon")
-cds <- gtf_gr %>% subset(type == "CDS")
+if(!exists('exons')){
+    exons <- gtf_gr %>% subset(type == "exon")
+    cds <- gtf_gr %>% subset(type == "CDS")
+}
 REF <- here("pipeline/my_GRCm38.p5.genome.chr_scaff.fa")
+
 #
 cdswidths <- cds %>%
     split(., .$protein_id) %>%
@@ -218,17 +221,20 @@ allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
 allcodsigmean_isomerge <- allcodsig_isomerge %>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
     summarise_at(vars(one_of(c('Ct','dCt','abundance','balance'))),list(mean))
+allcodsigmean <- allcodonsig%>%
+    group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
+    summarise_at(vars(one_of(c('Ct','dCt','abundance','balance'))),list(mean))
 # add codon info
 allcodsigmean_isomerge %<>% addcodon
+allcodsigmean %<>% addcodon
 #add AA
-allcodsigmean %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
+# allcodsigmean %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 allcodsigmean_isomerge %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 #
 
 # get normfacts
 # normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(abundance[decoder%in%hkgenes2use]))
 # Now normalize
-
 test_that("HTqPCR agrees with me",{
 
     testvals<-allcodonsig%>%group_by(decoder)%>%group_slice(1)%>%
@@ -253,16 +259,16 @@ test_that("HTqPCR agrees with me",{
         unlist
     warnings()
 
-    totdatfiles <- ctdatfiles%>%.[str_detect(.,'Total')]
+    # totdatfiles <- ctdatfiles%>%.[str_detect(.,'Total')]
 
-    ctobject <- readCtData(totdatfiles,column.info=list(flag=4, feature=1, type=5, position=2,Ct=3),header=F,n.features=192)
-    mygroups <- totdatfiles%>%names%>%str_replace('\\-\\d','')
+    # ctobject <- readCtData(totdatfiles,column.info=list(flag=4, feature=1, type=5, position=2,Ct=3),header=F,n.features=192)
+    # mygroups <- totdatfiles%>%names%>%str_replace('\\-\\d','')
 
-    d.norm <- normalizeCtData(ctobject, norm = "deltaCt",deltaCt.genes = hkgenes2use)
+    # d.norm <- normalizeCtData(ctobject, norm = "deltaCt",deltaCt.genes = hkgenes2use)
 
 
-    stopifnot(`<`(testvals$dCt[1]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][1:2]),0.001))
-    stopifnot(`<`(testvals$dCt[2]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][3:4]),0.001))
+    # stopifnot(`<`(testvals$dCt[1]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][1:2]),0.001))
+    # stopifnot(`<`(testvals$dCt[2]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][3:4]),0.001))
 
 })
 
@@ -500,7 +506,6 @@ wus_tab_cors <- usage_v_abundance_df %>%
 
 
 
-stop()
 
 
 # exp(allcodsigmean_isomerge$shared_abundance) - exp(allcodsigmean_isomerge$weightedusage)
@@ -554,7 +559,6 @@ tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','frac
 #     mutate(abundance=ifelse(abundance %in% -Inf,min(abundance[is.finite(abundance)],na.rm=T)-1,abundance))%>%
 #     mutate(balance=ifelse(balance %in% -Inf,min(balance[is.finite(balance)],na.rm=T)-1,balance))%>%
 #     {cor(.$abundance,.$balance)}
-
 
 fractions <- c("Poly", "Total")
 for (ifraction in fractions) {

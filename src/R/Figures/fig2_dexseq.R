@@ -16,29 +16,6 @@ spl_mapFromTranscripts<-function(tmptest,tmpexons){
 }
 
 
-#get counts for the exons
-get_genomic_psites <- function(bam,windows,mapqthresh=200,offsets) {
-  require(GenomicAlignments)
-  riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
-  reads <- readGAlignments(bam,param=riboparam)
-  #
-  if(is.null(offsets)){
-	mcols(reads)$offset <- floor(qwidth(reads)/2)
-  }else{
-  	mcols(reads)$offset <- 
-  		data.frame(length=qwidth(reads),compartment='nucl')%>%
-  		safe_left_join(offsets,allow_missing=TRUE)%>%.$offset
-  }
-  #
-  reads <- reads%>%subset(!is.na(mcols(reads)$offset))
- 	# 
-  mcols(reads)$length <- width(reads)
-  reads%<>%subset(!is.na(offset))
-  psites <- apply_psite_offset(reads,c('offset'))%>%as("GRanges")
-  mcols(psites)$length <- mcols(reads)$length   
-  psites
-}
-
 #get offset values
 offsets<-read_tsv(here('ext_data/offsets_manual.tsv'))
 

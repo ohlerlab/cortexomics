@@ -4,8 +4,8 @@ if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
 	library(conflicted)
  conflict_prefer("intersect", "BiocGenerics")
 if(!exists('codonprofiles')) load('data/codon_coverage.Rdata')
-if(!exists('allcodsigmean_isomerge')) source(here('src/tRNA_array_analysis.R'))
-
+if(!exists('allcodsigmean_isomerge')) base::source(here('src/tRNA_array_analysis.R'))
+library(rlang)
 
 stagecolsdisplay <- c(E12.5 = "#214098", E14 = "#2AA9DF", E15.5 = "#F17E22", E17 = "#D14E28", P0 = "#ED3124")
 stagecols <- stagecolsdisplay %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
@@ -31,10 +31,11 @@ GENETIC_CODE<-Biostrings::GENETIC_CODE
 fig2 <- function(){
 
 	offsets %<>% select(offset, compartment, length, readlen)
-	codonprofiles %<>% select(sample,codon,readlen,position,occ_nonorm,occupancy,fraction)
+	codonprofiles %<>% select(sample,codon,readlen,position,occ_nonorm,occupancy,one_of('fraction'))
 	allcodsigmean_isomerge%<>%.[c("fraction", "time", "sample", "anticodon", "abundance", "codon",
-"AA",  "weightedusage", "balance")]
+  "weightedusage", "balance")]
 
+    allcodsigmean_isomerge%<>%mutate(AA = as.character(translate(DNAStringSet(codon)))) 
 	offsets%<>%mutate(readlen=paste0('rl',length))
 
 	codonoccs<-codonprofiles%>%
@@ -48,7 +49,7 @@ fig2 <- function(){
 		mutate(time=str_extract(sample,'[^_]+'))%>%
 		group_by(time,codon)%>%
 		# group_slice(2)
-		summarise(occupancy=mean(occupancy ,na.rm=T))
+		summarise(occupancy=mean(occ_nonorm ,na.rm=T))
 
 	##Occupancy over the span of the read
 
@@ -146,10 +147,12 @@ fig2 <- function(){
 
 	fracpairs = list(c('Poly','Total'),c('80S','Total'),c('80S','Poly'))	
 	pdf("plots/figures/figure2/trna_codons/tRNA_poly_mono_cor.pdf",w=21)
+	fracpair=fracpairs[[1]]
 	lapply(fracpairs,function(fracpair){allcodsigmean_isomerge%>%ungroup%>%
 		filter(fraction%in%c(fracpair[1],fracpair[2]))%>%
 		mutate(fraction = fraction%>%{ifelse(.!=fracpair[2],'alt','base')})%>%
-		select(time,fraction,codon,abundance)%>%
+		group_by(time,fraction,codon)%>%
+		summarise(abundance=mean(na.omit(abundance)))%>%
 		spread(fraction,abundance)%>%
 		filter(!is.na(alt))%>%
 		filter(is.finite(base),is.finite(alt))%>%
@@ -318,7 +321,6 @@ fig2 <- function(){
 		}
 	}
 	exportenv()
-	stop()
 	tRNA_occ_df_en%>%filter(time=='E13',fraction=='Poly')%>%lm(data=.,dwell_time ~ AA+abundance)	%>%anova
 	tRNA_occ_df_en%>%filter(fraction=='Poly')%>%lm(data=.,dwell_time ~ AA+time+codon+abundance)	%>%anova
 
@@ -509,20 +511,20 @@ timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
 
 	###So is this the same genes???
 	library(txtplot)
-	tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{txtplot(.$tRNA_score_change,.$elongchange)}
-	avail_change_vs_te_df%>%left_join(occchange_vs_te_df)%>%{cor.test(.$avail_change,.$elongchange)}
+	# tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{txtplot(.$tRNA_score_change,.$elongchange)}
+	# avail_change_vs_te_df%>%left_join(occchange_vs_te_df)%>%{cor.test(.$avail_change,.$elongchange)}
 
-	tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{txtplot(.$tRNA_score_change,.$elongchange)}
-	avail_change_vs_te_df%>%left_join(occchange_vs_te_df)%>%{cor.test(.$tRNA_score_change,.$elongchange)}
+	# tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%{txtplot(.$tRNA_score_change,.$elongchange)}
+	# avail_change_vs_te_df%>%left_join(occchange_vs_te_df)%>%{cor.test(.$tRNA_score_change,.$elongchange)}
 
-	tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%
-		filter(elongchange>2,tRNA_score_change<4)
+	# tRNAchange_vs_te_df%>%left_join(occchange_vs_te_df)%>%
+	# 	filter(elongchange>2,tRNA_score_change<4)
 
 
 
-	testvals%>%filter(p.value<0.05)
+	# testvals%>%filter(p.value<0.05)
 
-	library(broom)
+	# library(broom)
 
 
 	################################################################################
@@ -609,7 +611,8 @@ timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
 		xname='Predicted Change in tRNA balance Score'
 	)
 
-	pdf()
+	plotfile='plots/figures/figure2/trna_codons/txn_change_vs_tRNAscorechange.pdf'
+	pdf(plotfile)
 	tRNAchange_vs_txn_df%>%
 		filter(!(up&down))%>%
 		# filter(time!='P0')%>%
@@ -621,7 +624,7 @@ timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
 		ggplot(.,aes(x=tRNA_score_change,color=Txn_change_class))+geom_density(alpha=I(0.01))+theme_bw()+
 			scale_x_continuous()
 	dev.off()
-	normalizePath('plots/figures/figure2/trna_codons/txn_change_vs_tRNAscorechange.pdf')
+	normalizePath(plotfile)
 
 
 	#abundance  vs TE change
@@ -630,5 +633,71 @@ timetrrnavect <- timetrrnavect[!is.na(timetrrnavect)]
 
 options(error=dump.frames)
 purely(fig2,throw_error=F)()
+
+
+
+profvarpca <- codonprofiles%>%
+	split(.,.$sample)%>%
+	map_df(.id='sample',.%>%
+		split(.,list(.$readlen))%>%
+		map_df( .id='readlen',.%>%
+			mutate(numreadlen=str_extract(readlen,'\\d+')%>%as.numeric)%>%
+			filter(position> -numreadlen+6,position < -6)%>%
+			# filter(sample=='E13_ribo_1')%>%
+			ungroup%>%
+			select(-numreadlen,-occ_nonorm,-readlen,-sample)%>%
+			group_by(codon)%>%
+			spread(position,signal)%>%
+			{set_rownames(.[,-1],.$codon)}%>%
+			princomp%>%{.$loadings[,1]}%>%{./.[which.max(abs(.))]}%>%enframe('position','pca1')
+		)
+	)
+profvarpca%<>%select(sample,readlen,position,pca1)
+
+#
+plotfile<-'plots/figures/figure2/trna_codons/fppos_vs_codon_pcascore.pdf'
+offsets%<>%mutate(readlen=paste0('rl',length))
+pdf(plotfile,w=12,h=12)
+profvarpca%>%slice_by(sample,c(1,2,3,4,5,6))%>%
+ggplot(data=.,aes(y=pca1,x=as.numeric(position)))+geom_point()+
+	facet_grid(readlen~sample)+
+		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)
+dev.off()
+normalizePath(plotfile)
+
+
+offsets%<>%mutate(readlen=paste0('rl',length))
+pdf('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf',w=12,h=12)
+#plotting variance amongst codons at each point.
+codonprofiles%>%
+	ungroup%>%
+	group_by(sample,readlen,position)%>%
+	# filter(signal==0)%>%.$codon%>%unique
+	# filter(signal!=0)%>%
+	# filter(position==1)%>%
+	filter(!is.nan(signal))%>%
+	mutate(signal=occ_nonorm)%>%
+	summarise(sdsig=sd(signal,na.rm=T)/mean(signal,na.rm=T))%>%
+	separate(sample,c('time','assay','rep'))%>%
+	group_by(readlen,time,assay,position)%>%
+	summarise(sdsig=mean(sdsig))%>%
+	mutate(numreadlen=str_extract(readlen,'\\d+')%>%as.numeric)%>%
+	filter(position> -numreadlen+6,position < -6)%>%
+	filter(numreadlen>=25,numreadlen<=31)%>%
+	arrange(position)%>%
+	{
+		qplot(data=.,x=position,y=sdsig)+
+		theme_bw()+
+		facet_grid(readlen~time)+
+		scale_y_continuous('between codon variation (meannorm)')+
+		scale_x_continuous('5 read position relative to codon ')+
+		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)+
+		ggtitle("variance of 5' read occurance vs position")
+	}%>%print
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf')
+
 
 save.image('data/fig2_codon_occ_2.Rdata')

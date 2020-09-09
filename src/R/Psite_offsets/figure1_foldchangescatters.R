@@ -14,8 +14,6 @@ multi_spread <- function(df, key, value) {
         spread(temp, value)
 }
 
-
-
 techangetbl  <- lapply(tps[-1],function(testtp){
 	eBayes(contrasts.fit(lmFit(mscountvoom[best_uprotein_ids,]),contrasts = timeTEeffect[,2:5]))%>%topTable(coef=which(tps==testtp)-1,number=1e9,confint=0.95)%>%rownames_to_column('uprotein_id')%>%
 	safe_left_join(ms_id2protein_id%>%distinct(ms_id,gene_name,gene_id,uprotein_id))
