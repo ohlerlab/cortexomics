@@ -830,14 +830,14 @@ Psite_model<-R6Class("Psite_model",
   })
 )
 
-if(exists('psite_model')){
-  psite_model <- Psite_model$new(
-    offsets=psite_model$offsets,
-    seqshiftmodel=psite_model$seqshiftmodel,
-    compartments=psite_model$compartments,
-    referencefasta=psite_model$referencefasta
-)
-}
+# if(exists('psite_model')){
+#   psite_model <- Psite_model$new(
+#     offsets=psite_model$offsets,
+#     seqshiftmodel=psite_model$seqshiftmodel,
+#     compartments=psite_model$compartments,
+#     referencefasta=psite_model$referencefasta
+# )
+# }
 
 
 get_cds_offsets = function(reads_tr,offsets,compartments){
@@ -1322,3 +1322,12 @@ fmcols <- function(grl,...){
 fmcols_List <- function(grl,...){
   with(grl@unlistData@elementMetadata,...)%>%split(grl@partitioning)
 }
+quicktest<-function(x,y){
+  require(txtplot)
+  complete = is.finite(x) & is.finite(y)
+  message(str_interp('{sum(!complete)} (round(mean(!complete)*100,2) %) missing values'))
+  txtplot(x[complete],y[complete])
+  cor.test(x[complete],y[complete])
+}
+trimids = function(str) str_replace(str,'\\.\\d+','')
+factnum = function(fact) as.numeric(as.character(fact))

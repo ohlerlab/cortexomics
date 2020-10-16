@@ -1,11 +1,11 @@
 # load
 library(xbioc)
-library(MuSiC)
+# library(MuSiC)
 base::source('src/R/Rprofile.R')
 
-if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
+if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*.gz')))
 
-
+rename = dplyr::rename
 sscoldata <- ss_emat[,-1]%>%colnames%>%str_split('[\\.\\_]')%>%simplify2array%>%t%>%
 	      .[,1:2]%>%
 	      set_colnames(c('fttime','ftdiff'))%>%as.data.frame%>%
@@ -30,8 +30,8 @@ ube3dat = ss_emat%>%.[.[[1]]%in%ube3names]%>%gather(cell,count,-V1)%>%
 ube3dat%<>%left_join(libsizes)%>%mutate(ncount = count/libsize)
 
 #now plot
-plotfile<- here(paste0('plots/','ube3counts','.pdf'))
-grDevices::pdf(plotfile)
+plotfile<- here(paste0('plots/','ube3counts','.tiff'))
+grDevices::tiff(plotfile)
 ube3dat%>%
 	group_by(gene_name)%>%mutate(relative_normalized_read_count = ncount/ncount[(fttime=='E12')&(ftdiff=='1H')])%>%
 	ggplot(.,aes(x=gene_name,y=relative_normalized_read_count,fill=gene_name))+
@@ -39,8 +39,9 @@ ube3dat%>%
 	scale_fill_discrete(name='Gene')+
 	scale_x_discrete(paste0('Gene'))+
 	scale_y_continuous(paste0('Reads Per Million (relative to E12/1H)'))+
-	facet_grid(ftdiff~fttime)
+	facet_grid(ftdiff~fttime)+
 	ggtitle(paste0('Ube3 Family - read counts in Telley Data'))+
-	theme_bw()
+	theme_bw()+
+	theme(axis.text.x=element_text(vjust=0.5,angle=45))
 dev.off()
 normalizePath(plotfile)

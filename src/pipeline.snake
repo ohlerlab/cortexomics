@@ -206,7 +206,8 @@ rule all:
     # expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
     expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
     expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
-    expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples)
+    expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples),
+    expand('scikit_ribo/{sample}/codons.csv',sample=mainribosamples)
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -353,7 +354,7 @@ rule trim_reads:
 
 
 rule make_trna_rrna_indices:
-  input: GTF
+  input: ancient(GTF)
   output: touch('filter_reads/tRNA_rRNA_index/tRNA_rRNA_index.done')
   run:
     outprefix = output[0].replace('.done','')
@@ -594,7 +595,7 @@ rule make_utrs:
     shell(r"""
       set -ex
       # module load Cufflinks/2.2.1
-      #with filtering output all sequences
+      #with filtering output all squences
       cat {input.GFF}  \
       | awk -v OFS="\t"  '{{if($3=="five_prime_UTR"){{         ;print $0}}}}' \
       | sed -r  's/((transcript_id|gene_id|protein_id|ID=\w+|Parent)\W+\w+)\.[0-9]+/\1/g' \
@@ -948,36 +949,6 @@ rule infer_experiment:
 
 # get_sample_fastqs2 = partial(get_sample_fastqs,mate='2')
 
-dpfasta = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
-rule make_salmon_index:
-  threads: 8
-  output: salmonindex = touch('salmonindex/.done')
-  run:
-    shell(""" salmon index -p {threads} --perfectHash -k 21 -t {dpfasta} -i salmonindex""")
-
-rule salmon:
-  input:fastqs='processed_reads/{sample}/.done',salmonindex='salmonindex/.done'
-  params:
-    salmonindex = lambda wc,input: input.salmonindex.replace('.done',''),
-  output:
-      done = touch('salmon/data/{sample}/.done')
-  threads: 4
-  shell:r"""
-
-      set -ex
-      mkdir -p salmon/reports/{wildcards.sample}
-      mkdir -p salmon/data/{wildcards.sample}
-      salmon quant \
-      -p {threads} \
-      -l SR \
-      --seqBias \
-      -i {params.salmonindex} \
-      -r processed_reads/{wildcards.sample}/*.fastq.gz \
-      --output salmon/data/{wildcards.sample} \
-      --validateMappings
-
-"""
-
      
 transcript_gene_map = 'transcript_gene_map.tsv'
 gene_transcript_map = 'gene_transcript_map.tsv'
@@ -1328,34 +1299,43 @@ rule scikit_rnafold:
     # unmap=<unmap-regions>
 #-g {GTF_orig} \
 
-rule scikit_ribo_build:
-  input: skribo_rnafold
-  output: touch('skindexfold/{sample}/.done')
-  # conda: '../envs/scikit-ribo'
-  shell:r"""
+# rule scikit_ribo_build:
+#   input: skribo_rnafold
+#   output: touch('skindexfold/{sample}/.done')
+#   # conda: '../envs/scikit-ribo'
+#   shell:r"""
 
-    mkdir -p {skindexfold}/{wildcards.sample}
-    {rnafoldbin}/scikit-ribo-build.py \
-    -g test.gtf \
-    -f {REF} \
-    -p testskribo \
-    -r {skribo_rnafold} \
-    -t kallisto/data/{wildcards.sample}/out.d/abundance.tsv\
-    -o {skindexfold}/{wildcards.sample}
-"""
-
+#     mkdir -p {skindexfold}/{wildcards.sample}
+#     {rnafoldbin}/scikit-ribo-build.py \
+#     -g test.gtf \
+#     -f {REF} \
+#     -p testskribo \
+#     -r {skribo_rnafold} \
+#     -t kallisto/data/{wildcards.sample}/out.d/abundance.tsv\
+#     -o {skindexfold}/{wildcards.sample}
+# """
+# %run "/fast/work/groups/ag_ohler/dharnet_m/cortexomics/Applications/scikit-ribo_mod/scikit_ribo/scikit-ribo-run.py" "-istar/data/E13_ribo_1/E13_ribo_1.bam" "-uunmap.bed" "-gscikitribo.gtf" "-xmy_GRCm38.p5.genome.chr_scaff.fa" "-tsalmon/data/E13_total_1/quant.sf"   "-mscikit_ribo/allstartreads/asite_mod.p
 
 rule scikit_ribo:
-  input: 'skindexfold/{sample}/.done'
-  output: touch('scikitribo/{sample}/.done')
-  conda: '../envs/scikit-ribo'
+  input: 
+    gtf='scikitribo.gtf',
+    bam = 'star/data/{sample}/{sample}.bam',
+    fasta=REF,
+    unmap='unmap.bed',
+    salmon=lambda wc:'salmon/data/'+wc.sample.replace('ribo','total')+'/quant.sf',
+  output: codons='scikit_ribo/{sample}/codons.csv',geneste='scikit_ribo/{sample}/genesTE.csv'
+  conda: '../envs/scikit_ribo'
   shell: r"""
-
-    scikit-ribo-run.py \
-    -i star/data/{wildcards.sample}/{wildcards.sample}.bam \
-    -f {skindexfold} \
-    -p testskribo \
-    -o scikitribo/{wildcards.sample}/ """
+  mkdir -p $(dirname {output.codons})
+  python /fast/work/groups/ag_ohler/dharnet_m/cortexomics/Applications/scikit-ribo_mod/scikit_ribo/scikit-ribo-run.py \
+   -i {input.bam} \
+   -u {input.unmap} \
+   -g {input.gtf} \
+   -x {input.fasta} \
+   -t {input.salmon} \
+   -m scikit_ribo/allstartreads/asite_mod.p \
+   -o $(dirname {output.codons}) 
+    """
 
 
 #this is going to count reads in each library over 5'UTRS, CDS, and 3' UTRs
@@ -1948,14 +1928,58 @@ rule createmappability_bedgraph:
 #  bedGraphToBigWig ${{MY_TMP_DIR}}/nomap.bg {trsizes} {output[0]}
 
 """
+
+################################################################################
+########ISoform specific quant
+################################################################################
+ #perl -lanpe 's/\|.*$//' gencode.vM12.pc_transcripts.fa   > gencode.vM12.pc_transcripts_ntrim.fa 
 dpGTF='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.annotation.gtf'
+# TRFASTA='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts_filter.fa'
 TRFASTA='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
+
+
+# cdstrimfasta = 'gencode.vM12.trimtrs.fa'
+ribofilter_fa = 'gencode.vM12.trimtrs.fa'
+
+rule trim_cds_forsalmon:
+  threads:8
+  output: 'gencode.vM12.trimtrs.fa'
+  shell:'Rscript src/Figures/Figure1/0_trim_cds_forsalmon.R'
+
+rule make_salmon_index:
+  threads: 8
+  input: TRFASTA
+  output: salmonindex = touch('salmonindex/.done')
+  run:
+    shell(""" salmon index -p {threads} --perfectHash -k 21 -t {input} -i salmonindex""")
+
+rule salmon:
+  input:fastqs='processed_reads/{sample}/.done',salmonindex='salmonindex/.done'
+  params:
+    salmonindex = lambda wc,input: 'salmonindexribo' if wc['sample'] in ribosamples else input.salmonindex.replace('.done',''),
+    lib = lambda wc,input: 'SF' if wc['sample'] in ribosamples else 'SR'
+  output:
+      done = touch('salmon/data/{sample}/.done')
+  threads: 4
+  shell:r"""
+      set -ex
+      mkdir -p salmon/reports/{wildcards.sample}
+      mkdir -p salmon/data/{wildcards.sample}
+      salmon quant \
+      -p {threads} \
+      -l {params.lib} \
+      --seqBias \
+      -i {params.salmonindex} \
+      -r <(zcat processed_reads/{wildcards.sample}/*.fastq.gz ) \
+      --output salmon/data/{wildcards.sample} \
+      --validateMappings
+"""
 
 #/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/deepshapemakeref.sh
 rule star_transcript:
   input:
     fastq='processed_reads/{sample}/{sample}.fastq.gz',
-    transcriptindexfold=directory('deepshape/StarIndex/transcript'),
+    transcriptindexfold='deepshape/StarIndex/transcript',
   output: 
     bam='star_transcript/data/{sample}/{sample}.sort.bam',
     bai='star_transcript/data/{sample}/{sample}.sort.bam.bai',
@@ -2003,8 +2027,8 @@ rule dpprimeformatbam:
       {offsets2col} \
       {output.ref} \
       {output.refabs}
-  """
 
+  """
 
 rule dpprime:
   input: dpbam='deepshapebamdata/{sample}.bam.reformat.absolute',transcriptfasta=TRFASTA,
@@ -2020,7 +2044,7 @@ rule dpprime:
     $(dirname {output.file}) \
     200
   """
-  
+
 rule dpprimecov:
   input: tpms=rules.dpprime.output.file,bamreformat=rules.dpprimeformatbam.output.refabs
   output: distsig='dpprimecov/{sample}/dpprime_dist_ribosig.tsv'
@@ -2033,8 +2057,6 @@ rule dpprimecov:
     datamash -t' ' -g 2 sum 8 < {input.bamreformat}.withtpm > {input.bamreformat}.readtpms
     # "distribute read signal"
     join -1 2 -2 1 {input.bamreformat}.withtpm {input.bamreformat}.readtpms | awk '{{print $0,$8/$9}}' | datamash -t' ' -g 2,6 sum 10 > {output.distsig}
-
     [[ -s {output.distsig} ]] || rm {output.distsig}
-
 """
 

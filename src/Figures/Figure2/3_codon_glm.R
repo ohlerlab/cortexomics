@@ -1,28 +1,52 @@
-
 require("MatrixModels")
 require("Matrix")
 require('MASS') 
 source('src/R/Rprofile.R')
-require('Rsamtools')
 ################################################################################
 ########Get codon sequences and quickly see if dwell time calc works for me
 ################################################################################
 
-# psitecovrles<-dpcovdata%>%lapply(function(.).[ribocovtrs])
-# psitecov <- psitecovrles[[1]]
 
-if(!file.exists('data/txcodposdf.rds')) {
 
-	bestcdsseq = cdsgrl[ribocovtrs]%>%sort_grl_st%>%extractTranscriptSeqs(x=FaFile(REF),.)
+
+stopcodons <-  (GENETIC_CODE=='*')%>%.[.]%>%names
+
+
+
+if(!file.exists('data/psitecovrles.rds')) {	
+	psitecovrles = Sys.glob('pipeline/star/data/*/*ribo*.bam')%>%
+		setNames(.,basename(dirname(.)))%>%
+		lapply(FUN=get_cds_vects,cdsgrl=expcdsgrl[names(bestcds)],offsets=offsets)
+
+	psitecovrles%>%saveRDS('data/psitecovrles.rds')
+
+}else{
+	psitecovrles<-readRDS('data/psitecovrles.rds')	
+}
+
+psitecov <- psitecovrles[[1]]
+is3nt = psitecov%>%runLength%>%sum%>%`%%`(3)%>%`==`(0)
+
+if(!file.exists('data/codposdf.rds')) {
+
+	bestcdsseq = cdsgrl%>%sort_grl_st%>%extractTranscriptSeqs(x=FaFile(REF),.)
+	vmatchPattern(bestcdsseq,pattern=DNAString('N'))%>%elementNROWS%>%is_in(0)%>%table
 
 	codposdf = lapply(bestcdsseq,function(cdsseq){
 		codonmat = codons(cdsseq)%>%{cbind(pos = .@ranges@start,as.data.frame(.))}%>%
 			identity
 	})
 	codposdf%<>%bind_rows(.id='protein_id')
-	codposdf%>%saveRDS(here('data/txcodposdf.rds'))
+	codposdf%>%saveRDS('data/codposdf.rds')
 }else{
-	codposdf<-readRDS(here('data/txcodposdf.rds'))
+	codposdf<-readRDS('data/codposdf.rds')	
+}
+
+if(!file.exists(here('data/allpme.rds'))){
+	allpme <- allcreate_pme(dds, blind = TRUE)
+	saveRDS(allpme,here('data/allpme.rds'))
+}else{
+	allpme<-readRDS(here('data/allpme.rds'))
 }
 
 stopifnot(all(names(psitecovrles[[1]]) %in%unique(codposdf$protein_id)))
@@ -30,7 +54,7 @@ testid=sample(names(psitecovrles[[1]]),1)
 codposn = codposdf%>%subset(protein_id==testid)%>%nrow
 stopifnot(codposn == (length(psitecovrles[[1]][[testid]])/3))
 
-stopcodons <-  (GENETIC_CODE=='*')%>%.[.]%>%names
+codposdfspl=codposdf%>%split(.,.$protein_id)
 
 get_sitedf<-function(testpsitecovs,codposdfspl,stop_codons=stopcodons){
 		sitedf <- testpsitecovs%>%lapply(as.vector)%>%stack%>%set_colnames(c('count','gene'))
@@ -52,17 +76,17 @@ get_sitedf<-function(testpsitecovs,codposdfspl,stop_codons=stopcodons){
 
 }
 
-sitedf = get_sitedf(psitecovrles[[1]],codposdf%>%split(.,.$protein_id)%>%.[names(psitecovrles[[1]])])
 
-sections = (1:length(psitecov)) %>% {split(sample(.),ceiling(./(length(.)/10)))}
+sections = (1:1000) %>% {split(sample(.),ceiling(./10))}
 section=sections[[1]]
 
-psitecov=psitecovrles[[1]]
-is3nt = cdsgrl[ribocovtrs]%>%width%>%sum%>%`%%`(3)%>%`==`(0)
+get_sitedf(psitecovrles[[1]][1:10],codposdf%>%split(.,.$protein_id))
+
+
 
 codoncounts = lapply(sections,function(section){
 	# 
-	tnt_entrop_cds <- sum(psitecov)[is3nt]%>%order(decreasing=TRUE)%>%.[section]
+	tnt_entrop_cds <- pmes[is3nt]%>%order(decreasing=TRUE)%>%.[section]
 
 	testpsitecovs = c(psitecov[is3nt][tnt_entrop_cds])
 
@@ -74,7 +98,7 @@ codoncounts = lapply(sections,function(section){
 
 glmfits = lapply(sections,function(section){
 	# 
-	tnt_entrop_cds <- sum(psitecov)[is3nt]%>%order(decreasing=TRUE)%>%.[section]
+	tnt_entrop_cds <- pmes[is3nt]%>%order(decreasing=TRUE)%>%.[section]
 
 	testpsitecovs = c(psitecov[is3nt][tnt_entrop_cds])
 
@@ -86,13 +110,16 @@ glmfits = lapply(sections,function(section){
 	message('done')
 	codglmfit
 })
-
 mtheta = glmfits%>%map_dbl(~.$theta)%>%mean
+
 
 #look at how consisten values are
 glmfits%>%setNames(seq_along(.))%>%map_df(~.$coefficients%>%enframe)%>%
 	filter(!name%>%str_detect('geneENS'))%>%
 	group_by(name)%>%summarise(val=mean(value),stder=sd(value))
+
+sitedf = get_sitedf(psitecovrles[[1]],codposdf%>%split(.,.$protein_id)%>%.[names(psitecovrles[[1]])])
+stop()
 
 glmfits <- psitecovrles%>%map(.x=.,.f=function(psitecovsfit){
 	#
@@ -101,6 +128,7 @@ glmfits <- psitecovrles%>%map(.x=.,.f=function(psitecovsfit){
 	glmfit = glm4(count ~ 0 + gene + codon+a_codon+phase, data=sitedf,family=negative.binomial(mtheta),MXITER=400,doFit=T, sparse=T, verbose=T)
 	
 })
+
 
 # codposdf%>%split(.,.$protein_id)%>%.[names(psitecovsfit)]%>%bind_rows%>%group_by(protein_id)%>%tally%>%left_join(enframe(sum(runLength(psitecovrles[[1]])/3),'protein_id','len'))%>%filter(n!=(len))
 testpid = 'ENSMUSP00000020231'
@@ -200,7 +228,7 @@ macountdf%>%filter(ms_id%in%ids2comp)%>%{cor.test.finite(log2(.$count/.$width), 
 ########Do these correlate with tRNA etc?
 ################################################################################
 	
-codonprofiles <- readRDS(here('data/codonprofiles.rds'))
+codonprofiles <- readRDS('data/codonprofiles.rds')
 
 glmfitcodon%>%left_join(codonoccs%>%filter(time=='E13'))%>%
 	{cor.test.finite(.$codon_dt_glm,.$occupancy)}

@@ -48,7 +48,12 @@
         "time": "40:00:00",
         "ntasks-per-node": "8"
     },
-
+    "scikit_ribo":
+    {
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
+    },
     "riboWaltz":
     {
         "mem": "4000",

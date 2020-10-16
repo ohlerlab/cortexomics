@@ -1,10 +1,36 @@
 ###REMEMBER - 
+/Users/dharnet/Dropbox/projects/cortexomics/manuscript/populate.sh
 
+#Methods
+
+Figure0
+Mass spec
+___something something maxquant____
+
+Gencode M12 protein coding genes were used for the analysis. 
+
+
+Peptides were matched against gencode m12 sequences, and in cases where the peptides in a protein group all matched to a single gencode gene_name, this was used as the match. When filtering transcripts to those used with MS, only transcripts containing at least one peptide contributing to the peptide group were counted. This improved correlation with Ribo-seq slightly.
+
+Figure1
+We quantified Ribo-seq and RNAseq signal over all protein coding transcripts in the gencode.vM12.annotation using  DeepshapePrime and Salmon respectively. Transcripts whose length after polyA trimming was less than the 21bp kmers used by salmon were eliminated. Gene level, length adjusted counts were produced using the tximport package, and these were then used as input for linear modeling with Limma, and differential TE analysis using xtail. TEs in figure one were calculated as ratios of TPMs. 
+
+Metaplots and gene-count scatterplots
+
+We found a correlation of 0.97 in the log fold changes calclated by xtail and limma
+
+
+
+For MS We first match gene_names to genes, then for genes with more than one MS id we 
+take the least missing, then most strongly expressed, ms id. 
 
 ####Presently:
 2020-08-21 17:03
 Okay so spectral coefficients only VERY slightly more predictive than TPM In the yeast data
 Hopefully got data sorting issues resolved with scikit now
+
+
+
 
 
 
@@ -104,6 +130,8 @@ src/R/Load_data/integrate_exprdata2.R
 src/R/TE_change/run_xtail.R
 
 #figure 1 scatter plots - homodirectional etc.
+#/Users/dharnet/bih_cluster/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Load_data/integrate_exprdata_3.R
+
 src/R/Psite_offsets/figure1_foldchangescatters.R
 
 src/R/Figures/figure1_scatters.R
