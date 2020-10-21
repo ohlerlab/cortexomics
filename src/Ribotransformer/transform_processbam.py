@@ -7,7 +7,7 @@ import pandas as pd
 import pybedtools as pbt
 from textwrap import wrap
 from scipy import sparse
-from scikit_ribo import asite_predict
+# from scikit_ribo import asite_predict
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel, RFECV
 from sklearn.model_selection import GridSearchCV, train_test_split, cross_val_score
@@ -21,15 +21,24 @@ from sklearn.model_selection import GridSearchCV, train_test_split, cross_val_sc
 # from sklearn.feature_selection import SelectFromModel, RFECV
 # import glmnet_py.dataprocess as dataprocess
 
-from src.python.ribo_EM import ribo_EM
-from src.python.asite_predict import PredictAsite
-
+from src.Ribotransformer.ribo_EM import ribo_EM
+from src.Ribotransformer.asite_predict import PredictAsite
+import argparse
 import pandas as pd
 
 # Initialize abundance of all transcript to 1/#transcripts
 
 
+# # read in the sequence
+# cdsfasta = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
+# # transcript bam
+# bam = 'pipeline/star_transcript/data/E13_ribo_1/E13_ribo_1.sort.bam'
+
+
+#Note - this function needs a fasta file with teh following format - (coordinates 1 indexed)
+#>ENSMUST00000070533.4|ENSMUSG00000051951.5|OTTMUSG00000026353.2|OTTMUST00000065166.1|Xkr4-001|Xkr4|3634|UTR5:1-150|CDS:151-2094|UTR3:2095-3634|
 def transcript_initialize(cdsfasta):
+
     f_ref = open(cdsfasta)
     # transcript_TPMs = {}
     transcript_CDS_len = {}
@@ -71,11 +80,8 @@ def make_bamDF(bam, mapq=-1, minRL=20, maxRL=35):
     i = 0
     readdf = []
     for read in inBam.fetch():
-        if(read.query_name == "E13_ribo_1_12030866_x1_CATT:TCTA"):
-            import ipdb
-            ipdb.set_trace()
         i += 1
-        # if(i==1000000):break
+        if(i==10000):break
         cigars = set([c[0] for c in read.cigartuples])
         if read.mapping_quality > mapq and \
                 minRL <= read.query_length <= maxRL and \
@@ -86,23 +92,17 @@ def make_bamDF(bam, mapq=-1, minRL=20, maxRL=35):
                 # I get the first and last bp of the read
             readdf.append((read.query_name, read.reference_name.split(
                 '|')[0], read.reference_start, read.reference_end-1, read.query_length))
-            if(read.query_name == "E13_ribo_1_12030866_x1_CATT:TCTA"):
-                import ipdb
-                ipdb.set_trace()
 
     readdf = pd.DataFrame.from_records(
         readdf, columns=['read_name', 'tr_id', 'start', 'end', 'read_length'])
 
-    assert bamdf.read_name.isin(
-        ["E13_ribo_1_12030866_x1_CATT:TCTA"]).any() in bamdf.read_name
-
     return readdf
 
 
-def add_seqinfo(bamdf, transcript_cdsstart, exonseq):
+def add_seqinfo(bamdf, transcript_cdsstart, exonseq, trlengths):
     # add sequence
     uniquereadpos = bamdf[['tr_id', 'start', 'end']].drop_duplicates()
-    bamtrlens = trlens[uniquereadpos.tr_id].reset_index(drop=True)
+    bamtrlens = trlengths[uniquereadpos.tr_id].reset_index(drop=True)
     uniquereadpos = uniquereadpos.reset_index(
         drop=True)[uniquereadpos.end.add(1).reset_index(drop=True) != bamtrlens]
     uniquereadpos = uniquereadpos[uniquereadpos.start != 0]
@@ -157,59 +157,8 @@ def makePredTraining(bamdf):
     return training
 
 
-# read in the sequence
-cdsfasta = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
-# transcript bam
-bam = 'pipeline/star_transcript/data/E13_ribo_1/E13_ribo_1.sort.bam'
-# get our
-transcript_CDS_len, transcript_cdsstart, transcript_cdsend, exonseq, transcript_gene = transcript_initialize(
-    cdsfasta)
-trlength = pd.Series(dict([(s, len(exonseq[s])) for s in exonseq]))
 
-# #
-# bamdf = make_bamDF(bam)
-# bamdf = add_seqinfo(bamdf, transcript_cdsstart, exonseq)
-# bamdf.to_csv('bamdf.csv')
-bamdf = pd.read_table('bamdf.csv', sep=',')
-
-assert bamdf.read_name.isin(
-    ["E13_ribo_1_12030866_x1_CATT:TCTA"]).any() in bamdf.read_name
-
-print('bam loaded multimappers present')
-
-
-sampreads, transcript_TPMs, TPM_diff, transcript_readcount = ribo_EM(
-    bamdf[['read_name', 'tr_id']],
-    transcript_CDS_len,
-    numloops=50
-)
-
-sampreads = sampreads[['read_name', 'tr_id']]
-sampreadsfull = sampreads.merge(bamdf, how='inner')
-
-exprtrs = pd.Series(transcript_TPMs).index[pd.Series(transcript_TPMs) > 10]
-exprtrs.shape
-sampreadsfull.tr_id.isin(exprtrs)
-
-
-# training = makePredTraining(
-#     sampreadsfull[sampreadsfull.tr_id.isin(cdsData.transcript_id)])
-
-# gdf = pd.DataFrame(pd.Series(transcript_gene, name='gene_id')).merge(
-#     pd.Series(transcript_TPMs, name='TPM'), left_index=True, right_index=True)
-# trstouse = gdf.sort_values('TPM', ascending=False).groupby(
-#     'gene_id').head(1).index
-
-
-coddf = coddf.merge(pd.Series(transcript_TPMs,name='TPM'),left_on='chrom',right_index=True).assign(pair_prob=0)
-
-
-training = makePredTraining(sampreadsfull[sampreadsfull.tr_id.isin(trstouse)])
-
-# training = training[training.index.isin(cdsData.name)]
-# sampreadsfull.index = sampreadsfull.read_name
-
-def get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength, ):
+def get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength ):
     coddfs = []
     # def tcode():
     for tr in trstouse:
@@ -233,110 +182,160 @@ def get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength, ):
     coddf['gene'] = coddf['chrom']
     return coddfs
 
-coddf = get_coddf(transcript_cdsstart, transcript_cdsen, exonseq, trlength, d)
 
 
-model = PredictAsite(training, sampreadsfull, 'rf', False,cdsIdxDf = coddf)
-model.rfFit()
-model.rfPredict()
-print("[execute]\tlocalize the a-site codon and create coverage df", file=sys.stderr)
-model.cds['gene_strand'] = '+'
-model.cds['strand'] = '+'
-model.cds = model.cds.rename(columns={'tr_id': 'chrom'})
-dataFrame = model.recoverAsite()
-dataFrame
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", help="Input bam file",default = "pipeline/star_transcript/data/E13_ribo_1/E13_ribo_1.sort.bam")
+    parser.add_argument("-f", help="Fasta file", default="ext_data/gencode.vM12.pc_transcripts.fa")
+    parser.add_argument("-o", help="ribotrans_test", default="ribotranstest")
+    args = parser.parse_args()
+    
+    bam = args.i
+    cdsfasta = args.f
 
-#looks like a lot of reads are extra-ORF, but this isn't due to frame shifting (chceck)
+    transcript_CDS_len, transcript_cdsstart, transcript_cdsend, exonseq, transript_gene = transcript_initialize(
+        cdsfasta)
+    trlength = pd.Series(dict([(s, len(exonseq[s])) for s in exonseq]))
 
+    bamdf = make_bamDF(bam)
 
-tpmLB = 1
-unmap=None
-out=None
-# start model fitting
-print("[execute]\tStart the modelling of translation efficiency (TE)", file=sys.stderr)
-mod = ModelTE(dataFrame, unmap, out, tpmLB)
-print("[execute]\tLoading data", file=sys.stderr)
-mod.loadDat()
-print("[execute]\tFiltering the df", file=sys.stderr)
-mod.filterDf()
-print("[execute]\tScaling the variables", file=sys.stderr)
-mod.varScaling()
-print("[execute]\tFitting the GLM", file=sys.stderr)
-X, y, offsets, numCodons, numGenes, varsNames = mod.glmnetArr()
-mod.glmnetFit(X, y, offsets, numCodons, numGenes, varsNames, lambda_min = 0.13)
-mod.codonBetas.to_csv('pipeline/trtestcodondts.csv')
-
-fplen = 0
-ncods = 4
-tplen = 3
-transcript_cdsstart['foo'] = fplen
-transcript_cdsend['foo'] = transcript_cdsstart['foo']+(3*(ncods-1))+2
-trlength['foo'] = transcript_cdsend['foo']+1+tplen
-exonseq['foo'] = ('A'*fplen)+('C'*(3*ncods))+('G'*tplen)
-tr = 'foo'
-exonseq.pop('foo', None)
-
-transcript_cdsstart['foo']
-exonseq[tr][transcript_cdsend['foo']+1]
-
-
-
-################################################################################
-# now do asite model
-################################################################################
-
-
-# model = PredictAsite(training, bamdf, 'rf', False)
-
-model.rfFit()
-
-model.rfPredict()
-
-readdf = model.cds
-
-readdf.asite.value_counts()
-
-readdf.codon = readdf.cdspos + readdf.asite
-
-readdf = readdf.query('cdsendpos<=0').query('read_length > ( - cdspos)')
-
-readdf = readdf.assign(codidx=(np.floor((readdf.cdspos + readdf.asite) / 3)))
-
-countdf = readdf.groupby(['tr_id', 'codidx'], observed=True).size(
-).reset_index().rename(columns={0: 'ribo_count'})
-
-# for each tr, we want to go back as many CODONS as we can.
-cdsstarts = pd.Series(transcript_cdsstart)
-cdsends = pd.Series(transcript_cdsend)
-cdslens = pd.Series(transcript_CDS_len)
-fpcodonbps = (np.floor((cdsstarts-1)/3)*3)
-tpcodonbps = (3*np.floor((trlens - cdsends) / 3))
-
-testtr = trlens.index[0]
-
-codondfs = []
-for tr in readdf['tr_id'].unique()[0:4]:
-    codons = textwrap.wrap(
-        exonseq[tr][int((cdsstarts[tr] - fpcodonbps[tr]) - 1)                    :int(cdsends[tr]+tpcodonbps[tr])],
-        3
+    #count only reads overlapping the cds
+    bamdf = (bamdf.
+        merge(pd.Series(transcript_cdsstart,name='cdsstart'),left_on='tr_id',right_index=True).
+        query('start > cdsstart').
+        drop(['cdsstart'],axis=1).
+        merge(pd.Series(transcript_cdsend,name='cdsend'),left_on='tr_id',right_index=True).
+        query('end < cdsend').
+        drop(['cdsend'],axis=1)
     )
-    lcodon = -int(fpcodonbps[tr]/3)
-    rcodon = int((cdslens[tr]+tpcodonbps[tr])/3)
-    indices = list(range(lcodon, rcodon))
-    #
-    codondf = pd.concat([pd.Series(codons), pd.Series(indices)], axis=1)
-    codondf = codondf.assign(tr_id=tr)
-    codondf.columns = ['codon', 'codidx', 'tr_id']
-    codondfs.append(codondf)
 
-codondf = pd.concat(codondfs, axis=0)
 
-codondf = codondf.merge(countdf, how='left')
+    print('bam loaded')
 
-codondf['ribo_count'] = codondf['ribo_count'].fillna(0)
+    sampreads, transcript_TPMs, TPM_diff, transcript_readcount = ribo_EM(
+        bamdf[['read_name', 'tr_id']],
+        transcript_CDS_len,
+        numloops=100
+    )
 
-numloops = 20
-path_out_dir = 'emtest'
+    sampreads = sampreads[['read_name', 'tr_id']]
+    sampreadsfull = sampreads.merge(bamdf, how='inner')
+
+    sampreadsfull = add_seqinfo(sampreadsfull, transcript_cdsstart, exonseq, trlength)
+
+    gtpms = pd.concat([pd.Series(transript_gene,name='gene'),pd.Series(dict(transcript_TPMs),name='TPM')],axis=1)
+    trstouse = gtpms.sort_values('TPM',ascending=False).groupby('gene').head(1)['TPM'].index.to_series()
+
+    coddf = get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength)
+    coddf = coddf.merge(pd.Series(transcript_TPMs,name='TPM'),left_on='chrom',right_index=True).assign(pair_prob=0)
+
+    training = makePredTraining(sampreadsfull[sampreadsfull.tr_id.isin(trstouse)])
+
+    model = PredictAsite(training, sampreadsfull, 'rf', False,cdsIdxDf = coddf)
+    print('fit A sites')
+    model.rfFit()
+    model.rfPredict()
+    print("[execute]\tlocalize the a-site codon and create coverage df", file=sys.stderr)
+    model.cds['gene_strand'] = '+'
+    model.cds['strand'] = '+'
+    model.cds = model.cds.rename(columns={'tr_id': 'chrom'})
+    dataFrame = model.recoverAsite()
+
+    dataFrame.to_csv(args.o+'.csv')
+
+
+# #looks like a lot of reads are extra-ORF, but this isn't due to frame shifting (chceck)
+
+
+# tpmLB = 1
+# unmap=None
+# out=None
+# # start model fitting
+# print("[execute]\tStart the modelling of translation efficiency (TE)", file=sys.stderr)
+# mod = ModelTE(dataFrame, unmap, out, tpmLB)
+# print("[execute]\tLoading data", file=sys.stderr)
+# mod.loadDat()
+# print("[execute]\tFiltering the df", file=sys.stderr)
+# mod.filterDf()
+# print("[execute]\tScaling the variables", file=sys.stderr)
+# mod.varScaling()
+# print("[execute]\tFitting the GLM", file=sys.stderr)
+# X, y, offsets, numCodons, numGenes, varsNames = mod.glmnetArr()
+# mod.glmnetFit(X, y, offsets, numCodons, numGenes, varsNames, lambda_min = 0.13)
+# mod.codonBetas.to_csv('pipeline/trtestcodondts.csv')
+
+# fplen = 0
+# ncods = 4
+# tplen = 3
+# transcript_cdsstart['foo'] = fplen
+# transcript_cdsend['foo'] = transcript_cdsstart['foo']+(3*(ncods-1))+2
+# trlength['foo'] = transcript_cdsend['foo']+1+tplen
+# exonseq['foo'] = ('A'*fplen)+('C'*(3*ncods))+('G'*tplen)
+# tr = 'foo'
+# exonseq.pop('foo', None)
+
+# transcript_cdsstart['foo']
+# exonseq[tr][transcript_cdsend['foo']+1]
+
+
+
+# ################################################################################
+# # now do asite model
+# ################################################################################
+
+
+# # model = PredictAsite(training, bamdf, 'rf', False)
+
+# model.rfFit()
+
+# model.rfPredict()
+
+# readdf = model.cds
+
+# readdf.asite.value_counts()
+
+# readdf.codon = readdf.cdspos + readdf.asite
+
+# readdf = readdf.query('cdsendpos<=0').query('read_length > ( - cdspos)')
+
+# readdf = readdf.assign(codidx=(np.floor((readdf.cdspos + readdf.asite) / 3)))
+
+# countdf = readdf.groupby(['tr_id', 'codidx'], observed=True).size(
+# ).reset_index().rename(columns={0: 'ribo_count'})
+
+# # for each tr, we want to go back as many CODONS as we can.
+# cdsstarts = pd.Series(transcript_cdsstart)
+# cdsends = pd.Series(transcript_cdsend)
+# cdslens = pd.Series(transcript_CDS_len)
+# fpcodonbps = (np.floor((cdsstarts-1)/3)*3)
+# tpcodonbps = (3*np.floor((trlens - cdsends) / 3))
+
+# testtr = trlens.index[0]
+
+# codondfs = []
+# for tr in readdf['tr_id'].unique()[0:4]:
+#     codons = textwrap.wrap(
+#         exonseq[tr][int((cdsstarts[tr] - fpcodonbps[tr]) - 1)                    :int(cdsends[tr]+tpcodonbps[tr])],
+#         3
+#     )
+#     lcodon = -int(fpcodonbps[tr]/3)
+#     rcodon = int((cdslens[tr]+tpcodonbps[tr])/3)
+#     indices = list(range(lcodon, rcodon))
+#     #
+#     codondf = pd.concat([pd.Series(codons), pd.Series(indices)], axis=1)
+#     codondf = codondf.assign(tr_id=tr)
+#     codondf.columns = ['codon', 'codidx', 'tr_id']
+#     codondfs.append(codondf)
+
+# codondf = pd.concat(codondfs, axis=0)
+
+# codondf = codondf.merge(countdf, how='left')
+
+# codondf['ribo_count'] = codondf['ribo_count'].fillna(0)
+
+# numloops = 20
+# path_out_dir = 'emtest'
 
 
 # # now run EM to distribute the reads appropriately

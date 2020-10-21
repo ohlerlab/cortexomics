@@ -1111,31 +1111,10 @@ vals <- function(x){
 
 GRanges(1:2,1:2)%>%split(1:2)
 
-#exonsexp->exons_grl
-# cds[bestcds]->trspacegr
 spl_mapFromTranscripts <- function(trspacegr,exons_grl){
 
   exons_tr<-exons_grl%>%unlist%>%mapToTranscripts(exons_grl)%>%.[names(.)==seqnames(.)]
-  # grlcs = exons_grl%>%sort_grl_st%>%width%>%cumsum%>%IntegerList
-  
-  # grlcs%>%head%>%{pc(.,rep(1,length(.)))}
-  
-  # grlcs%>%{.[IntegerList(as.list(-elementNROWS(.)))]}
-
-  # lastelems <- elementNROWS(grlcs)%>%as.list%>%IntegerList%>%setNames(NULL)
-  # pc(rep(1,length(grlcs)),grlcs+1)[-1 * lastelems]
-
-
-  # exons_grl%>%unlist%>%.[exons_tr[subjectHits(ov)]$xHits]
   ov <- findOverlaps(trspacegr,exons_tr)
-  # trspacegr[testpid]
-
-  # exons_grl[seqnames(trspacegr)]
-
-  # exons_grl%>%unlist%>%setNames(paste0('exon_',seq_along(.)))%>%
-
-
-  # mergeByOverlaps(trspacegr,exons_tr)
 
   trspacegr_spl <- suppressWarnings({trspacegr[queryHits(ov)]%>%pintersect(exons_tr[subjectHits(ov)])})
   genomic_trspacegr <- mapFromTranscripts(
