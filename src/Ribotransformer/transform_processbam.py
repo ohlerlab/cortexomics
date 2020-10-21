@@ -20,9 +20,11 @@ from sklearn.model_selection import GridSearchCV, train_test_split, cross_val_sc
 # from sklearn.ensemble import RandomForestClassifier
 # from sklearn.feature_selection import SelectFromModel, RFECV
 # import glmnet_py.dataprocess as dataprocess
+import_folder = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Ribotransformer/'
+sys.path = [import_folder]+list(set(sys.path)-set(import_folder)) # this tells python to look in `import_folder` for imports
 
-from src.Ribotransformer.ribo_EM import ribo_EM
-from src.Ribotransformer.asite_predict import PredictAsite
+from ribo_EM import ribo_EM
+from asite_predict import PredictAsite
 import argparse
 import pandas as pd
 
@@ -81,7 +83,7 @@ def make_bamDF(bam, mapq=-1, minRL=20, maxRL=35):
     readdf = []
     for read in inBam.fetch():
         i += 1
-        if(i==10000):break
+        # if(i==10000):break
         cigars = set([c[0] for c in read.cigartuples])
         if read.mapping_quality > mapq and \
                 minRL <= read.query_length <= maxRL and \
@@ -180,7 +182,7 @@ def get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength ):
     coddf = pd.concat(coddfs,axis=0)
     coddf['gene_strand']='+'
     coddf['gene'] = coddf['chrom']
-    return coddfs
+    return coddf
 
 
 
@@ -236,7 +238,9 @@ if __name__ == '__main__':
     print('fit A sites')
     model.rfFit()
     model.rfPredict()
+    
     print("[execute]\tlocalize the a-site codon and create coverage df", file=sys.stderr)
+
     model.cds['gene_strand'] = '+'
     model.cds['strand'] = '+'
     model.cds = model.cds.rename(columns={'tr_id': 'chrom'})
