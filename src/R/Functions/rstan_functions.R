@@ -80,19 +80,27 @@ parse_sampling_pars<-function(sgenesampling,uids){
 ########Functions to manipulate Rstan models
 ################################################################################
 parse_stanlines <- function(stanmodel){
-  stanlines <- stanmodel@model_code%>%str_extract_all(regex('(data|parameters|transformed parameters|model|generated quantities) ?\\{\n.*?\n\\}\n',dotall=TRUE))%>%.[[1]]
+  stanlines <- stanmodel@model_code%>%str_extract_all(regex('(data|parameters|transformed parameters|model|generated quantities) ?\\{\n.*?\n\\}(\n|$)',dotall=TRUE))%>%.[[1]]
   names(stanlines) <- stanlines%>%str_match('(.*?)\ *(?=\\{)')%>%.[,2]
   stopifnot(c('data','parameters','model')%in% names(stanlines))
   stanlines%<>%map(str_split,'\n')%>%map(1)
-  stanlines%<>%map_df(.id='block',function(l) l %>%str_match('\\s*(real|int|vector|matrix|array)\\s*(<.*>)?\\s*(\\[.*\\])?\\s*(\\w+)\\s*.*;.*')%>%
-    set_colnames(c('line','class','limits','dimensions','varname'))%>%as_tibble%>%mutate(line=l))  
+  # stanlines%<>%map_df(.id='block',function(l) l %>%str_match('\\s*(real|int|vector|matrix|array)\\s*(<.*>)?\\s*(\\w+)\\s*(\\[.*\\])?\\s*.*;.*')%>%
+    # set_colnames(c('line','class','limits','dimensions','varname'))%>%as_tibble%>%mutate(line=l))
+  # stanlines%<>%map_df(.id='block',function(l) l %>%str_match('\\s*(real|int|vector|matrix|array)\\s*(<.*>)?\\s*(\\w+)\\s*(\\[.*\\])?\\s*.*;.*')%>%
+  #initally we just parse out the class, limits, and the varname + dimensions
+  stanlines%<>%map_df(.id='block',function(l) l %>%str_match('^\\s*(real|int|vector|matrix|array)\\s*(<.*>)?\\s*([^\\s].*);.*')%>%
+                        set_colnames(c('line','class','limits','dimensionsvarname'))%>%as_tibble%>%mutate(line=l))
+  #the dimesnions can be before or after the varname
+  stanlines$dimensions <- stanlines$dimensionsvarname%>%str_extract('\\[.*\\]')
+  stanlines$varname <- stanlines$dimensionsvarname%>%str_replace('\\s*\\[.*\\]\\s*','')
+  stanlines%>%filter(str_detect(line,'zeta'))%>%head(10)
   # stanlines%>%filter(line%>%str_detect('sigma2'))%>%as.data.frame
   # assert_that(!anyDuplicated(na.omit(stanlines$varname)))
   # stanlines%>%group_by(varname)%>%filter(!is.na(varname))%>%filter(n()>1)
-  datavars <- stanlines%>%filter(block=='data')%>%.$varname
-  paramvars <- stanlines%>%filter(block%in%c('parameters|transformed parameters'))%>%.$varname
-  assert_that(!any(datavars)%in%paramvars)
-  assert_that(!any(paramvars)%in%datavars)
+  datavars <- stanlines%>%filter(block=='data')%>%.$varname%>%.[!is.na(.)]
+  paramvars <- stanlines%>%filter(block%in%c('parameters','transformed parameters'))%>%.$varname%>%.[!is.na(.)]
+  assert_that(!any(datavars%in%paramvars))
+  assert_that(!any(paramvars%in%datavars))
   #
   stanlines%<>%mutate(isdef = !is.na(varname))
   # stanlines%<>%select(-matches('(lr)limit'))%>%filter(!is.na(name))%>%.$limits%>%str_match('(?<=\\<)\\s*(lower=)?(.*),(upper=)?(.*)>')%>%.[,c(3,5)]%>%as.data.frame%>%set_colnames(c('llimit','ulimit'))
@@ -101,13 +109,17 @@ parse_stanlines <- function(stanmodel){
     cbind(.,str_match(.$limits,'(?<=\\<)\\s*(lower=)?([^,]*)?,?(upper=)?(.*)>')%>%.[,c(3,5)]%>%as_tibble%>%set_colnames(c('llimit','ulimit')))
   # stanlines%>%filter(!is.na(name))%>%cbind(.,str_match(.$dimensions,'(?<=\\[)\\s*(.*),(.*)]')%>%.[,c(2,3)]%>%as.data.frame%>%set_colnames(c('llimit','ulimit')))
   # stanlines$limits%>%str_subset('lower')%>%str_match()
+  stanlines$ulimit[stanlines$ulimit==""]<-NA
+  stanlines$llimit[stanlines$llimit==""]<-NA
   rowvarnames <- stanlines$varname
   isdup = rowvarnames%in%rowvarnames[duplicated(rowvarnames)]
   rowvarnames[isdup]<-NA
   assert_that(all(! rowvarnames%>%na.omit%>%duplicated))
   #
   rownames(stanlines)[!is.na(rowvarnames)] <- rowvarnames[!is.na(rowvarnames)]
+
   stanlines
+
 }
 
 
@@ -143,8 +155,14 @@ pars_atlimit <- function(parlist,stanmodel){
 
 # combinitvals
 
-
-
+# stan_model(model_code='
+# data{
+# vector X = {1,2,3};
+# }
+# parameters{
+# real Y
+# }
+# ')
 
 extract_paramlims <- function(stanmodel,pars=TRUE){
   blocks <- extract_blocks_as_df(stanmodel,c('parameters','transformed parameters'))
@@ -154,22 +172,70 @@ extract_paramlims <- function(stanmodel,pars=TRUE){
 }
 
 # dp_model%>%extract_paramlims('l_pihalf')
+#
+#stanmodel=dp_model
 
-
-fix_param <- function(stanmodel,parlist){
-  modeltext <- modeltext(stanmodel)
-  paramblock <- extract_block(modeltext,c('parameters'))
-  tparamblock <- extract_block(modeltext,c('transformed parameters'))  
-  datablock <-  extract_block(modeltext,c('data'))
-  extparams <- extract_pars(names(parlist),list(paramblock,tparamblock))
-  extparams <- make_datalines(extparams,parlist)
-  datablock <- add_decs(datablock,extparams)
-  outtext <- insert_blocks(modeltext,
-    blocklist=list(data=datablock,parameters=paramblock,'transformed parameters'=tparamblock)
-  )
-  outtext
+fix_param <- function(stanmodel,vars2fix){
+  #parse our lines as a df
+  stanlines <- parse_stanlines(stanmodel)
+  stanlines%>%filter(!is.na(dimensions))
+  #remember names
+  linenames <- rownames(stanlines)
+  #remember what order the blocks should be in
+  blockorder <- stanlines$block%>%factor(unique(.))%>%levels
+  stanlines$linenum = 1:nrow(stanlines)
+  #indicate the first line of each block for sorting later
+  stanlines%<>%group_by(block)%>%mutate(isdec = linenum==min(linenum) ) 
+  #now reassing the line names
+  stanlines <- stanlines%>%as.data.frame%>%set_rownames(linenames)
+    #reassign key variables for a data line 
+  for(varname in vars2fix){
+    message(str_interp('fixing ${varname}'))
+    stopifnot(sum(rownames(stanlines) %in% varname  )==1)
+    stanlines[varname,]$block = 'data'
+    stanlines[varname,]$ulimit = NA
+    stanlines[varname,]$llimit = NA
+    stanlines[varname,]$linenum = NA
+    if(stanlines[varname,]$class%>%is_in('vector')){
+      stanlines[varname,]$class%<>% str_replace('vector','real')#vectors switched to 'reals' for data
+      stanlines[varname,]$dimensionsvarname%<>%str_replace('(\\[.*?\\])(.*)','\\2\\1')#put dim after varname for reals
+    }
+  }
+  #now for each block, find the declarations at the start,
+  #and show the new vars in there
+  iblock='data'
+  for(iblock in unique(stanlines$block)){
+    defblockend = max(stanlines$linenum[stanlines$block==iblock & (stanlines$isdef) & (!stanlines$varname%in%vars2fix)],na.rm=T)
+    stanlines$linenum[stanlines$block==iblock & is.na(stanlines$linenum)] <- defblockend + 0.5
+  }
+  #deal withpresence or abscence of limits
+  stanlines%<>%mutate(limits=case_when(
+      (!is.na(llimit))&(!is.na(ulimit)) ~   paste0('<','lower=',llimit,',','upper=',ulimit,'>'),
+      (!is.na(ulimit)) ~   paste0('<','upper=',ulimit,'>'),
+      (!is.na(llimit)) ~   paste0('<','lower=',llimit,'>'),
+    TRUE ~ ''
+  ))
+  
+  stanlines%<>%mutate_at(vars(class,limits,dimensionsvarname),list(~ replace(.,is.na(.),'')))
+  stanlines%<>%mutate(line = ifelse(isdef, paste0(class,' ',limits,' ',dimensionsvarname,';'),line))
+      #inspect 
+  # stanlines%>%filter(isdef)%>%select(block,line,limits,ulimit,llimit,linenum)%>%mutate(line = str_replace(line,'//.*',''))
+  #Now we want to make all of our fixed parameters come after the declaration of the codeblocks
+  modeltext = stanlines %>%
+      arrange(match(block,blockorder),linenum)%>%
+      .$line%>%  
+      paste0(collapse='\n')
+  modeltext
 }
 
+get_stanpars <- .%>%parse_stanlines%>%filter(block=='parameters')%>%.$varname%>%.[!is.na(.)]
+get_standata <- .%>%parse_stanlines%>%filter(block=='data')%>%.$varname%>%.[!is.na(.)]
+get_stantrandata <- .%>%parse_stanlines%>%filter(block=='transformed data')%>%.$varname%>%.[!is.na(.)]
 
-  
+# parse_stanlines(dp_model)%>%filter(block=='parameters')%>%.$varname%>%unique
 
+# fixparammodel <- stan_model(model_code = fix_param(dp_model,c('l_pihalf','lcM','l_st','prot0')))
+
+# optimize(iter=1,)
+#now print the whole thing stuck together 
+# stanlines$line%>%paste0(collapse='\n')
