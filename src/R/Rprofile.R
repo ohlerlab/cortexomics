@@ -1310,3 +1310,21 @@ quicktest<-function(x,y){
 }
 trimids = function(str) str_replace(str,'\\.\\d+','')
 factnum = function(fact) as.numeric(as.character(fact))
+
+str_split_fast = function(x,sep=';') x %>% {str_split(.,sep,n = str_count(.,';')%>%max%>%add(1))}
+sep_element_in<-function(colonlist,ridssplit,sep=';'){
+  assert_that(is.character(colonlist))
+  assert_that(is.character(ridssplit))
+  values<-colonlist%>%str_split_fast
+
+  inds <- rep(seq_along(colonlist),lengths(values))
+
+  values<-flatten_chr(values)
+
+  data_frame(inds,values)%>%
+    mutate(match = values %in% ridssplit)%>%
+    group_by(inds)%>%
+    summarize(match=any(match))%>%
+    .$match
+
+}

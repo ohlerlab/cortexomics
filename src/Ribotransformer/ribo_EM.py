@@ -102,7 +102,7 @@ def E_step_sp(readgraph,trenc):
 		mat_readcount.index=pd.Series(trenc.inverse_transform(range(0,readgraph.shape[1])))
 		return mat_readcount
 
-def ribo_EM(readdf, transcript_CDS_len , numloops):
+def ribo_EM(readdf, transcript_CDS_len , numloops, verbose=True):
 	# try:
 		# path_out_dir = 'emondiskcheck'
 	# except FileExistsError:
@@ -143,7 +143,7 @@ def ribo_EM(readdf, transcript_CDS_len , numloops):
 		diffdf.columns=['tpm_diff','TPM']
 		diffdf['fracchange'] = diffdf.tpm_diff/diffdf.TPM
 		diffdf = diffdf.query('TPM>1')
-		if((diffdf.fracchange.max()<0.01)&(loopnum!=0)): 
+		if((diffdf.fracchange.max()<0.01)&(loopnum!=0)&(verbose)): 
 			print('minimum change less than 1% - convergence')
 			print(diffdf.sort_values(['fracchange'],ascending=False).head(5))
 			break

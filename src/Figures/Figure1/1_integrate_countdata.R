@@ -68,25 +68,31 @@ rnasalmonfiles = Sys.glob(here('pipeline/salmon/data/*/quant.sf'))
 allquantfiles = c(rnasalmonfiles,dpoutfiles)
 names(allquantfiles) <- allquantfiles%>%dirname%>%basename
 
-# dptrs = dpoutfiles[[1]]%>%fread%>%.$Name
-# salmontrs = allquantfiles[[1]]%>%fread%>%.$Name%>%str_extract('ENSMUST\\w+')
-# inclusiontable(dptrs,salmontrs)
-# trs = intersect(dptrs,salmontrs)
-
+dptrs = dpoutfiles[[1]]%>%fread%>%.$Name
+salmontrs = allquantfiles[[1]]%>%fread%>%.$Name%>%str_extract('ENSMUST\\w+')
+inclusiontable(dptrs,salmontrs)
+trs = intersect(dptrs,salmontrs)
+tx2genetbl = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)
 tx_countdata = tximport(files=allquantfiles,
 	ignoreTxVersion=TRUE,
-	tx2gene=dpexprdata%>%distinct(transcript_id,gene_id),
+	tx2gene=tx2genetbl,
 	type='salmon',
 	countsFromAbundance='scaledTPM',
 	importer=function(file){
 		read_tsv(file,col_types=cols())%>%
 			mutate(Name=str_extract(Name,'ENSMUST\\w+'))%>%
-			filter(Name%in%alltrs)%>%
-			arrange(match(Name,alltrs))
+			filter(Name%in%trs)%>%
+			arrange(match(Name,trs))
 })
-
+# test_that({
+	# txIdCol
+	# inclusiontable(raw[[txIdCol]],tx2genetbl[[1]])
+	# inclusiontable(txId,tx2genetbl[[1]])
+# 
+# })
 randomround = function(x)floor(x)+rbinom(length(x),1,x%%1)
-tx_countdata$counts%<>%as.data.frame%>%mutate_all(randomround)%>%as.matrix%>%set_rownames(rownames(tx_countdata$counts))
+for (i in 1:ncol(tx_countdata$counts)){ tx_countdata$counts[,i]%<>%randomround}
+# tx_countdata$counts%<>%as.data.frame%>%mutate_all(randomround)%>%as.matrix%>%set_rownames(rownames(tx_countdata$counts))
 
 tx_countdata$counts%>%as.data.frame%>%
 	rownames_to_column('gene_id')%>%
@@ -96,6 +102,8 @@ tx_countdata$counts%>%as.data.frame%>%
 	write_tsv('data/tx_scaled_countData.tsv')
 
 }
+alldpgeneids = tx2genetbl
+tx_countdata$abundance%>%rownames%>%inclusiontable(allgids)
 
 stopifnot(tx_countdata$abundance%>%rownames%>%setequal(allgids))
 
@@ -116,6 +124,7 @@ ishighcount = tx_countdata$counts%>%
 	group_by(gene_id,time)%>%
 	summarise(ishighcount=sum(value)>=32)%>%
 	{setNames(.$ishighcount,.$gene_id)}
+
 ishighcount = ishighcount[rownames(tx_countdata$counts)]
 
 highcountgenes = rownames(tx_countdata$counts)[ishighcount]
@@ -230,14 +239,20 @@ rownames(tpavdesign) %<>% str_replace('_2','')
 tpavdesign[,colnames(tpavdesign)%>%str_detect('rep2:')]%<>%multiply_by(0.5)
 tpavdesign%<>%t
 datagroup = colnames(tpavdesign)[1]
+ribcols <- colnames(tpavdesign)%>%str_subset('ribo')
+totcols <- colnames(tpavdesign)%>%str_subset('total')
+tedesign = tpavdesign[,ribcols] - tpavdesign[,totcols]
+colnames(tedesign)%<>%str_replace('ribo','TE')
+tpavdesign%<>%cbind(tpavdesign, tedesign)
 countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 		message(datagroup)
 		topTable(eBayes(contrasts.fit(allcountebayes,tpavdesign[,datagroup,drop=F])),coef=1,number=Inf,confint=.95)%>%
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
-
+#
 countpred_df%>%saveRDS('data/countpred_df.rds')
 tx_countdata%>%saveRDS('data/tx_countdata.rds')
+allvoom%>%saveRDS('data/allvoom.rds')
 
 #data.frame(trid=besttrs)%>%write_tsv('pipeline/scikitribotrs.txt',col_names=F)
 
@@ -266,7 +281,7 @@ if(F)test_that({
 
 
 save.image('data/1_integrate_countdata.R')
-# load('data/1_integrate_countdata.R')
+load('data/1_integrate_countdata.R')
 
 #next
 # /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/TE_change/run_xtail.R
