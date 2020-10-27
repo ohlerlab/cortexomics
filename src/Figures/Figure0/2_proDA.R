@@ -283,6 +283,8 @@ preddf <- preddf %>%
 	mutate(estimate=diff)%>%
 	mutate(CI.L = diff - (se*1.96))%>%
 	mutate(CI.R = diff + (se*1.96))
+#also add the se se to the E13 ones, they don't have it for some reason
+preddf%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,))
 
 # prodalfcs <- prodalfcs%>%mutate(time=time%>%str_replace('time',''))%>%
 # 	mutate(CI.L = diff - (1.96*se))%>%a
