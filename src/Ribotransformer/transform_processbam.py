@@ -188,8 +188,9 @@ def get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength ):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", help="Input bam file",default = "pipeline/star_transcript/data/E13_ribo_1/E13_ribo_1.sort.bam")
-    parser.add_argument("-f", help="Fasta file", default="ext_data/gencode.vM12.pc_transcripts.fa")
+    parser.add_argument("-i", help="Input bam file",default = "star/ORFext/data/ribo_0h/ribo_0h.sort.bam")
+    parser.add_argument("-f", help="Fasta file", default="/fast/work/groups/ag_ohler/dharnet_m/Splicing_Lausanne/ext_data/annotation/gencode.v24lift37.annotation.orfext.fa")
+    parser.add_argument("-v" , default=False ,help="verbose EM ?", dest='verbose', action='store_true')
     parser.add_argument("-o", help="ribotrans_test", default="ribotranstest")
     args = parser.parse_args()
     
@@ -202,15 +203,15 @@ if __name__ == '__main__':
 
     bamdf = make_bamDF(bam)
 
-    #count only reads overlapping the cds
-    bamdf = (bamdf.
-        merge(pd.Series(transcript_cdsstart,name='cdsstart'),left_on='tr_id',right_index=True).
-        query('start > cdsstart').
-        drop(['cdsstart'],axis=1).
-        merge(pd.Series(transcript_cdsend,name='cdsend'),left_on='tr_id',right_index=True).
-        query('end < cdsend').
-        drop(['cdsend'],axis=1)
-    )
+    # #count only reads overlapping the cds
+    # bamdf = (bamdf.
+    #     merge(pd.Series(transcript_cdsstart,name='cdsstart'),left_on='tr_id',right_index=True).
+    #     query('end > cdsstart').
+    #     drop(['cdsstart'],axis=1).
+    #     merge(pd.Series(transcript_cdsend,name='cdsend'),left_on='tr_id',right_index=True).
+    #     query('start < cdsend').
+    #     drop(['cdsend'],axis=1)
+    # )
 
 
     print('bam loaded')
@@ -218,7 +219,8 @@ if __name__ == '__main__':
     sampreads, transcript_TPMs, TPM_diff, transcript_readcount = ribo_EM(
         bamdf[['read_name', 'tr_id']],
         transcript_CDS_len,
-        numloops=100
+        numloops=100,
+        verbose=args.verbose
     )
 
     sampreads = sampreads[['read_name', 'tr_id']]
@@ -227,7 +229,7 @@ if __name__ == '__main__':
     sampreadsfull = add_seqinfo(sampreadsfull, transcript_cdsstart, exonseq, trlength)
 
     gtpms = pd.concat([pd.Series(transript_gene,name='gene'),pd.Series(dict(transcript_TPMs),name='TPM')],axis=1)
-    trstouse = gtpms.sort_values('TPM',ascending=False).groupby('gene').head(1)['TPM'].index.to_series()
+    trstouse = gtpms.query('TPM>10').sort_values('TPM',ascending=False).groupby('gene').head(1)['TPM'].index.to_series()
 
     coddf = get_coddf(transcript_cdsstart, transcript_cdsend, exonseq, trlength)
     coddf = coddf.merge(pd.Series(transcript_TPMs,name='TPM'),left_on='chrom',right_index=True).assign(pair_prob=0)
@@ -246,7 +248,7 @@ if __name__ == '__main__':
     model.cds = model.cds.rename(columns={'tr_id': 'chrom'})
     dataFrame = model.recoverAsite()
 
-    dataFrame.to_csv(args.o+'.csv')
+    dataFrame.to_csv(args.o)
 
 
 # #looks like a lot of reads are extra-ORF, but this isn't due to frame shifting (chceck)

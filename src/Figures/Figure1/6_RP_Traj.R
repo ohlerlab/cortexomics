@@ -6,19 +6,18 @@ rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
 
-sel_prodalfcs<-readRDS('data/sel_prodalfcs.rds')
+sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 countpred_df<-readRDS('data/countpred_df.rds')
 tx_countdata<-readRDS('data/tx_countdata.rds')
 
 prediction_df = bind_rows(
-  sel_prodalfcs%>%
+  sel_prodpreds%>%
     mutate(assay='MS')%>%
-    rename('logFC'=diff)%>%
-    select(gene_id,time,assay,logFC,CI.L,CI.R),
+    select(gene_id,time,assay,estimate,CI.L,CI.R),
   countpred_df%>%
     separate(contrast,c('time','assay'))%>%
-    select(gene_id,time,assay,logFC,CI.L,CI.R)
+    select(gene_id,time,assay,estimate=logFC,CI.L,CI.R)
 )
 
 exprdf = bind_rows( 
@@ -27,21 +26,72 @@ exprdf = bind_rows(
     rownames_to_column('gene_id')%>%
     gather(dataset,signal,-gene_id)%>%
     separate(dataset,into=c('time','assay','replicate')),
-  sel_ms_mat[!is.na(rownames(sel_ms_mat)),]%>%as.data.frame%>%
+  sel_ms_mat[,]%>%
+    as.data.frame%>%
     rownames_to_column('gene_id')%>%
     filter(!is.na(gene_id))%>%
     gather(dataset,signal,-gene_id)%>%
     separate(dataset,into=c('time','assay','replicate'))
 )
-
+exprdf%>%head
 exprdf$gene_name = gid2gnm[[exprdf$gene_id]]
 prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
+
+
+#' Thi sis a title with inline R code `r foo`
+
+#' First we load the list of protein IDs, handpicked by Matt, using only the small
+#' or large subunits - no mitochondrial riboproteins  
+#define ambigous protein groups as those which have elements that appear in more than one protein group
+allpgroups <- mstall$Protein_IDs%>%unique
+multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
+all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
+library(data.table)
+
+
+rpexprdf = exprdf%>%inner_join(ms_metadf%>%filter(is_rpl|is_rps))
+rpexprdf$cat = case_when(
+  rpexprdf$gene_id %in% (ms_metadf%>%filter(is_rpl)%>%.$gene_id) ~ 'RPL',
+  rpexprdf$gene_id %in% (ms_metadf%>%filter(is_rps)%>%.$gene_id) ~ 'RPS',
+  TRUE ~ 'other'
+)
+rpexprdf$cat%>%table
+rpexprdf%<>%bind_rows(rpexprdf%>%filter(assay=='ribo')%>%mutate(assay='TE',signal = signal - (rpexprdf%>%filter(assay=='total')%>%.$signal)))
+
+ggdf = rpexprdf%>%
+  arrange(time,assay=='MS',assay=='TE',assay=='ribo')%>%
+  mutate(assay=as_factor(assay))%>%
+  group_by(gene_name,assay,time,cat)%>%
+  summarise(signal=mean(signal,na.rm=TRUE))%>%
+    group_by(gene_name,assay,cat)%>%
+    mutate(signal = signal - median(signal))
+
+medggdf = ggdf%>%group_by(assay,cat,time)%>%summarise(signal = median(signal))
+
+#now plot
+plotfile<- here('plots/figures/figure1/RP_traj.pdf')
+pdf(plotfile,w=14,h=7)
+ggdf%>%
+    # filter(signal < -3)
+  ggplot(.,aes(y=signal,x=as.numeric(as.factor(time)),group=gene_name))+
+  geom_line(alpha=I(.8),color=I("grey"))+
+  # scale_color_discrete(name='colorname',colorvals)+
+  scale_x_continuous(paste0('Time'),labels = rpexprdf$time%>%unique)+
+  scale_y_continuous(paste0('log2(CPM/iBAQ) relative to Mean'),limits=c(-1,1))+
+  ggtitle(paste0('Ribosomal Proteins - Expression Trajectory'))+
+  facet_grid(cat~assay,scales='free')+
+  geom_line(data=medggdf,aes(group=cat),color=I('black'))+
+  theme_bw()
+dev.off()
+normalizePath(plotfile)
+
+
 
 ################################################################################
 ########
 ################################################################################
   
-
+prediction_df%>%slice(1)%>%left_join(exprdf)
 
 #this contains the 
 
@@ -66,12 +116,12 @@ make_traj_plot <- function(genes2plot,myymin,myymax,exprdf,prediction_df){
   #scaling function
   scaledata = function(x,assay2plot){
     if(assay2plot=='MS'){#use msrescale2lfq
-      out = x%>%mutate_at(vars(one_of(c('signal','logFC','CI.R','CI.L'))),list(function(x)x))
+      out = x%>%mutate_at(vars(one_of(c('signal','estimate','CI.R','CI.L'))),list(function(x)x))
     }else{
       out = x 
     }
-    rescale = if('signal' %in% colnames(x)){ median(x$signal[x$time=='E13']) } else {median(x$logFC[x$time=='E13'])}
-    out = x %>%mutate_at(vars(one_of(c('signal','logFC','CI.R','CI.L'))),list(function(x)x-rescale))
+    rescale = if('signal' %in% colnames(x)){ median(x$signal[x$time=='E13']) } else {median(x$estimate[x$time=='E13'])}
+    out = x %>%mutate_at(vars(one_of(c('signal','estimate','CI.R','CI.L'))),list(function(x)x-rescale))
     out
   }
   # plotdf%>%filter(assay==assay2plot)%>%scaledata(assay2plot='MS')
@@ -109,9 +159,9 @@ make_traj_plot <- function(genes2plot,myymin,myymax,exprdf,prediction_df){
       ))+
       points+
       # linerange+
-      geom_ribbon(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(x=as.numeric(as_factor(time)),y=logFC,ymin=CI.L,ymax=CI.R),fill='darkgreen',alpha=I(0.5))+ 
-      geom_line(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),linetype=2,aes(x=as.numeric(as_factor(time)),y=logFC))+  
-      # geom_line(data=prediction_df%>%uidfilt,aes(x=time,y=logFC))+  
+      geom_ribbon(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(x=as.numeric(as_factor(time)),y=estimate,ymin=CI.L,ymax=CI.R),fill='darkgreen',alpha=I(0.5))+ 
+      geom_line(data=prediction_df%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),linetype=2,aes(x=as.numeric(as_factor(time)),y=estimate))+  
+      # geom_line(data=prediction_df%>%uidfilt,aes(x=time,y=estimate))+  
       scale_x_continuous(name=xname,labels=xtpnames)+
       theme_bw()+
       scale_y_continuous(name=yname)+
