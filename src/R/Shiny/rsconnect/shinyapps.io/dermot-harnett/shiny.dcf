@@ -1,0 +1,10 @@
+name: shiny
+title:
+username:
+account: dermot-harnett
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1506335
+bundleId: 2607170
+url: https://dermot-harnett.shinyapps.io/shiny/
+when: 1574346367.29126

@@ -1,0 +1,213 @@
+---
+title: "TelleyCellSim"
+output: html_notebook
+---
+
+```{r}
+library(here)
+source(here('src/R/Rprofile.R'))
+
+# devtools::install_git(c('https://github.com/cran/SDMTools'))
+# source("https://z.umn.edu/archived-seurat")
+library(here)
+
+library('DeconRNASeq')
+
+stopifnot(!exists('FindVariableGenes'))
+
+if(!file.exists(here('data/ft_agg_df.rds'))){
+  library('Seurat')
+  ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
+  telleyseurat <- projmemoise(CreateSeuratObject)(raw.data = ss_emat[,-1]%>%as.matrix%>%set_rownames(ss_emat[[1]]))
+  telleyseurat <- projmemoise(NormalizeData)(telleyseurat, normalization.method = 'LogNormalize',scale.factor=100000)
+  telleyseurat <- projmemoise(ScaleData)(telleyseurat,vars.to.regress=c('nGene','nUMI'))
+  telleyseurat <- FindVariableGenes(telleyseurat,mean.function  =  ExpMean,  dispersion.function  =  LogVMR,  x.low.cutoff  =  0.1, x.high.cutoff  =  8,  y.cutoff  =  0.7)
+  
+  library(readxl)
+  telleyvargenes=here("ext_data/aav2522_Data-S7.xlsx")%>%read_xlsx
+  telleyvargenes <- telleyvargenes$`Gene symbol`
+  
+  table(telleyseurat@var.genes %in% telleyvargenes)
+  
+  myvargenes = telleyseurat@var.genes
+  telleyseurat@var.genes = telleyvargenes
+
+  # tmp = as.data.frame(ss_emat)%>%{.[,ss_emat%>%colnames%>%str_detect('E14.96')]}%>%rowSums
+  # tmp2 = telleyseurat@data%>%{.[,ss_emat%>%colnames%>%tail(-1)%>%str_detect('E14.96')]}%>%rowSums
+  # library(txtplot)
+  # txtplot(tmp,tmp2)
+  # txtplot(log2(tmp+1),tmp2)
+
+
+    
+  ft_mat <- telleyseurat@data%>%colnames%>%str_split('[\\.\\_]')%>%tail(-1)%>%simplify2array%>%t%>%
+      .[,1:2]%>%set_colnames(c('fttime','ftdiff'))%>%
+      as_tibble
+  
+  fttime=ft_mat$fttime[1]
+  ftdiff=ft_mat$ftdiff[1]
+  
+  agg_counts<-lapply(unique(ft_mat$fttime)%>%setNames(.,.),function(fttime){
+    lapply(unique(ft_mat$ftdiff)%>%setNames(.,.),function(ftdiff){
+      telleyseurat
+      (2^telleyseurat@data)%>%{.[,(ft_mat$fttime==fttime) & (ft_mat$ftdiff==ftdiff)]}%>%rowSums%>%log2%>%as.data.frame%>%
+      set_colnames(paste0(fttime,'_',ftdiff))
+    })
+  })
+  
+  ft_agg_df$gene_name <- telleyseurat@data%>%rownames
+  ft_agg_df%<>%select(gene_name,everything())
+
+  ft_agg_df <- agg_counts%>%map(.%>%bind_cols)%>%bind_cols
+  
+
+  saveRDS(ft_agg_df,here('data/ft_agg_df.rds'))
+}else{
+  message('loading')
+  ft_agg_df<-readRDS(here('data/ft_agg_df.rds'))
+}
+
+
+stopifnot(!exists('FindVariableGenes'))
+
+if(!exists('mscountvoom'))load(here('data/integrate_exprdata2.Rdata'))
+mybulkmat = mscountvoom$E
+mybulkdf <- mybulkmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%left_join(metainfo%>%select(uprotein_id,gene_name))
+
+min_ss_sig <- ft_agg_df[,-1]%>%as.matrix%>%rowMedians
+
+telleyvargenes=here("ext_data/aav2522_Data-S7.xlsx")%>%read_xlsx
+shared_names <- ft_agg_df[min_ss_sig>8,]$gene_name%>%intersect(mybulkdf$gene_name)%>%intersect(telleyvargenes[[1]])
+
+message(str_interp('${length(shared_names)} genes in common'))
+mybulkdf <- mybulkdf%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,matches('total'),matches('ribo'))%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
+ft_aggmat <- ft_agg_df%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,everything())%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
+
+#now plot - shows tehat there's a ctuoff point for correlation between the ft_aggmat and the 
+plotfile<- here(paste0('plots/','tmp','.pdf'))
+pdf(plotfile)
+qplot(mybulkdf[[1]],ft_aggmat[[4]])
+dev.off()
+normalizePath(plotfile)
+
+deconres <- (DeconRNASeq::DeconRNASeq(2^mybulkdf,2^ft_aggmat))
+
+deconpropdf<-deconres$out.all%>%as.data.frame%>%mutate(dset=colnames(mybulkdf))%>%gather(ftset,prop,-dset)%>%
+  separate(ftset,c('ft_time','ft_diff'))%>%
+  mutate(dset=str_replace(dset,'_\\d$',''))%>%
+  group_by(dset,ft_time,ft_diff)%>%summarise(prop=mean(prop))
+
+
+deconpropdf%>%group_by(dset,ft_time)%>%summarise(prop=sum(prop))%>%spread(ft_time,prop)
+
+#now plot
+plotfile<- here(paste0('plots/','telleydeconbulk','.pdf'))
+pdf(plotfile,w=4,h=4)
+pftdiff=deconpropdf%>%group_by(dset,ft_diff)%>%summarise(prop=sum(prop))%>%
+  separate(dset,c('time','assay'))%>%
+  # ggplot(.,aes(x=as.numeric(as.factor(time)),y=ft_diff,size=prop,color=assay))+
+  ggplot(.,aes(x=as.numeric(as.factor(time)),y=prop,fill=ft_diff))+
+  stat_identity(geom='bar',position='stack')+
+  facet_grid(assay~.)+
+  # scale_color_discrete(name='',colorvals)+
+  scale_x_continuous(paste0('Time Point (bulk)'))+
+  scale_y_discrete(paste0('Telley time since Flashtag\n(96H ~ Neuron)'))+
+  ggtitle(paste0('DeconResults using Telley FT groups'))+
+  theme_bw()
+print(pftdiff)
+dev.off()
+normalizePath(plotfile)
+
+
+
+#now plot
+plotfile<- here(paste0('plots/','telleydeconbulk_tstage','.pdf'))
+pdf(plotfile,w=4,h=4)
+pftt=deconpropdf%>%group_by(dset,ft_time)%>%summarise(prop=sum(prop))%>%
+  separate(dset,c('time','assay'))%>%
+  # ggplot(.,aes(x=as.numeric(as.factor(time)),y=ft_time,size=prop,color=assay))+
+  # geom_point()+
+  ggplot(.,aes(x=as.numeric(as.factor(time)),y=prop,fill=ft_time))+
+  stat_identity(geom='bar',position='stack')+
+  facet_grid(assay~.)+
+  # scale_color_discrete(name='',colorvals)+
+  scale_x_continuous(paste0('Time Point (bulk)'))+
+  scale_y_discrete(paste0('Collection Stage'))+
+  ggtitle(paste0('DeconResults using Telley FT groups'))+
+  theme_bw()
+pftt
+dev.off()
+normalizePath(plotfile)
+
+
+pdf(width=10,h=4,file=paste0('plots/','telleydeconbulk_both','.pdf'))
+ggarrange(ncol=2,plotlist=list(pftdiff,pftt))
+dev.off()
+paste0('plots/','telleydeconbulk_both','.pdf')%>%normalizePath
+
+deconpropdf%>%
+  group_by(dset,ft_time)%>%summarise(prop=sum(prop))%>%spread(ft_time,prop)
+
+
+
+cosdistres <- 
+  sapply(1:ncol(ft_aggmat)%>%setNames(colnames(ft_aggmat)),function(k){
+    sapply(1:ncol(mybulkdf)%>%setNames(colnames(mybulkdf)),function(i){
+      x = mybulkdf[[i]]
+      y = ft_aggmat[[k]]
+      (t(x) %*% y) / (sum(abs(x))*sum(abs(y)))
+    })
+  })
+
+cosdistres <- cosdistres %>% as.data.frame%>%rownames_to_column('dset')%>%gather(ftset,cosinedist,-dset)%>%
+  separate(ftset,c('ft_time','ft_diff'))%>%
+  mutate(dset=str_replace(dset,'_\\d$',''))%>%
+  group_by(dset,ft_time,ft_diff)%>%
+  summarise(cosinedist=mean(cosinedist))%>%
+
+#now plot
+cspftdiff=cosdistres%>%
+  #group_by(dset,ft_diff)%>%summarise(cosinedist=sum(cosinedist))%>%
+  separate(dset,c('time','assay'))%>%
+  ungroup%>%mutate(cosinedist=cosinedist/min(cosinedist))%>%
+  # ggplot(.,aes(x=as.numeric(as.factor(time)),y=ft_diff,size=cosinedist,color=assay))+
+  ggplot(.,aes(x=as.numeric(as.factor(time)),y=cosinedist,fill=ft_diff))+
+  # stat_identity(geom='bar',position='stack')+
+  geom_point()+
+  facet_grid(assay~ft_diff)+
+  # scale_color_discrete(name='',colorvals)+
+  scale_x_continuous(paste0('Time Point (bulk)'))+
+  scale_y_discrete(paste0('Telley time since Flashtag\n(96H ~ Neuron)'))+
+  ggtitle(paste0('DeconResults using Telley FT groups'))+
+  theme_bw()
+#now plot
+cspftt=cosdistres%>%
+  #group_by(dset,ft_time)%>%summarise(cosinedist=sum(cosinedist))%>%
+  separate(dset,c('time','assay'))%>%
+  # ggplot(.,aes(x=as.numeric(as.factor(time)),y=ft_time,size=cosinedist,color=assay))+
+  # geom_point()+
+  ungroup%>%mutate(cosinedist=cosinedist/min(cosinedist))%>%
+  ggplot(.,aes(x=as.numeric(as.factor(time)),y=cosinedist,fill=ft_time))+
+  # stat_identity(geom='bar',position='stack')+
+  geom_point()
+  facet_grid(assay~ft_time)+
+  # scale_color_discrete(name='',colorvals)+
+  scale_x_continuous(paste0('Time Point (bulk)'))+
+  scale_y_discrete(paste0('Collection Stage'))+
+  ggtitle(paste0('DeconResults using Telley FT groups'))+
+  theme_bw()
+pdf(width=10,h=4,file=paste0('plots/','telley_cosdist_bulk_both','.pdf'))
+ggarrange(ncol=2,plotlist=list(cspftdiff,cspftt))
+dev.off()
+paste0('plots/','telley_cosdist_bulk_both','.pdf')%>%normalizePath
+
+plot(t,s/p)
+
+
+################################################################################
+########Lets also just apply their model to... 
+################################################################################
+
+
+
+```

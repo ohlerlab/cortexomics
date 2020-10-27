@@ -1,98 +1,113 @@
 {
     "__default__":
     {
-        "h_vmem": "2g",
-        "h_rt": "4:00:00",
-        "pe": "smp 4",
-        "P":"medium"
+        "mem": "2000",
+        "time": "4:00:00",
+        "ntasks-per-node": "4",
+        "A":"medium",
+        "log_e":"cluster_log/{rule}.{wildcards}.out",
+        "log_o":"cluster_log/{rule}.{wildcards}.error"
     },
-
     "collapse_reads":
     {
-        "h_vmem": "12G",
-        "pe": "smp 2"
+        "mem": "12G",
+        "ntasks-per-node": "2"
     },
-    
     "trim_reads":
     {
-        "h_vmem": "8G",
-        "pe": "smp 4"
+        "mem": "8000",
+        "ntasks-per-node": "4"
     },
     "trimming":
     {
-        "h_vmem": "2G",
-        "h_rt": "40:00:00",
-        "pe": "smp 4"
+        "mem": "2000",
+        "time": "40:00:00",
+        "ntasks-per-node": "4"
     },
     "filter_tRNA_rRNA":
     {
-        "h_vmem": "8G",
-        "pe": "smp 4"
+        "mem": "8000",
+        "ntasks-per-node": "4"
     },
 
     "run_satann":
     {
-        "h_vmem": "8G",
-        "h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "8000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
     },
     "tophat2":
     {
-        "h_vmem": "4G",
-        "h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
     },
     "star":
     {
-        "h_vmem": "4G",
-        "h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
     },
-
+    "scikit_ribo":
+    {
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
+    },
     "riboWaltz":
     {
-        "h_vmem": "4G",
-        "h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
     },
     "htseq":
     {
-        "h_vmem": "4g",
-#"h_rt": "40:00:00",
-        "pe": "smp 1"
+        "mem": "4000",
+#"time": "40:00:00",
+        "ntasks-per-node": "1"
     },
 
     "feature_counts":
     {
-        "h_vmem": "2g",
-#"h_rt": "1:00:00",
-        "pe": "smp 2"
+        "mem": "2000",
+#"time": "1:00:00",
+        "ntasks-per-node": "2"
     },
 
     "rsem":
     {
-        "h_vmem": "4G",
-        "h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "4000",
+        "time": "40:00:00",
+        "ntasks-per-node": "8"
     },
 
     "infer_experiment":
     {
-        "h_vmem": "2G",
-#"h_rt": "40:00:00",
-        "pe": "smp 1"
+        "mem": "2000",
+#"time": "40:00:00",
+        "ntasks-per-node": "1"
     },
 
     "qc":
     {
-        "h_vmem": "48G",
-#"h_rt": "40:00:00",
-        "pe": "smp 1"
+        "mem": "48000",
+#"time": "40:00:00",
+        "ntasks-per-node": "1"
     },
     "dupradar":
     {
-        "h_vmem": "4g",
-#"h_rt": "40:00:00",
-        "pe": "smp 8"
+        "mem": "4000",
+#"time": "40:00:00",
+        "ntasks-per-node": "8"
+    },
+    "get_rf_offset":
+    {
+        "mem": "8000",
+        "ntasks-per-node": "8"
+    },
+    "quant_riboseq":
+    {
+        "mem": "12000",
+        "ntasks-per-node": "8"
     }
 }

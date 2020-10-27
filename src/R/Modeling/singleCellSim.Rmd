@@ -1,0 +1,437 @@
+---
+title: "Single Cell Transl Sims"
+output: html_notebook
+---
+
+# Plan
+
+So, we want to look at what the predicted effect of cell type heterogenity and varying global translation rates will be in bulk RNAseq vs Ribo-seq data.
+
+To do this we will
+
+1 Take the Telley single cell RNAseq
+  - Load the raw counts table
+  - Process it the way Telley did
+2 Take the Summarising dimensions that Telley provide for each cell (time,diff)
+  -figure out how to get the values
+3 Assume a simple variation in translation rate that's linearly proportional to Stemness (to begin with, ignoring diff)
+4 Simulate single cell Ribo-seq using Telleys expression matrix, and these assumed global translation rates
+5 Feed this into Xtail
+6 Check to see what the resulting pattern of identified deltaTE is
+7 ADDITIONALLY, add in gene specific TE regulation that exaggerates cell type specificity, see what the resulting effects are. In terms of observed fold changes
+
+
+
+
+# Loading data
+
+We'll load their supplementary tables, and their raw data.
+
+```{r}
+library(magrittr)
+library(DESeq2)
+library(data.table)
+
+exds <- DESeq2::makeExampleDESeqDataSet()
+
+counts(exds)
+
+#let's say we have two cell types, 2 time points, 2 assays, differing proportions of the 
+#2 cell types at the two stages, and we do this three times per tp, so we have n_cell type * n_ assay *n condition * n replicates columns to start with.
+
+n_celltype=2
+n_assay=2
+
+#design asa BINARY matrix
+design = expand.grid(cell_type=1:2,rep=1:2,assay=1:2,condition=1:2)-1
+exds<-DESeq2::makeExampleDESeqDataSet(m=24,interceptMean=10)
+# dnames <-  design%$%{(paste0('celltype',cell_type,'_assay',assay,'_condition',condition,'_rep',rep))}
+dnames <-  design%$%{(paste0('c',cell_type,'_a',assay,'_c',condition,'_r',rep))}
+
+#define notion of a matrix combining dimensions. It's just a matrix that has multiple,  non overlapping ones in each column.
+#Combining in different proportions would mean 
+#so our design data mat is 16,4, acutal data is 1000,16
+
+#combmat would be 8,16, rows have multiple ones
+#to proportion it you'd want to multiply the numbers on each row by different proportions.
+# 8,16*16,4 - 
+
+
+
+#combining them in different proportions is like multiplying them by effects
+#before we combine.
+
+#Maybe needs interaction terms.
+
+#So I'm saying there as 
+
+#so cell type a has 100 units of it
+#Cel type b has 200
+#Cell type b also has 2 times the TE
+# condition 1 has 2 times more cell type b
+# 
+#     rna   ribo      rna2   ribo 2
+# 100*1*1  200*2*1   100*1*1  200*2*2
+# 
+# So it's TE is 2 in the first,
+# and 4 in the second
+# meaning it's TE change is 2, along with it's 
+# 
+# #wait, let's think about full design
+# #fulldesign =   16,16 (so all interactions)
+# 
+# combmat = 8,16
+# 
+# #if I had them sep
+# data   =  betas   design
+# 1000,16 = 1000,16 16,16
+# 
+# #but combined
+# data =     betas ,    flldesign  
+# 1000, 8 = 1000 , 16 * 16 , 16 %*% 16,8
+
+library(tidyverse)
+exp2 = function(x) exp(log(2)*x)  
+  
+i=1
+j=1
+
+design%>%select(-cell_type)
+
+
+ct_logeffdesign <- (design%>%select(-rep))%>%{model.matrix(data=.,~cell_type:assay + condition:cell_type)}%>%.[,-1]
+  
+  n_dset=nrow(design)
+
+  
+    #so we say there's a 2 fold bigger TE in one cell type, and a 
+tediff= 1;propdiff=1
+combdnames <- dnames%>%str_replace('.*?_','')%>%unique
+    
+  
+get_bulk_from_cellmix<-function(tediff,propdiff){
+  
+        ct_logeffdesign <- (design%>%select(-rep))%>%{model.matrix(data=.,~cell_type:assay + condition:cell_type)}%>%.[,-1]
+  
+    n_dset=nrow(design)
+    
+    cellcombeffects = c(tediff,propdiff)
+    stopifnot(ct_logeffdesign%>%colnames%>%identical(c("cell_type:assay", "cell_type:condition")))
+    
+    
+    combmat = sapply(1:nrow(unique(design[,-1])),function(i){
+      sapply(1:nrow(design),function(j){
+        as.numeric(all(unique(design[,-1])[i,] == design[j,-1]))
+      })
+    })
+    
+    logw_combmat <- as.vector(ct_logeffdesign %*% matrix(cellcombeffects)) * combmat
+    linweighted_combmat <- exp2(logw_combmat) * combmat
+    #betas = 
+    ngene=nrow(exds)
+    
+    betas = data.frame(
+      Intercept= log2((2^12)+1:ngene),
+      cell_type = rep(0,ngene),
+      assay = 1
+    )
+    design$Intercept=1
+    
+    cell_type_spec <- seq(from=-1,to=1,length.out = 101)
+    betas$cell_type[1:length(cell_type_spec)]=cell_type_spec
+    
+    testallbulkln = as.matrix(betas[101,,drop=F]) %*% t(as.matrix(design[,c('Intercept','cell_type','assay')])) 
+    testallbulkln%>%set_colnames(dnames)%>%.[,seq(1,16,2)]
+    testallbulk = exp2(as.matrix(betas[101,,drop=F]) %*% t(as.matrix(design[,c('Intercept','cell_type','assay')])) )
+    combtest = (testallbulk%*% linweighted_combmat)%>%set_colnames(combdnames)
+    
+    log_ct_exprs <- as.matrix(betas) %*% t(as.matrix(design[,c('Intercept','cell_type','assay')]))
+    
+    exp2(log_ct_exprs[1,])
+    
+    # betas[19:20,]
+    combdnames <- dnames%>%str_replace('.*?_','')%>%unique
+    
+    exp2(log_ct_exprs)[1,]
+    
+    # log_ct_exprs%>%max
+    # linweighted_combmat
+    
+    bulkcounts <- exp2(log_ct_exprs)[,] %*% linweighted_combmat %>%
+        set_colnames(combdnames)%>%
+        round
+    betas[1,]
+    bulkcounts[1,]
+    bulkcounts[] = bulkcounts%>%{rpois(length(.),.)}
+    bulkcounts
+  
+}
+```
+
+Fractions
+
+```{r}
+##
+# 
+# exp2(log_ct_exprs)[21,]%>%setNames(dnames)
+# as.matrix(betas)[21,] 
+# 
+# t(as.matrix(design[,c('Intercept','cell_type','assay')]))%>%
+#     set_colnames(dnames)
+
+##
+```
+
+
+```{r}
+tediff= 2
+propdiff= 2
+
+bulkcounts <- get_bulk_from_cellmix(tediff,propdiff)
+ combdnames <- dnames%>%str_replace('.*?_','')%>%unique
+bulkdesign <- design%>%select(-cell_type)%>%distinct%>%set_rownames(combdnames)
+
+dds = DESeqDataSetFromMatrix(bulkcounts,colData = bulkdesign ,design= ~condition*assay)
+
+dds <- estimateSizeFactors(dds)
+dds <- estimateDispersionsGeneEst(dds)
+dispersions(dds) <- mcols(dds)$dispGeneEst
+dds <- nbinomWaldTest(dds,betaPrior = F)
+
+results(dds,contrast=c(0,1,0,0))$padj%>%`<`(0.05)%>%table
+results(dds,contrast=c(0,0,0,1))$padj%>%`<`(0.05)%>%table
+
+lf2c_slope = lm(
+    results(dds,contrast=c(0,0,0,1))$log2FoldChange ~ results(dds,contrast=c(0,1,0,0))$log2FoldChange
+)$coef[2]
+
+txnfcs <- results(dds,contrast=c(0,1,0,0))$log2FoldChange
+tefcs <- results(dds,contrast=c(0,0,0,1))$log2FoldChange
+ribofcs <- results(dds,contrast=c(0,1,0,1))$log2FoldChange
+
+qplot(
+  color = betas$cell_type,
+  txnfcs,
+  tefcs,
+ # alpha = ((results(dds,contrast=c(0,0,0,1))$padj<0.05) %in% TRUE),
+  xlab = 'Measured Log Fold Change -\n Transcriptional',
+  ylab = 'Measured Log Fold Change -\n TE'
+)+theme_bw()+
+  # scale_color_manual(name=c('Cell Type Specific Expression'),values=c('black','red'))+
+  scale_color_continuous(name=c('Cell Type Specific Expression'))+
+  ggtitle(
+    'Simulated Experiment - Bulk Log Fold Changes given\n A varying mixture of two cell types',
+    subtitle = paste0('l2fc in TE between cell types = ',tediff, '\nl2fc number of cells between conditions = ',  propdiff)
+  
+    )
+  # annotate("text", x = Inf, y = Inf, 
+           # label = paste0('l2fc slope: ',round(lf2c_slope,3)), hjust = 1, vjust = 1)
+
+
+qplot(
+  color = betas$cell_type,
+  txnfcs,
+  ribofcs,
+  #alpha = ((results(dds,contrast=c(0,0,0,1))$padj<0.05) %in% TRUE),
+  xlab = 'Measured Log Fold Change -\n Transcriptional',
+  ylab = 'Measured Log Fold Change -\n RPFs'
+)+theme_bw()+
+  # scale_color_manual(name=c('Cell Type Specific Expression'),values=c('black','red'))+
+  scale_color_continuous(name=c('Cell Type Specific Expression'))+
+  ggtitle(
+    'Simulated Experiment - Bulk Log Fold Changes given\n A varying mixture of two cell types',
+    subtitle = paste0('l2fc in TE between cell types = ',tediff, '\nl2fc number of cells between conditions = ',  propdiff)
+  
+    )+xlim(c(-.3,.3))+ylim(c(-.2,.2))
+  # annotate("text", x = Inf, y = Inf, 
+           # label = paste0('l2fc slope: ',round(lf2c_slope,3)), hjust = 1, vjust = 1)
+
+
+
+
+
+
+
+```
+
+
+```{r}
+bulkcounts%>%as.data.frame%>%mutate(gene=1:ngene)%>%gather(dataset,count,-gene)%>%separate(dataset,into=c('assay','cond','rep'))%>%
+identity%>%filter(gene%in%1:101)%>%group_by(assay)%>%mutate(cell_spec=cell_type_spec[gene])%>%filter(gene==100)%>%mutate(count=log2(count))%>%group_by(assay,cond)%>%summarise(count=mean(count))
+
+results(dds,contrast=c(0,0,1,0))$log2FoldChange[99]
+counts(dds)[99,]
+bulkcounts[99,]
+
+lf2c_slope = lm(
+    results(dds,contrast=c(0,0,0,1))$log2FoldChange ~ results(dds,contrast=c(0,0,1,0))$log2FoldChange
+)$coef[2]
+
+qplot(
+  color = betas$cell_type,
+  results(dds,contrast=c(0,0,1,0))$log2FoldChange,
+  results(dds,contrast=c(0,0,0,1))$log2FoldChange,
+  xlab = 'Measured Log Fold Change -\n Gene TE',
+  ylab = 'Measured Log Fold Change -\n Cross Condition TE'
+)+theme_bw()+
+  # scale_color_manual(name=c('Cell Type Specific Expression'),values=c('black','red'))+
+    scale_color_continuous(name=c('Cell Type Specific Expression'))+
+  ggtitle('Simulated Experiment - Bulk Log Fold Changes given\n A varying mixture of two cell types')+
+  annotate("text", x = Inf, y = Inf,
+           label = paste0('l2fc slope: ',round(lf2c_slope,3)), hjust = 1, vjust = 1)
+
+```
+
+
+```{r}
+#let's just do this the dumb way
+txn_change_changes = 1:20
+for(g in )
+
+```
+
+
+```{r}
+#+ setup, include=FALSE, echo=FALSE, eval=T
+library(rmarkdown)
+library(knitr)
+library(here)
+library(magrittr)
+library(data.table)
+knitr::opts_chunk$set(root.dir = here::here(),eval=FALSE,cache=FALSE,echo=FALSE,warning = FALSE,message = FALSE,include=FALSE)
+isknitr<-isTRUE(getOption('knitr.in.progress'))
+#if(!isknitr) rmarkdown::render(knitr::spin(here('src/R/load_telley_etal.R'),knit=F),output_dir=here('Reports'),knit_root_dir=here())
+
+source('src/R/Rprofile.R')
+
+
+
+
+# 
+# telleyfiles<-c(
+# 	twavetbl=here("ext_data/telley/aav2522_Data-S2.xlsx"),
+# 	tdynamicstbl=here("ext_data/telley/aav2522_Data-S4.xlsx"),
+# 	tcoretable=here("ext_data/telley/aav2522_Data-S6.xlsx"),
+# 	tclusters=here("ext_data/telley/aav2522_Data-S7.xlsx")
+# )
+# library(readxl)
+# 
+# modules::import(attach=TRUE,'dplyr')
+# conflicted::conflict_prefer('filter','dplyr')
+# conflicted::conflict_prefer('slice','dplyr')
+# conflicted::conflict_prefer('matches','dplyr')
+# 
+# 
+# t_wavetbl<-telleyfiles[[1]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
+# t_dynamicstbl<-telleyfiles[[2]]%>%read_excel%>%rename(gene_name=`Gene symbol`)
+# 
+# telleyfiles[[3]]%>%excel_sheets
+# 
+# t_timecoretbl<- telleyfiles[[3]]%>%read_excel(sheet=1)%>%rename(gene_name=`Gene symbol`)%>%rename(Time_core_Specificity=Specificity)
+# t_diffcoretbl<- telleyfiles[[3]]%>%read_excel(sheet=2)%>%rename(gene_name=`Gene symbol`)%>%rename(Diff_core_Specificity=Specificity)
+# 
+# 
+# t_timecoretbl%>%as.data.frame
+# t_diffcoretbl%>%as.data.frame
+# t_diffcoretbl$gene_name %in% gtf_gr$gene_name
+# 
+# chronotypic_clusters<-telleyfiles['tclusters']%>%read_excel(sheet='Clusters')%>%rename(gene_name=`Gene symbol`)%>%rename(cluster=`tSNE cluster`)
+
+
+
+```
+
+Now we have their single cell expression matrix.
+
+```{r}
+print(dim(ss_emat))
+```
+It looks like this has 2756 cells in it (col 1 is the gene).
+
+The next thing we want is a pseudotime analysis of this data.
+THey don't provide it in Telley et al, instead referencing this paper:
+https://www.nature.com/articles/nature25999#Sec5
+
+These guys do some interesting normalization - they use a generalized nb regression with a regularised (their procedure) theta.
+
+I don't _think_ telly et al did all their normalisation, i think they just took the princurve stuff... it says in fig 2 they used only the highly variable gnes, which they've identified previously using Seurat normalisation
+
+So the procedure we want I think is to get our significant dimensions on __ genes using the package princomp, smoother lowess, f=1/3, then get arc length from the start to the point where a gene projects onto the curve.
+
+The final test will be to see if I can replicate figure 2D
+
+So from their methods
+
+"To  remove  sequencing  depth  biases  between  cells,  we normalizedand  scaled  the  UMI  counts  using  the NormalizeData(normalization.method  = "LogNormalize", scale.factor = 100000) combined with the ScaleDatafunction (vars.to.regress = c("nGene","nUMI")). A cell cycle phase was further assigned to each single cell using theSeurat pipeline. Gene expression wasnot normalized withregard to the cell cycle phaseas this process is physiologically  relevant  in  the  temporal  progression  of  cortical  progenitors  identity. We  then determined  the  most  variable  genes  by  plotting  transcripts  into  bins  based  on  X-axis  (average expression) and Y-axis (dispersion). This identified 4,016 transcripts. Parameters and cutoffs were set  as  follow:  mean.function  =  ExpMean,  dispersion.function  =  LogVMR,  x.low.cutoff  =  0.1, x.high.cutoff  =  8,  y.cutoff  =  0.7.  "
+
+Let's go.
+
+Note - this new version of Seurate seems to use nCount_RNA and nFeature_RNA rather than nGene and nUMI.
+
+```{r}
+ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*')))
+#devtools::install_git(c('https://github.com/cran/SDMTools'))
+#source("https://z.umn.edu/archived-seurat")
+library(here)
+source(here('src/R/Rprofile.R'))
+
+library('DeconRNASeq')
+
+if(file.exists('data/telleyseurat.rds')){
+  library('Seurat')
+  telleyseurat <- projmemoise(CreateSeuratObject)(raw.data = ss_emat[,-1]%>%as.matrix%>%set_rownames(ss_emat[[1]]))
+  telleyseurat <- projmemoise(NormalizeData)(telleyseurat, normalization.method = 'LogNormalize',scale.factor=100000)
+  telleyseurat <- projmemoise(ScaleData)(telleyseurat,vars.to.regress=c('nGene','nUMI'))
+  telleyseurat <- FindVariableGenes(telleyseurat,mean.function  =  ExpMean,  dispersion.function  =  LogVMR,  x.low.cutoff  =  0.1, x.high.cutoff  =  8,  y.cutoff  =  0.7)
+  
+  library(readxl)
+  telleyvargenes=here("ext_data/aav2522_Data-S7.xlsx")%>%read_xlsx
+  telleyvargenes <- telleyvargenes$`Gene symbol`
+  
+  table(telleyseurat@var.genes %in% telleyvargenes)
+  
+  myvargenes = telleyseurat@var.genes
+  telleyseurat@var.genes = telleyvargenes
+  saveRDS(telleyseurat,here('data/telleyseurat.rds'))
+}else{
+  readRDS(here('data/telleyseurat.rds'))
+}
+
+
+ft_mat <- ss_emat%>%colnames%>%str_split('[\\.\\_]')%>%tail(-1)%>%simplify2array%>%t%>%
+    .[,1:2]%>%set_colnames(c('fttime','ftdiff'))%>%
+    as_tibble
+
+fttime=ft_mat$fttime[1]
+ftdiff=ft_mat$ftdiff[1]
+
+agg_counts<-lapply(unique(ft_mat$fttime)%>%setNames(.,.),function(fttime){
+  lapply(unique(ft_mat$ftdiff)%>%setNames(.,.),function(ftdiff){
+    telleyseurat
+    telleyseurat@data%>%{.[,(ft_mat$fttime==fttime) & (ft_mat$ftdiff==ftdiff)]}%>%rowSums%>%as.data.frame%>%
+    set_colnames(paste0(fttime,'_',ftdiff))
+  })
+})
+
+ft_agg_df <- agg_counts%>%map(.%>%bind_cols)%>%bind_cols
+
+ft_agg_df$gene_name <- telleyseurat@data%>%rownames
+ft_agg_df%<>%select(gene_name,everything())
+
+if(!exists('mscountvoom'))load(here('data/integrate_exprdata2.Rdata'))
+mybulkmat = mscountvoom$E
+mybulkdf <- mybulkmat%>%as.data.frame%>%rownames_to_column('uprotein_id')%>%left_join(metainfo%>%select(uprotein_id,gene_name))
+
+min_ss_sig <- ft_agg_df[,-1]%>%as.matrix%>%rowMedians
+
+shared_names <- ft_agg_df[min_ss_sig>100,]$gene_name%>%intersect(mybulkdf$gene_name)
+
+mybulkdf <- mybulkdf%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,matches('total'),matches('ribo'))%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
+ft_aggmat <- ft_agg_df%>%{.[match(shared_names,.$gene_name),]}%>%select(gene_name,everything())%>%{set_rownames(as.data.frame(.[,-1]),.$gene_name)}
+
+qplot(mybulkdf[[1]],ft_aggmat[[4]])
+
+(DeconRNASeq::DeconRNASeq(2^mybulkdf,2^ft_aggmat))
+
+```
+

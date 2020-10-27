@@ -1,0 +1,422 @@
+---
+title: "GE Trajectories - translation related genes"
+author: "Dermot Harnett"
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+includevar=FALSE
+knitr::opts_chunk$set(root.dir = here::here(),eval=TRUE,cache=FALSE,echo=FALSE,warning = FALSE,message = FALSE,include=includevar)
+myvar=TRUE
+
+```
+```{r calcplottingtables, include=TRUE,cache=FALSE,eval=TRUE}
+
+library(assertthat)
+library(here)
+library(magrittr)
+library(data.table)
+library(tidyverse)
+library(biomaRt)
+library(memoise)
+0
+mycache = memoise::cache_filesystem(here('R_cache'))
+if(!is.memoised(getBM)) getBM <- memoise(getBM,cache=mycache)
+if(!is.memoised(useMart)) useMart <- memoise(useMart,cache=mycache)
+
+isknit <- isTRUE(getOption('knitr.in.progress'))
+
+select<-dplyr::select
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+        sep="", collapse=" ")
+}
+vlookup <- function(query,dicttable,key,vals){
+  dict = dicttable%>%ungroup%>%distinct_(key,vals)
+  stopifnot(!anyDuplicated(dict))
+  data_frame(tmp=query)%>%
+    left_join(dict,by=c('tmp'=key))%>%
+    .[[vals]]
+}
+
+str_split_fast = function(x,sep=';') x %>% {str_split(.,sep,n = str_count(.,';')%>%max%>%add(1))}
+
+sep_element_in<-function(colonlist,ridssplit,sep=';'){
+  assert_that(is.character(colonlist))
+  assert_that(is.character(ridssplit))
+  values<-colonlist%>%str_split_fast
+  
+  inds <- rep(seq_along(colonlist),lengths(values))
+  
+  values<-flatten_chr(values)
+  
+  data_frame(inds,values)%>%
+    mutate(match = values %in% ridssplit)%>%
+    group_by(inds)%>%
+    summarize(match=any(match))%>%
+    .$match
+  
+}
+matches <- dplyr::matches
+
+#load fractionated ms data
+ms_tall <- map(c('./pipeline/ms_tables/ms_LFQ_total_ms_tall.tsv',
+                 './pipeline/ms_tables/ms_LFQ_poly_ms_tall.tsv',
+                 './pipeline/ms_tables/ms_LFQ_80S_ms_tall.tsv'),
+               .%>%here%>%fread)
+ms_tall <- ms_tall%>%bind_rows
+message('Labeling protein IDs with annotations')
+pids = ms_tall%>%ungroup%>%distinct(Protein_IDs)
+
+stopifnot(ms_tall$fraction%>%unique%>%length == 3)
+
+
+#do MEDIAN NORMALIZATION on our signal
+ms_tall%<>%group_by(time,fraction,replicate)%>%mutate(nnsig =signal,signal = signal / median(signal,na.rm=T))
+
+ms_tall
+
+#define our catagories
+message('looking up protein ID annotations')
+
+#aet info on the ribosomal subu,nts from mats table
+rids <- read_tsv(here('./ext_data/riboprotids.tsv'))
+lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
+sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
+rids%<>%left_join(ms_tall%>%ungroup%>%distinct(Protein_IDs,gene_name))
+#get info on proteins so we can catagorize them
+library(biomaRt)
+mart <- useMart(biomart = "ensembl", dataset = "mmusculus_gene_ensembl")
+transreggoterm <- "GO:0006417"
+
+transregprotids <- getBM(attributes = c("uniprot_gn_id"), 
+                                  filters=('go'),values=transreggoterm,
+                                  mart = mart)
+translationgoterm <- "GO:0006417"
+translationprotids <- getBM(attributes = c("uniprot_gn_id"), 
+                                     filters=('go'),values=translationgoterm,
+                                     mart = mart)[[1]]
+ebp1pid = ms_tall$Protein_IDs[match('Pa2g4',ms_tall$gene_name)]
+#intersect iwth pids
+pids%<>%mutate(pcat = case_when(
+  (Protein_IDs==ebp1pid) ~ "Ebp1",
+  sep_element_in(Protein_IDs,sridssplit) ~ "Rps",
+  sep_element_in(Protein_IDs,lridssplit) ~ "Rpl",
+  sep_element_in(Protein_IDs,translationprotids) ~ "translation-associated",
+  TRUE ~ "other"
+))
+
+#get only our select groups
+selms_tall <- ms_tall %>% inner_join(filter(pids,pcat!='other'))
+
+
+#now summarise 
+selms_tall$fraction%>%unique
+
+
+selms_tall_summ <- selms_tall %>% 
+  # mutate(signal=log10(signal))%>%
+  group_by(pcat,Protein_IDs,time,fraction)%>%
+  summarize(signal=median(na.rm=T,signal))%>%
+  group_by(pcat,time,fraction)%>%
+  summarize(
+    n_distinct(signal),
+    upper=quantile(signal,0.75,na.rm=T),
+    lower=quantile(signal,0.25,na.rm=T),
+    signal=median(signal,na.rm=T)
+  )
+
+selms_tall_summ_nomed <- selms_tall %>% 
+  # mutate(signal=log10(signal))%>%
+  group_by(pcat,Protein_IDs,time,fraction)%>%
+  summarize(nnsig=median(na.rm=T,nnsig))%>%
+  group_by(pcat,time,fraction)%>%
+  summarize(
+    n_distinct(nnsig),
+    upper=quantile(nnsig,0.75,na.rm=T),
+    lower=quantile(nnsig,0.25,na.rm=T),
+    signal=median(nnsig,na.rm=T)
+  )
+
+
+pcats <- c('Ebp1','Rpl','Rps','translation-associated')
+plotcats <- c('Ebp1','Rpl median','Rps median','Translation-associated median')
+plotcols <- c('#EA1D3D','#11A7E0','#FADE4E','#010702')
+
+selms_tall_summ$pcat <- list(selms_tall_summ$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+selms_tall_summ$fraction%<>%recode(poly='Poly',total='Total')
+selms_tall_summ$time %<>% str_replace('p','.')
+
+selms_tall_summ_nomed$pcat <- list(selms_tall_summ_nomed$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+selms_tall_summ_nomed$fraction%<>%recode(poly='Poly',total='Total')
+selms_tall_summ_nomed$time %<>% str_replace('p','.')
+
+
+
+
+
+##Also need RNA expression levels  for this plot
+lengths<-here('pipeline/feature_counts/data/E13_ribo_1/feature_counts')%>%fread%>%select(gene_id=Geneid,Length)%>%left_join(fread(here('pipeline/ids.txt')))%>%select(gene_id,gene_name,length=Length)
+rnaseqdata_tall<-fread(here('pipeline/feature_counts/all_feature_counts'))%>%dplyr::select(1,matches('total'))
+rnaseqdata_tall%<>%left_join(lengths,by=c(feature_id='gene_id'))%>%select(-feature_id)
+rnaseqdata_tall<-rnaseqdata_tall%>%select(-gene_name,-length)%>%as.matrix%>%divide_by(rnaseqdata_tall$length)%>%{t( t(.)*1e6/ colSums(.))}%>%cbind(rnaseqdata_tall%>%select(gene_name))
+rnaseqdata_tall<-rnaseqdata_tall%>%left_join(pids%>%left_join(distinct(ms_tall,Protein_IDs,gene_name))%>%distinct(gene_name,pcat))
+
+rnaseqdata_tall%<>%filter(!is.na(pcat))
+rnaseqdata_tall %<>% gather(dataset,signal,-gene_name,-pcat)
+#
+rnaseqdata_tall%<>%separate(dataset,into=c('time','assay','rep'))
+
+rnaseqdata_tall%<>%group_by(time,assay)%>%
+  mutate(nnsig=signal,signal = signal/median(signal,na.rm=T))%>%
+  identity
+
+
+rnaseqdata_tall%>%ungroup%>%distinct(gene_name,pcat)%>%write_tsv(here('ext_data/gname_pcat.tsv'))
+
+rnaseqdata <- rnaseqdata_tall%>%
+  group_by(time,assay,gene_name,pcat)%>%
+  dplyr::summarise(signal=mean(na.omit(signal)))%>%
+  mutate(fraction='RNAseq')%>%
+  group_by(pcat,time,assay,fraction)%>%
+  summarize(
+    n_distinct(signal),
+    upper=quantile(signal,0.75,na.rm=T),
+    lower=quantile(signal,0.25,na.rm=T),
+    signal=median(signal,na.rm=T)
+  )%>%
+  filter(pcat!='other')
+
+
+rnaseqdata_nomed <- rnaseqdata_tall%>%
+  mutate(fraction='RNAseq')%>%
+  group_by(pcat,time,assay,fraction)%>%
+  summarize(
+    n_distinct(nnsig),
+    upper=quantile(nnsig,0.75,na.rm=T),
+    lower=quantile(nnsig,0.25,na.rm=T),
+    signal=median(nnsig,na.rm=T)
+  )%>%
+  filter(pcat!='other')
+
+
+
+rnaseqdata$pcat <- list(rnaseqdata$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+rnaseqdata$time%<>%recode(E145='E14.5')
+rnaseqdata$time%<>%recode(E175='E17.5')
+rnaseqdata$fraction<-'RNAseq'
+
+
+rnaseqdata_nomed$pcat <- list(rnaseqdata_nomed$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+rnaseqdata_nomed$time%<>%recode(E145='E14.5')
+rnaseqdata_nomed$time%<>%recode(E175='E17.5')
+rnaseqdata_nomed$fraction<-'RNAseq'
+
+
+signame <- paste0(unique(selms_tall$sigtype), 'expression\nvs.\n proteome median=1')
+
+```
+```{r plot_functions,  include = FALSE,cache=FALSE}
+
+sigtestby<-function(data,sdatcol,sgfactor){
+  require(lazyeval)
+  outdata<-data%>%map(safely(otherwise=1,.%>%{split(.[[sdatcol]],.[[sgfactor]])}%>%setNames(c('x','y'))%>%do.call(t.test,.)%>%.$p.value))
+  outdata%<>%map_dbl('result')
+  outdata
+}
+#
+#test with nest
+tpchangesig<-function(tbl){
+  #
+  tbl%<>%  ungroup%>%mutate(time=str_replace(time,'\\.|p',''))%>%group_by(time)
+  tps <- unique(tbl$time)
+  #
+  out<-lapply(tps,function(tp){
+    #
+    ntbl<-tbl%>%group_by(pcat,fraction)%>%filter(time %in% c('E13',tp))%>%
+      nest
+  #  
+    ntbl%>%mutate(pvalue= sigtestby(data,'signal','time'))%>%
+      mutate(issig=pvalue<0.05)%>%
+      arrange(pcat)%>%
+      dplyr::select(-data)%>%
+      mutate(time=tp)
+  })%>%bind_rows()%>%
+  ungroup%>%
+  mutate(fraction=tools::toTitleCase(fraction))
+  out$fraction%<>%recode('80s'='80S')
+  #
+  pcats <- c('Ebp1','Rpl','Rps','translation-associated')
+  plotcats <- c('Ebp1','Rpl median','Rps median','Translation-associated median')
+  out$pcat <- list(out$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+  out
+}
+#
+make_traplot <- function(data,sigtests){
+    data%<>%ungroup%>%mutate(time=str_replace(time,'\\.|p',''))%>%group_by(time)
+    unique(data$pcat) %in% unique(sigtests$pcat)
+    unique(data$time) %in% unique(sigtests$time)
+    unique(data$fraction) %in% unique(sigtests$fraction)
+    
+    # browser()
+
+    # commoncols<-intersect(colnames(data),colnames(sigtests))
+    # for(commoncol in commoncols) 
+    # unique(data$pcat)
+    # unique(sigtests$pcat)
+
+    data%>%
+    # anti_join(sigtests)%>%
+    # {.$id<-seq_len(nrow(.));.}%>%semi_join(sigtests)%>%group_by(id)
+    semi_join(sigtests)%>%
+    safe_left_join(sigtests)%>%
+    ggplot(data=.,aes(x=as.numeric(as.factor(time)),y=signal,ymax=upper,ymin=lower,color=pcat))+
+    geom_line()+
+    geom_linerange()+
+    geom_point(aes(shape=issig),size=4)+
+    scale_x_continuous(name='',labels = c('',unique(selms_tall_summ$time)),limits=c(0,5))+
+    facet_grid(cols = vars(fraction))+
+    scale_color_manual(name='',values = setNames(plotcols,plotcats))+
+    # scale_y_continuous(name=signame)+
+    scale_y_log10(name=signame,limits=c(0.2,1e3))+
+    scale_fill_manual(name='Sig Diff from E13',values=setNames(c('grey','grey','black'),c(NA_character_,'FALSE','TRUE')))+
+    theme_minimal()+
+    theme(panel.grid = element_blank(),axis.title.y = element_text(size=20),strip.text.x = element_text(size=20))
+  }
+#
+#
+#
+
+# sig_df<-selms_tall
+# pcati<-'Ebp1'
+# fractioni='total'
+# tpind=3
+get_anova_sig_frac_pcat_tp<-function(sig_df){
+  out <- map_df(.id='fraction',unique(sig_df$fraction)%>%setNames(.,.),function(fractioni){
+    map_df(.id='pcat',unique(sig_df$pcat)%>%setNames(.,.),function(pcati){
+      map_df(.id='time',(2:5)%>%setNames(unique(sig_df$time)[2:5]),function(tpind){
+        sig_df%>%filter(pcat==pcati)%>%ungroup%>%mutate(time=as_factor(time))%>%filter(fraction==fractioni,time%in%unique(time)[c(1,tpind)])%>%lm(data=.,formula=nnsig ~ time)%>%anova%>%.$`Pr(>F)`%>%.[1]%>%{data.frame(pval=.)}
+    })
+  })%>%mutate(pval=p.adjust(pval))})%>%
+  ungroup%>%
+  mutate(issig = pval<0.05)%>%
+  mutate(fraction=tools::toTitleCase(fraction))%>%
+  mutate(fraction<-recode(fraction,'80s'='80S'))
+  #
+
+  pcats <- c('Ebp1','Rpl','Rps','translation-associated')
+  plotcats <- c('Ebp1','Rpl median','Rps median','Translation-associated median')
+  out$pcat <- list(out$pcat) %>% c(setNames(plotcats,pcats)) %>% do.call(recode,args = .)
+  out
+}
+
+
+sigfunc <- tpchangesig
+
+sigfunc <- get_anova_sig_frac_pcat_tp
+sigs<-sigfunc(selms_tall)
+stopifnot('Rps median' %in% sigs$pcat)
+traplot <-  selms_tall_summ%>%make_traplot(data=.,sigs)
+
+
+rnatraplot <- rnaseqdata %>%make_traplot(.,sigfunc(rnaseqdata_tall%>%mutate(fraction='RNAseq'))) 
+rnatraplot<-rnatraplot+
+  scale_color_manual(name='',values = setNames(plotcols,plotcats),guide=FALSE)+
+  scale_shape_manual(guide=FALSE,values=setNames(c('circle','circle','triangle'),c(NA_character_,'FALSE','TRUE')))+
+  scale_y_log10(name='TPM expression\nvs.\n median TPM')
+a <- annotation_logticks(sides='l')
+a$data <- selms_tall_summ%>%filter(fraction=='80S')
+b <- annotation_logticks(sides='l')
+b$data <- rnaseqdata
+
+#
+plotfile<-here('./plots/ribosto_trajectories.pdf')
+pdf(plotfile,w=13,h=4)
+ggpubr::ggarrange(plotlist=list(rnatraplot+b,traplot+a),ncol=2,widths=c(1,3))
+dev.off();
+normalizePath(plotfile)
+```
+
+#### Trajectory plots
+
+```{r }
+```
+
+##### With median normalization
+
+
+```{r fig.width =12,fig.height=4,out.width=1200,out.height=450,dev='pdf',include=TRUE}
+
+if(isknit) print(ggpubr::ggarrange(plotlist=list(rnatraplot+b,traplot+a),ncol=2,widths=c(1,3)))
+```
+
+##### Without median normalization
+
+```{r }
+traplot <-  selms_tall_summ_nomed%>%make_traplot(.,tpchangesig(selms_tall%>%mutate(signal=nnsig)))
+rnatraplot <- rnaseqdata_nomed %>%make_traplot(.,tpchangesig(rnaseqdata_tall%>%mutate(signal=nnsig,fraction='RNAseq')))
+rnatraplot<-rnatraplot+
+  scale_color_manual(name='',values = setNames(plotcols,plotcats),guide=FALSE)+
+  scale_shape_manual(guide=FALSE,values=setNames(c('circle','circle','triangle'),c(NA,FALSE,TRUE)))+
+  scale_y_log10(name='TPM expression')
+
+a <- annotation_logticks(sides='l')
+a$data <- selms_tall_summ_nomed%>%filter(fraction=='80S')
+b <- annotation_logticks(sides='l')
+b$data <- rnaseqdata_nomed
+
+
+```
+```{r fig.width =12,fig.height=4,out.width=1200,out.height=450,dev='pdf',include=TRUE}
+
+if(isknit) print(ggpubr::ggarrange(plotlist=list(rnatraplot+b,traplot+a+scale_y_log10(name='LFQ')),ncol=2,widths=c(1,3)))
+
+
+
+# rmarkdown::render(knitr::spin(here('src/R/Ribostochiometry/ribo_traj_plots.R'),knit=F),output_dir=here('Reports'),knit_root_dir=here())
+
+# #
+# ##### Significance Tests mass spec with median norm
+# tpchangesig(selms_tall)%>%kable
+# ##### Sign tests mass spec without median norm
+# tpchangesig(selms_tall%>%mutate(signal=nnsig))%>%kable
+# ##### Sign tests RNAseq with median norm
+# tpchangesig(rnaseqdata_tall%>%mutate(fraction='RNA'))%>%kable
+# ##### Sign tests RNAseq without median norm
+# tpchangesig(rnaseqdata_tall%>%mutate(signal=nnsig)%>%mutate(fraction='RNA'))%>%kable
+
+
+# save.image('ribo_traj_plots.Rdata')
+
+# selms_tall%>%group_by(pcat,fraction)%>%
+#   #filter(time %in% c('E13','P0'))%>%
+#   nest%>%
+#   mutate(pvalue = map_dbl(data,.%>%{lm(data=., signal ~ time)}%>%summary%>%.$coefficients%>%.[,4]%>%last))%>%
+#   mutate(issig = pvalue < 0.05)%>%arrange(pcat)
+  
+
+# mutate(pvalue= .$data%>%map_dbl(.%>%{split(.$signal,.$time)}%>%setNames(c('x','y'))%>%do.call(t.test,.)%>%.$p.value))%>%
+#   mutate(isis=pvalue<0.05)%>%
+#   arrange(pcat)
+
+# selms_tall%>%group_by(pcat,fraction)%>%filter(time %in% c('E13','P0'))%>%
+#   nest%>%.$data%>%as.list%>%last%>%{split(.$signal,.$time)}%>%setNames(c('x','y'))%>%do.call(t.test,.)
+
+# selms_tall%>%group_by(pcat,fraction,replicate,time)%>%filter(time %in% c('E13','P0'))%>%
+#   nest%>%.$data%>%as.list%>%last%>%{split(.$signal,.$time)}%>%setNames(c('x','y'))%>%do.call(t.test,.)
+
+
+
+# dev.off()
+# normalizePath(plotfile)
+
+
+# 
+# library('ggpubr')
+# plist <- lapply(1:3,function(i)qplot(1:10,1:10))
+# do.call(ggpubr::ggarrange,c(plist,list(args = (nrow=1))))
+# 
+# ggarrange(plist[[1]],plist[[2]],plist[[3]],nrow=1)
+```
+

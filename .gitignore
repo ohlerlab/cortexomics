@@ -7,6 +7,7 @@ archived_results
 .RData
 .Ruserdata
 data
+export
 Dockstore.json
 plots
 ./data
@@ -55,3 +56,15 @@ tables
 plots
 _files
 .snakemake
+ 
+*.rds
+*.ida
+*.idea
+src/.idea
+.idea
+*.RData
+*.RData
+*RData
+proDD_fit.RData
+packrat/lib*/
+Reports

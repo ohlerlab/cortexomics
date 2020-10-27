@@ -1,0 +1,8 @@
+
+
+###Ebp1 paper 
+#Stochiometry plot for Ebp1 paper
+/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R
+
+#trajectory plots for Ebp1 paper
+/fast/groups/ag_ohler/work/dharnet_m/cortexomics/src/R/Ribostochiometry/ribo_stoch_heatmaps.R

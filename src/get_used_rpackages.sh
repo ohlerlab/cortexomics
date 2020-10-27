@@ -1,0 +1,1 @@
+git grep -Po 'library\(.*\)|requires\(.*\)'  | grep -Po '(library|requires)\(.*\)' | sed 's/library\|requires//g' | tr -d '(' | tr -d ')' | tr -d '"' | tr -d '}'  | tr  -d "'" | grep -v '\t' | grep -v \;  | grep -v 'quietly' | sort | uniq | sed 's/\n/","/g'

@@ -1,52 +1,204 @@
 ###REMEMBER - 
-- When in doubt organize, overview, look at the paper plan, read, until you realize the urgency and import
-- Plenty of papers in the papers folder
+/Users/dharnet/Dropbox/projects/cortexomics/manuscript/populate.sh
+
+#Methods
+
+Figure0
+Mass spec
+___something something maxquant____
+
+Gencode M12 protein coding genes were used for the analysis. 
 
 
-Where am I?
-Ive been clustering with my hierarchical model?
-VBut does it work? How do I figure that out...
-I look at the weird cases, and see  how it's dealing with them.
+Peptides were matched against gencode m12 sequences, and in cases where the peptides in a protein group all matched to a single gencode gene_name, this was used as the match. When filtering transcripts to those used with MS, only transcripts containing at least one peptide contributing to the peptide group were counted. This improved correlation with Ribo-seq slightly.
+
+Figure1
+We quantified Ribo-seq and RNAseq signal over all protein coding transcripts in the gencode.vM12.annotation using  DeepshapePrime and Salmon respectively. Transcripts whose length after polyA trimming was less than the 21bp kmers used by salmon were eliminated. Gene level, length adjusted counts were produced using the tximport package, and these were then used as input for linear modeling with Limma, and differential TE analysis using xtail. TEs in figure one were calculated as ratios of TPMs. 
+
+Metaplots and gene-count scatterplots
+
+We found a correlation of 0.97 in the log fold changes calclated by xtail and limma
+
+
+
+For MS We first match gene_names to genes, then for genes with more than one MS id we 
+take the least missing, then most strongly expressed, ms id. 
+
+####Presently:
+2020-08-21 17:03
+Okay so spectral coefficients only VERY slightly more predictive than TPM In the yeast data
+Hopefully got data sorting issues resolved with scikit now
 
 
 
 
-After this i can do my fuzzy clustering and see if it makes a different
-
-Then also I can look at the coverage of the weird cases
 
 
-indexing is something I"ll need to be sure of. Are Bams 0 indexed???
-
-#Envs
-conda create -n biocli ucsc-bedGraphToBigWig samtools bedtools bamtools cutadapt tophat stara
+2020-08-19 10:55 Do I work on the yeast stuff?
+Yes. Let's pin this down once and for all.
 
 
-#apparently tophat and snakemake conflict
-#install snakemake broke bedgraphtobigwig
+2020-08-19 10:52
+get expcds, get the psite tracks for these, for different stages
+	confirm that they have their peak over the M
+	then get the 
+
+One strategy - for each gene, pick the best ms_id, say that with the fewest missing/highest median value
+Match a protein_id to each of these ms_ids
+then for each gene, either get the highest count and use that (my ddata) or sum the TPMs (theirs)
+
+Deepshape is our bet I think, redoing with that
+
+After meeting matt. Basically decided to go back and redo it all.
+Try scikit ribo.
+For this i need soft clipping yes/no.
+
+
+
+okay scatterplots are fucking confusing. Think carefully about length normalisation.
+
+
+
+
+- Simulate TEs
+  - Draw from Telley's experiments and do a DESeq analysis.
+    - Figure out how to draw from them.
+####Then
+- Data onto telleys axes if poss
+- Get a look at what's causing differences in TElley
+
+
+
+
+Then including the models in our trajectory plots on shiny.
+	#Doing this with REAL CODE - modularity. Acceptance that I forget stuff and
+		.
+
+Questions 2020-01-06 10:18
+Zoya Ignatova - what does she know about norm?
+I guess I can at least re-do the psite adjustment to work better
+What can I learn from Baum et al 2019
+
+#modeling
+see modellingnotes.txt
+Okay so curren thinking - I need to read up more on the fuzzy clustering with splines
+I need to be comfortable using lagrange multipliers - how do i make it work with multiple constraints - 
+	flatnes son the 
+
+2020-01-06 10:37 Worried about the normalization.
+	Can I just look at the distribution of the MS effects mebbe?
+
+Possible things to do 
+- pick out guys with significant MS effect to model kinetically.
+		make sure that increasing things pin down synthesis and degredation.
+	 	After this i can do my fuzzy clustering and see if it makes a difference....
 
 #Something is borking R environment - R2 seems okay for now
 ```installed.packages()%>%saveRDS('./envs/installed_rpackages.rds')```
 
+Fuzzy clustering paper
 
-#Organization begins now, thatsublime text is fixed.
-
+Tasks for after
+Deal with dropout directly.
 
 #This file is currently doing a lot of work - creating the joint and the seperate models with degredation and synthesis.
 '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_rstan.R'
 '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R'
 
-#currently doing the 
-src/R/modeling/h_deg_trajplot.R
 
 #IDE setup wishlist
-Copy text easily back from terminal
+Copy text easily back from terminal 	
 linting
 local copies of stuff.
 
-Snippets go here ~/Library/Application Support/Sublime Text 3/Packages/User/
-
-
-
-
 Good morning check: Is everything gitted?
+
+##############################
+###############Files
+##############################
+
+src/projectnotes.txt
+src/R/Modeling/errornotes.txt
+
+
+
+src/R/Psite_offsets
+src/R/Psite_offsets/segment_counts.R
+
+src/R/Rprofile.R
+src/R/Load_data/integrate_exprdata2.R
+src/R/TE_change/run_xtail.R
+
+#figure 1 scatter plots - homodirectional etc.
+#/Users/dharnet/bih_cluster/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Load_data/integrate_exprdata_3.R
+
+src/R/Psite_offsets/figure1_foldchangescatters.R
+
+src/R/Figures/figure1_scatters.R
+src/R/Psite_offsets/figure1_foldchangescatters.R
+src/R/go_term_funcs.R
+#src/R/Psite_offsets/fig1_go_cats.R
+src/R/Figures/fig1goplots_old.R
+src/R/Psite_offsets/figure1_myribowaltzplots.R
+src/R/Psite_offsets/figS1_river_detecttbl.R
+
+
+##figure 2
+#'throat clearing' of figure 2 - cumulative distribution plots etc.
+src/R/Load_data/figure2_TEdist.R
+#Get the tRNA levels
+src/tRNA_array_analysis.R
+#codon metacoverage data
+src/R/Load_data/codon_coverage.R
+#Now use it to produce various plots using codon coverage
+src/R/Figures/fig2_codon_occ.R
+
+Figure 3 
+src/R/Load_data/load_telley_etal.R
+src/R/Load_data/integrate_exprdata_trajplots.R
+
+
+Figure 4?
+#The file I'm currently using to load up data
+src/R/Modeling/degredation_confint_data.R
+#files this thing calls:
+src/R/Modeling/linearspline.R
+src/R/Modeling/linearsplinemathnotes.R
+
+#Currently the state of the art - this model now works okay, 
+src/R/Modeling/logspline.R
+
+#now being implemented in this script, which is calling hierarch and non hierarch version
+degredation_confint_data.R
+
+###unused
+#This is the analysis of morddret et al - they looked at the error rates of different codons during translation
+src/R/Figures/fig2_mordret_data.R
+
+#cluto clustering - showing it doesn't do much
+src/R/clutocluster.R
+
+Etc - meetings emails and things
+src/readnumstats.R
+
+
+Simple scatter plots vs MS.
+2020-07-01 09:40
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/singlestagescatters.R
+
+Redid cluto clustering
+2020-07-01 09:39
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/clutoclust2.R
+
+Plotting these
+2020-07-01 09:41
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/plot_clutoclusts2.R
+
+#go term plotting script
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/clustergos.R
+
+#ProDA for the proteomics
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/proDA.R
+
+#MuSiC plots
+/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/MuSiC.R

@@ -263,7 +263,29 @@ Can we see stem cell genes becoming quiescent?
  > "Neurons also maintain a subset of messenger RNAs in a translationally silent state, which react ‘on demand’ to intracellular and extracellular signals."
 Can we see this?
 
+https://science.sciencemag.org/content/364/6440/eaav2522.full?ijkey=sV49inhojeB2c&keytype=ref&siteid=sci
 
+"Temporal patterning of apical progenitors and their daughter neurons in the developing neocortex"
+
+>Together, our findings identify a combinatorial process in which cell type–specific neuronal identity emerges from the apposition of generic differentiation programs onto embryonic age–dependent, AP-derived transcriptional states. In this scenario, neuronal differentiation essentially corresponds to the implementation of programs coding for generic neuronal features (e.g., neurites, neurotransmission) onto temporally defined initial transcriptional states. This process is reminiscent of how neuron diversity is generated in evolutionarily older brain regions such as the subpallium or spinal cord (7, 24, 42, 43). 
+
+I'm suspicious this might be trivial. Like, generic differentiation programs have to be there. Defined states have to be there since there are defined endpoints. How could this NOT be true - if there were distinct types there originally waiting to differentiate. So are they saying that diff and temp components of the 
+
+>In evolutionary terms, temporal patterning may have been selected as the primary mode of neuron production within neocortical areas because it allows the generation of a large spectrum of cell types at low spatial cost.
+
+This is a non trivial, simple point, which I guess 
+
+>In the course of corticogenesis, APs progressively become more exteroceptive. This suggests that extrinsic factors modulate neurogenesis late in development.
+
+We see this I think.
+
+>These environment-dependent processes may occur in an area-specific manner and may account for the recently reported molecular diversity in corresponding adult neuronal types across cortical areas (10).
+
+
+https://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1005554
+
+PunchP and MS and microarray data. mRNA levels and protein abundance sig but limited positive cor - 0.46-0.48
+Talk about the size of the dynamic range, which seems... odd.
 
 
 ## Methods

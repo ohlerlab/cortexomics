@@ -6,11 +6,18 @@ library(data.table)
 library(magrittr)
 library(data.table)
 library('DeconRNASeq')
+library('here')
 
 signatures <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/ext_data/scharma_etal_proteomic/'
 
 scharmaxls <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics//ext_data/scharma_etal_proteomic/nn.4160-S15.xlsx'
 scharmafile <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/../ext_data/scharma_etal_proteomic/nn.4160-S15.munged.txt'
+
+exprdata <- here('pipeline/exprdata/transformed_data.txt')%>%fread
+gnamestbl <- here('pipeline/ids.txt')%>%fread
+exprdata %<>% inner_join(gnamestbl)
+
+
 if(!file.exists(scharmafile)){
   cells<-tidyxl::xlsx_cells(scharmaxls)
   #munge it
@@ -28,6 +35,7 @@ if(!file.exists(scharmafile)){
 }else{
   scharma<-read_tsv(scharmafile)
 }
+
 #filter only very differential genes
 scharma <- scharma[scharma$`Log2 Fold Expression:>ten fold expressed in atleast one cell type`%in%'+',]
 colnames(scharma)%<>%str_replace('NA:Gene names','gene_name')
@@ -55,9 +63,6 @@ ntegenes <- Sys.glob('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/
 
 #LFQsigs%>%rownames%>%is_in(tegenes)%>%table
 
-exprdata <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/exprdata/transformed_data.txt'%>%fread
-gnamestbl <- '/fast/groups/ag_ohler/work/dharnet_m/cortexomics/pipeline/ids.txt'%>%fread
-exprdata %<>% inner_join(gnamestbl)
 #exprdata<-exprdata%>%select(-gene_id,-gene_name)%>%as.data.frame%>%set_rownames(exprdata$gene_id)
 #impute data by mean and put back in df form
 exprdata <- 
@@ -72,6 +77,7 @@ exprdata <-
     {set_rownames(as.data.frame(select(.,-gene_id)),.$gene_id)}
 
 exprdata %>%head
+
 #exprdata %>%select('')
 stopifnot(mean(rownames(exprdata)%in%rownames(LFQsigs))>0.9)
 stopifnot(mean(rownames(LFQsigs)%in%rownames(exprdata))>0.5)
@@ -104,12 +110,13 @@ plotdf_te<-deconresults_cult$out.all%>%extractdecon
 deconresults_cult <- DeconRNASeq(exprdata[rownames(exprdata)%in%ntegenes,],LFQsigs_cultured)
 plotdf_nte<-deconresults_cult$out.all%>%extractdecon 
 
+pdf(here('plots/deconv/deconv.pdf')%T>%{dir.create(dirname(.));message(normalizePath(.))})
 ggpubr::ggarrange(plotdecon(plotdf_te)+ggtitle('TE Changing Genes'),plotdecon(plotdf_nte)+ggtitle('non TE Changing Genes'),nrow=2)
-
+dev.off()
 
 exprdata[gnamestbl%>%filter(gene_name=='Aif1')%>%pluck('gene_id'),]
 
-f
+
 
 ## Please refer our demo
 source("DeconRNASeq.R")
@@ -129,6 +136,8 @@ gnamestbl%>%filter(gene_name=='iba1')
 
 exprdata[]
 
+
+exprdata
 
 #' Initial tests with count data vs LFQs form Scharma, on log scale, are weird - mostly neurons, but this prop goes down in favor of oligodendrocytes, mainly
 
