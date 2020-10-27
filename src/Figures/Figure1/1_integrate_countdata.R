@@ -81,8 +81,8 @@ tx_countdata = tximport(files=allquantfiles,
 	importer=function(file){
 		read_tsv(file,col_types=cols())%>%
 			mutate(Name=str_extract(Name,'ENSMUST\\w+'))%>%
-			filter(Name%in%alltrs)%>%
-			arrange(match(Name,alltrs))
+			filter(Name%in%trs)%>%
+			arrange(match(Name,trs))
 })
 # test_that({
 	# txIdCol
@@ -124,7 +124,7 @@ ishighcount = tx_countdata$counts%>%
 	group_by(gene_id,time)%>%
 	summarise(ishighcount=sum(value)>=32)%>%
 	{setNames(.$ishighcount,.$gene_id)}
-	
+
 ishighcount = ishighcount[rownames(tx_countdata$counts)]
 
 highcountgenes = rownames(tx_countdata$counts)[ishighcount]

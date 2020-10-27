@@ -1,7 +1,27 @@
 ###REMEMBER - 
 /Users/dharnet/Dropbox/projects/cortexomics/manuscript/populate.sh
 
+
+
+####Presently:
+2020-10-27 09:42
+energy! OKay so lets do becker et al. Write this model locally with simmed data, classify.
+
+
+2020-10-26 15:40
+Okay so.... need to tidy up the shit for figure 2 so it looks nice.
+I think I can just use proDA and limma confidence intervals.
+Since they are basically diag normal, I can do protmu ~ estimated_prot,protvar!
+That model would have 5 ribo parameters, alpha, and lambda, and p0.
+I could test it (using our protsds as weight) against the fixed protein model, and deg only model, using chi squared tests like in BEcker et al 2018.
+
+
+
+
+
+
 #Methods
+
 
 Figure0
 Mass spec
@@ -23,12 +43,6 @@ We found a correlation of 0.97 in the log fold changes calclated by xtail and li
 
 For MS We first match gene_names to genes, then for genes with more than one MS id we 
 take the least missing, then most strongly expressed, ms id. 
-
-####Presently:
-2020-08-21 17:03
-Okay so spectral coefficients only VERY slightly more predictive than TPM In the yeast data
-Hopefully got data sorting issues resolved with scikit now
-
 
 
 
