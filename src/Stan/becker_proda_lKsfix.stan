@@ -9,15 +9,13 @@ data {
   real l_ribo_priorsd;
   real l_pihalf_priormu;
   real l_pihalf_priorsd;
+  real lKs;
 }
-transformed data{
-  vector[G] l_st; // the ratio of steady state ratio to ribo
-  for(g in 1:G) l_st[g] = -20;
-}
+
 parameters {
   matrix<lower=-10,upper=10>[G,T] lribo;  // log vector of ribo-seq levels
   vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
-  vector[G] lprot0; // initial LOG amount of protein
+  vector<lower=-20,upper=20>[G] lprot0; // initial LOG amount of protein
 }
 
 transformed parameters{
@@ -29,11 +27,11 @@ transformed parameters{
     //get Kd
     lKd = log(log(2)) -  l_pihalf;
     //get Ks
-    Ks = exp(l_st + lKd);
+    Ks = rep_vector(exp(lKs),G);
     ribo = exp(lribo);
     prot[,1] = exp(lprot0);
-    // print("Ks:");
-    // print(Ks);
+    // print("lKs:");
+    // print(lKs);
     // print("l_st:");
     // print(l_st);
     // print("lKd:");
@@ -50,21 +48,30 @@ transformed parameters{
       // we also can't do vectorized exponentiation, so we worth with lKd
       m = ribo[,i] - ribo[,i-1] ;
       prot[,i] = 
-        // (Ks .* ribo[,i-1])./exp(lKd) - 
-        // ((Ks .* m) ./ (exp(lKd*2))) + 
-        // ((Ks .* m)  ./ exp(lKd)) +
-        ((prot[,i-1])).*exp(-exp(lKd));
-        // print((Ks .* ribo[,i-1])./exp(lKd));
-        // print(((Ks .* m) ./ (exp(lKd*2))) );
-        // print(((Ks .* m)  ./ exp(lKd)) );
-        // print(((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd)));
-    }
-}
+        (Ks .* ribo[,i-1])./exp(lKd) - 
+        ((Ks .* m) ./ (exp(lKd*2))) + 
+        ((Ks .* m)  ./ exp(lKd)) +
+        ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
+      // prot[,i] = prot[,i] + exp(-5);
+       // for(g in 1:G){
+       //    for(t in 1:T){
+       //         if((prot[g,t]==0)||(log(prot[g,t])==-Inf)){
+       //        print((Ks .* ribo[,i-1])./exp(lKd));
+       //        print(((Ks .* m) ./ (exp(lKd*2))) );
+       //        print(((Ks .* m)  ./ exp(lKd)) );
+       //        print(((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd)));
+       //          }
+       //    }
+       //  }
 
+    }
+    // print("lprot:");
+    // print(log(prot));
+}
 
 model {
   // l_st ~ normal(0,l_st_priorsd);
-  // l_pihalf ~ normal(l_pihalf_priormu,l_pihalf_priorsd);
+  l_pihalf ~ normal(l_pihalf_priormu,l_pihalf_priorsd);
   for(g in 1:G){
     for(t in 1:T){
       lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);

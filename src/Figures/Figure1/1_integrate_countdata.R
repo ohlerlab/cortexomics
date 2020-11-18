@@ -244,6 +244,7 @@ totcols <- colnames(tpavdesign)%>%str_subset('total')
 tedesign = tpavdesign[,ribcols] - tpavdesign[,totcols]
 colnames(tedesign)%<>%str_replace('ribo','TE')
 tpavdesign%<>%cbind(tpavdesign, tedesign)
+
 countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 		message(datagroup)
 		topTable(eBayes(contrasts.fit(allcountebayes,tpavdesign[,datagroup,drop=F])),coef=1,number=Inf,confint=.95)%>%
@@ -253,6 +254,100 @@ countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 countpred_df%>%saveRDS('data/countpred_df.rds')
 tx_countdata%>%saveRDS('data/tx_countdata.rds')
 allvoom%>%saveRDS('data/allvoom.rds')
+
+
+
+# contrnames = as.list(contrnames)
+# contrnames = c(contrnames,lapply(tps[-1],function(tp){
+	# contrnames%>%str_subset(tp)
+# })%>%setNames(paste0('ribo_',tps[-1])))
+################################################################################
+########Contrasts df, (including riboseq, rather than TE)
+################################################################################
+
+	
+{
+tps = allcountdesign$time%>%unique
+contrnames = allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
+names(contrnames) = allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%str_replace('assayribo','TE')%>%str_replace(':','_')%>%str_replace('time','')%>%str_replace('(?=^[^T])','all_')
+contr = contrnames[1]
+
+stopifnot(contr %in% colnames(allcountebayes$design))
+
+countcontr_df<-	lapply(contrnames,function(contr){
+		topTable(allcountebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+countcontr_df%<>%separate(contrast,c('assay','time'))
+
+
+ribocountebayes <- eBayes(lmFit(allvoom[,11:20]))
+
+ribocontr_df<-	lapply(colnames(ribocountebayes$design)%>%str_subset(neg=T,'Inter|rep|ribo')%>%setNames(paste0('ribo_',tps[-1])),function(contr){
+		topTable(ribocountebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+ribocontr_df%<>%separate(contrast,c('assay','time'))
+
+countcontr_df <- bind_rows(countcontr_df,ribocontr_df)
+
+countcontr_df %>% saveRDS(here('data/countcontr_df.rds'))
+}
+
+################################################################################
+########Stepwise version
+################################################################################
+{
+desmat = allvoom$design
+tpcontrnames = desmat%>%colnames%>%str_subset('^time')
+for(i in 2:length(tpcontrnames)){
+	haslatr = desmat[,tpcontrnames[i]]==1
+	for(j in (i-1):1){
+		desmat[haslatr,tpcontrnames[j]]<- 1
+	}
+}
+tpcontrnames = desmat%>%colnames%>%str_subset('^assayribo:time')
+for(i in 2:length(tpcontrnames)){
+	haslatr = desmat[,tpcontrnames[i]]==1
+	for(j in (i-1):1){
+		desmat[haslatr,tpcontrnames[j]]<- 1
+	}
+}
+allvoomstep = allvoom
+allvoomstep$design = desmat
+
+stepallebayes = eBayes(lmFit(allvoomstep))
+
+{
+contrnames = stepallebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
+names(contrnames) = stepallebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%str_replace('assayribo','TE')%>%str_replace(':','_')%>%str_replace('time','')%>%str_replace('(?=^[^T])','all_')
+
+stepcountcontrdf<-	lapply(contrnames,function(contr){
+		topTable(stepallebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+stepcountcontrdf%<>%separate(contrast,c('assay','time'))
+
+
+ribocountebayes <- eBayes(lmFit(allvoom[,11:20]))
+
+ribocontr_df<-	lapply(colnames(ribocountebayes$design)%>%str_subset(neg=T,'Inter|rep|ribo')%>%setNames(paste0('ribo_',tps[-1])),function(contr){
+		topTable(ribocountebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+ribocontr_df%<>%separate(contrast,c('assay','time'))
+
+stepcountcontrdf <- bind_rows(stepcountcontrdf,ribocontr_df)
+eBayes(lmFit(allvoom))
+
+stepcountcontrdf %>% saveRDS(here('data/stepcountcontrdf.rds'))
+}
+}
+countcontr_df%>%group_by(gene_id)%>%group_slice(1)
+stepcountcontrdf%>%group_by(gene_id)%>%group_slice(1)
+
+allvoom %>% saveRDS(here('data/allvoom.rds'))
+
 
 #data.frame(trid=besttrs)%>%write_tsv('pipeline/scikitribotrs.txt',col_names=F)
 
@@ -280,8 +375,8 @@ if(F)test_that({
 
 
 
-save.image('data/1_integrate_countdata.R')
-load('data/1_integrate_countdata.R')
+# save.image('data/1_integrate_countdata.R')
+# load('data/1_integrate_countdata.R')
 
 #next
 # /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/TE_change/run_xtail.R

@@ -170,6 +170,7 @@ xtailtechangesumtable <- allxtail%>%group_by(gene_id,gene_name)%>%
   )
 
 xtailtechangesumtable%>%filter(ishighcount[gene_id])%>%write_tsv(here('tables/xtailTEchange.tsv'))
+read_tsv(here('tables/xtailTEchange.tsv'))
 
 
 # test_that('limma and xtial make some kind of sense',{

@@ -1757,6 +1757,25 @@ rule motscans:
         done
       """)
 
+
+rule ame:
+  input: 
+    fasta = 'motseqs/{reg}/{set}/{set}.fa',
+    pwmfolder='../ext_data/mouse_cisrbp/pwms_all_motifs'
+  output: touch('ame/{reg}/{set}/.done')
+  conda: '../envs/meme'
+  params: 
+    pwmfiles = lambda wc,input:[input.pwmfolder+'/' + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f if 'M287' in f],
+    outdir = lambda wc,output: output[0].replace('.done','')
+  shell: r"""
+    for pwmfile in {params.pwmfiles}; do
+      echo $pwmfile
+      pwmbase=$(basename ${{pwmfile%.txt.meme}})
+      rm -rf {params.outdir}/$pwmbase
+      ame --scoring totalhits --method fisher  --o {params.outdir}/$pwmbase --sequence {input.fasta} $pwmfile
+    done
+  """
+
 rule gquad_enrich:
   input:
     seqfile = 'motseqs/{reg}/{set}/{set}.fa',

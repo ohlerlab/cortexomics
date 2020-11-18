@@ -1,9 +1,17 @@
+################################################################################
+################################################################################
+base::source(here::here('src/R/Rprofile.R'))
+if(!exists("cdsgrl")) {
+	load('data/1_integrate_countdata.R')
+	base::source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure0/0_load_annotation.R")
+}
 library(scales)
 library(dplyr)
 
-library(conflicted)
-conflict_prefer("intersect", "dplyr")
-conflict_prefer("exprs", "Biobase")
+# conflict_prefer("intersect", "dplyr")
+# conflict_prefer("exprs", "Biobase")
+intersect = dplyr::intersect
+exprs = Biobase::exprs
 #A4 size is 8 by 11
 
 HIGHCOUNTTHRESH <- 32
@@ -113,13 +121,13 @@ txi_counttbl_reps <- tx_countdata$counts%>%
 	# mutate(highcount = allcountkeep[gene_id])%>%
 	mutate(highcount = Replicate_1+Replicate_2 >= HIGHCOUNTTHRESH)
 
-
+testgn = 'ENSMUSG00000064356'
 txi_tetbl_reps <- tx_countdata$abundance%>%as.data.frame%>%
 	rownames_to_column('gene_id')%>%
 	gather(dataset,val,-gene_id)%>%
 	separate(dataset,into=c('time','assay','replicate'))%>%
 	spread(assay,val)%>%
-	mutate(te = ribo - total)%>%
+	mutate(te = log2(ribo) - log2(total))%>%
 	select(gene_id,time,replicate,te)%>%
 	mutate(replicate = ifelse(replicate==1,'Replicate_1','Replicate_2'))%>%
 	spread(replicate,te)%>%
@@ -128,8 +136,30 @@ txi_tetbl_reps <- tx_countdata$abundance%>%as.data.frame%>%
 repcors = txi_counttbl_reps%>%group_by(time,assay)%>%filter(highcount)%>%summarise(cor=cor(use='complete',Replicate_1,Replicate_2))
 
 
+
 terepcors = txi_tetbl_reps%>%group_by(time)%>%filter(highcount)%>%filter(is.finite(Replicate_1))%>%
-	filter(is.finite(Replicate_2))%>%summarise(cor=cor(use='complete',Replicate_1,Replicate_2))
+	filter(is.finite(Replicate_2))%>%	filter(Replicate_1%>%between(-12,12))%>%
+	filter(Replicate_2%>%between(-12,12))%>%summarise(cor=cor(use='complete',Replicate_1,Replicate_2))
+
+txi_tetbl_reps%>%filter(gene_id==testgn)
+
+plotfile <- 'plots/figures/figure1/fig1b_b_tete.pdf'
+cairo_pdf(plotfile,w=12,h=3)
+txi_tetbl_reps%>%arrange(highcount)%>%
+	filter(Replicate_1%>%between(-12,12))%>%
+	filter(Replicate_2%>%between(-12,12))%>%
+ggplot(.,aes(x=((2^Replicate_1)),y=((2^Replicate_2)),color=highcount))+
+	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
+	geom_point(size=I(0.2))+
+	facet_grid( ~ time)+
+	scale_x_log10(name = 'TE Replicate 1',breaks = trans_breaks("log10", function(x) 10^x),
+              labels = trans_format("log10", math_format(10^.x)))+
+	scale_y_log10(name = 'TE Replicate 2',breaks = trans_breaks("log10", function(x) 10^x),
+              labels = trans_format("log10", math_format(10^.x)))+
+	geom_text(data=terepcors%>%mutate(text = paste0('rho = ',round(cor,3))),x=I(0),y=I(3),color=I('black'),aes(label=text))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
 
 
 #
@@ -192,22 +222,6 @@ dev.off()
 plotfile%>%normalizePath%>%message
 
 
-plotfile <- 'plots/figures/figure1/fig1b_b_tete.pdf'
-cairo_pdf(plotfile,w=12,h=3)
-ggplot(txi_tetbl_reps%>%arrange(highcount),aes(x=(2^Replicate_1),y=(2^Replicate_2),color=highcount))+
-	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
-	# scale_color_manual(values = stagecols)+
-	# scale_fill_manual(values=stagecols)+
-	geom_point(size=I(0.2))+
-	facet_grid( ~ time)+
-	scale_x_log10(name = 'TE Replicate 1',breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x)))+
-	scale_y_log10(name = 'TE Replicate 2',breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x)))+
-	geom_text(data=terepcors%>%mutate(text = paste0('p = ',round(cor,3))),x=1,y=4,color=I('black'),aes(label=text))+
-	theme_bw()
-dev.off()
-message(normalizePath(plotfile))
 
 {
 mRNAvals <- tx_countdata$abundance%>%
@@ -249,6 +263,7 @@ ggplot(
 dev.off()
 # 'plots/figures/fig1.pdf'%>%dirname%>%dir.create
 plotfile%>%normalizePath%>%message
+
 }
 
 {
@@ -260,13 +275,31 @@ mRNA_TE_tbl <- allvoom$E%>%as.data.frame%>%
 	spread(assay,val)%>%
 	group_by(gene_id,time)%>%
 	summarise(TE = mean(ribo) -  mean(total) )
-
+ribo_TE_tbl <- tx_countdata$abundance%>%as.data.frame%>%
+	rownames_to_column('gene_id')%>%
+	gather(dataset,val,-gene_id)%>%
+	separate(dataset,into=c('time','assay','replicate'))%>%
+	spread(assay,val)%>%
+	group_by(gene_id,time)%>%
+	summarise(TE = log2(mean(ribo)) -  log2(mean(total) ))
+ribotpms <- tx_countdata$abundance%>%
+	as.data.frame%>%rownames_to_column('gene_id')%>%
+	pivot_longer(-gene_id,names_to='dataset',values_to='TPM')%>%
+	separate(dataset,c('time','assay','rep'))%>%
+	filter(assay=='ribo')%>%
+	group_by(time,gene_id)%>%
+	summarise(TPM=log2(mean(TPM)))
 # mRNA_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='total')%>%select(gene_id,time,highcount)%>%distinct)
 mRNA_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='ribo')%>%distinct(gene_id,time,highcountribo = highcount))
 mRNA_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='total')%>%distinct(gene_id,time,highcountrna = highcount))
-mRNA_TE_tbl$highcount = ribo_TE_tbl$highcountribo & ribo_TE_tbl$highcountrna
+mRNA_TE_tbl$highcount = mRNA_TE_tbl$highcountribo & mRNA_TE_tbl$highcountrna
 mRNA_TE_tbl%<>%safe_left_join(mRNAvals%>%select(gene_id,time,TPM=val))
 mRNA_TE_tbl_cor<-mRNA_TE_tbl%>%filter(highcount)%>%group_by(time)%>%filter(is.finite(TPM+TE))%>%summarise(cor = cor(TPM,TE,use='complete'))
+ribo_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='ribo')%>%distinct(gene_id,time,highcountribo = highcount))
+ribo_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='total')%>%distinct(gene_id,time,highcountrna = highcount))
+ribo_TE_tbl$highcount = ribo_TE_tbl$highcountribo & ribo_TE_tbl$highcountrna
+ribo_TE_tbl%<>%safe_left_join(ribotpms)
+ribo_TE_tbl_cor<-ribo_TE_tbl%>%filter(highcount)%>%group_by(time)%>%filter(is.finite(TPM+TE))%>%summarise(cor = cor(TPM,TE,use='complete'))
 
 TErange = mRNA_TE_tbl%>%filter(highcount)%>%.$TE%>%2^.%>%range
 TPMrange = mRNA_TE_tbl%>%filter(highcount)%>%.$TPM%>%2^.%>%range
@@ -291,26 +324,10 @@ plotfile%>%normalizePath%>%message
 }
 
 {
-ribotpms <- tx_countdata$abundance%>%
-	as.data.frame%>%rownames_to_column('gene_id')%>%
-	pivot_longer(-gene_id,names_to='dataset',values_to='TPM')%>%
-	separate(dataset,c('time','assay','rep'))%>%
-	filter(assay=='ribo')%>%
-	group_by(time,gene_id)%>%
-	summarise(TPM=log2(mean(TPM)))
 
-ribo_TE_tbl <- tx_countdata$abundance%>%as.data.frame%>%
-	rownames_to_column('gene_id')%>%
-	gather(dataset,val,-gene_id)%>%
-	separate(dataset,into=c('time','assay','replicate'))%>%
-	spread(assay,val)%>%
-	group_by(gene_id,time)%>%
-	summarise(TE = log2(mean(ribo)) -  log2(mean(total) ))
-#
-ribo_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='ribo')%>%distinct(gene_id,time,highcountribo = highcount))
-ribo_TE_tbl%<>%safe_left_join(x=.,y=txi_counttbl_reps%>%filter(assay=='total')%>%distinct(gene_id,time,highcountrna = highcount))
-ribo_TE_tbl$highcount = ribo_TE_tbl$highcountribo & ribo_TE_tbl$highcountrna
-ribo_TE_tbl%<>%safe_left_join(ribotpms)
+
+
+
 #
 ribo_TE_tbl_cor<-ribo_TE_tbl%>%filter(highcount)%>%group_by(time)%>%summarise(cor = cor(TPM,TE))
 
@@ -342,14 +359,14 @@ plotfile%>%normalizePath%>%message
 # load('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')
 
 
-tx_countdata$abundance%>%as.data.frame%>%
-	rownames_to_column('gene_id')%>%
-	gather(dataset,val,-gene_id)%>%
-	separate(dataset,into=c('time','assay','replicate'))%>%
-	spread(assay,val)%>%
-	group_by(gene_id,time)%>%
-	filter(highcount)%>%
-	filter(gene_id=='ENSMUSG00000000003')
+# tx_countdata$abundance%>%as.data.frame%>%
+# 	rownames_to_column('gene_id')%>%
+# 	gather(dataset,val,-gene_id)%>%
+# 	separate(dataset,into=c('time','assay','replicate'))%>%
+# 	spread(assay,val)%>%
+# 	group_by(gene_id,time)%>%
+# 	filter(highcount)%>%
+# 	filter(gene_id=='ENSMUSG00000000003')
 
 
 ribo_TE_tbl%>%filter(TE==Inf)

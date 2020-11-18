@@ -1,13 +1,13 @@
-foldchangetblall_spread%>%head
+# foldchangetblall_spread%>%head
 # 
 library(topGO)
 source("src/R/Functions/go_term_funcs.R")
 
 
-signnum=1
+# signnum=1
 
-foldchangecatdf$sigstatus%>%table
-itime = 'P0'
+# foldchangecatdf$sigstatus%>%table
+# itime = 'P0'
 
 
 
@@ -57,8 +57,9 @@ dircol='up'
 my_background='all'
 minnodesize=20
 
-for(myontology in c('BP','MF','CC')) {
-  for(dircol in c('down','up')){
+# for(myontology in c('BP','MF','CC')) {
+for(myontology in c('MF')) {
+  for(dircol in c('down')){
     go_data <- new("topGOdata",
                    ontology = myontology,
                    allGenes = allTEchangedf[[dircol]]%>%as.numeric%>%as.factor%>%setNames(allTEchangedf$gene_id),
@@ -76,7 +77,7 @@ for(myontology in c('BP','MF','CC')) {
     results.tab%<>%mutate(elimFisher = as.numeric(elimFisher) )
     results.tab%<>%dplyr::mutate(gene_ratio = Significant/Annotated)
 
-    goplotfile=str_interp('plots/figures/figure1/goplot_minsize${minnodesize}_${myontology}_${my_stat}_${dircol}_vs_${my_background}.pdf')
+    goplotfile=str_interp('plots/figures/figure1/ggoplot_minsize${minnodesize}_${myontology}_${my_stat}_${dircol}_vs_${my_background}.pdf')
     pdf(goplotfile,w=6)
     print(plot_go_enrich(results.tab,sort_var = 'elimFisher',str_interp('minsize_${minnodesize}_${myontology}_${my_stat}_${dircol}_vs_${my_background}')))
     dev.off()

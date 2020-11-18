@@ -3,7 +3,11 @@
 
 
 
+
 ####Presently:
+2020-11-04 17:39
+Blurgh remember the TE levels in the limma object are meaningless - you need ot use the TPMs for those.
+
 2020-10-27 09:42
 energy! OKay so lets do becker et al. Write this model locally with simmed data, classify.
 

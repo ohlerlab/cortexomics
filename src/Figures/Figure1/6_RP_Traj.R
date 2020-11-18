@@ -6,11 +6,16 @@ rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
 
+  gid2gnm<-load_hashmap('gid2gnm.hmp')
+  gnm2gid<-load_hashmap('gnm2gid.hmp')
+  gnm2gid<-load_hashmap('gnm2gid.hmp')
+
+
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 countpred_df<-readRDS('data/countpred_df.rds')
 tx_countdata<-readRDS('data/tx_countdata.rds')
-
+allvoom <- readRDS(here('data/allvoom.rds'))
 prediction_df = bind_rows(
   sel_prodpreds%>%
     mutate(assay='MS')%>%
@@ -43,10 +48,10 @@ prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
 #' First we load the list of protein IDs, handpicked by Matt, using only the small
 #' or large subunits - no mitochondrial riboproteins  
 #define ambigous protein groups as those which have elements that appear in more than one protein group
-allpgroups <- mstall$Protein_IDs%>%unique
-multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
-all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
-library(data.table)
+# allpgroups <- mstall$Protein_IDs%>%unique
+# multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
+# all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
+# library(data.table)
 
 
 rpexprdf = exprdf%>%inner_join(ms_metadf%>%filter(is_rpl|is_rps))
@@ -64,7 +69,7 @@ ggdf = rpexprdf%>%
   group_by(gene_name,assay,time,cat)%>%
   summarise(signal=mean(signal,na.rm=TRUE))%>%
     group_by(gene_name,assay,cat)%>%
-    mutate(signal = signal - median(signal))
+    mutate(signal = signal - median(signal[time=='E13']))
 
 medggdf = ggdf%>%group_by(assay,cat,time)%>%summarise(signal = median(signal))
 
@@ -85,7 +90,7 @@ ggdf%>%
 dev.off()
 normalizePath(plotfile)
 
-
+stop()
 
 ################################################################################
 ########

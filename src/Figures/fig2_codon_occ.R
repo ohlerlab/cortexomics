@@ -43,37 +43,37 @@ dev.off()
 normalizePath(plotfile)
 
 
-offsets%<>%mutate(readlen=paste0('rl',length))
-pdf('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf',w=12,h=12)
-#plotting variance amongst codons at each point.
-codonprofiles%>%
-	ungroup%>%
-	group_by(sample,readlen,position)%>%
-	# filter(signal==0)%>%.$codon%>%unique
-	# filter(signal!=0)%>%
-	# filter(position==1)%>%
-	filter(!is.nan(signal))%>%
-	mutate(signal=occ_nonorm)%>%
-	summarise(sdsig=sd(signal,na.rm=T)/mean(signal,na.rm=T))%>%
-	separate(sample,c('time','assay','rep'))%>%
-	group_by(readlen,time,assay,position)%>%
-	summarise(sdsig=mean(sdsig))%>%
-	mutate(numreadlen=str_extract(readlen,'\\d+')%>%as.numeric)%>%
-	filter(position> -numreadlen+6,position < -6)%>%
-	filter(numreadlen>=25,numreadlen<=31)%>%
-	arrange(position)%>%
-	{
-		qplot(data=.,x=position,y=sdsig)+
-		theme_bw()+
-		facet_grid(readlen~time)+
-		scale_y_continuous('between codon variation (meannorm)')+
-		scale_x_continuous('5 read position relative to codon ')+
-		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
-		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)+
-		ggtitle("variance of 5' read occurance vs position")
-	}%>%print
-dev.off()
-normalizePath('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf')
+# offsets%<>%mutate(readlen=paste0('rl',length))
+# pdf('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf',w=12,h=12)
+# #plotting variance amongst codons at each point.
+# codonprofiles%>%
+# 	ungroup%>%
+# 	group_by(sample,readlen,position)%>%
+# 	# filter(signal==0)%>%.$codon%>%unique
+# 	# filter(signal!=0)%>%
+# 	# filter(position==1)%>%
+# 	filter(!is.nan(signal))%>%
+# 	mutate(signal=occ_nonorm)%>%
+# 	summarise(sdsig=sd(signal,na.rm=T)/mean(signal,na.rm=T))%>%
+# 	separate(sample,c('time','assay','rep'))%>%
+# 	group_by(readlen,time,assay,position)%>%
+# 	summarise(sdsig=mean(sdsig))%>%
+# 	mutate(numreadlen=str_extract(readlen,'\\d+')%>%as.numeric)%>%
+# 	filter(position> -numreadlen+6,position < -6)%>%
+# 	filter(numreadlen>=25,numreadlen<=31)%>%
+# 	arrange(position)%>%
+# 	{
+# 		qplot(data=.,x=position,y=sdsig)+
+# 		theme_bw()+
+# 		facet_grid(readlen~time)+
+# 		scale_y_continuous('between codon variation (meannorm)')+
+# 		scale_x_continuous('5 read position relative to codon ')+
+# 		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+# 		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)+
+# 		ggtitle("variance of 5' read occurance vs position")
+# 	}%>%print
+# dev.off()
+# normalizePath('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf')
 
 samplestage <- unique(codonprofiles$sample)%>%{setNames(stageconv[str_replace(.,'_.*?_.*?$','')],.)}
 pdf('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf',w=24,h=14)

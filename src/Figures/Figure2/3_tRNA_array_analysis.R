@@ -1,11 +1,11 @@
-
-library(GenomicFeatures)
-base::source(here::here('src/R/Rprofile.R'))
+################################################################################
+################################################################################
+if(!exists('safe_left_join'))base::source(here::here('src/R/Rprofile.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
 # base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
 trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
-
+library(GenomicFeatures)
 
 
 
@@ -63,10 +63,11 @@ weighted_codon_usage <- lapply(times, function(itime) {
 
 
 
-test_that('freq and weighted usage are very similiar',{
-    txtplot(usedcodonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage)
-    cor(usedcodonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage) > .95
-})
+# test_that('freq and weighted usage are very similiar',{
+#     txtplot(codonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage)
+#     expect_true(cor(codonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage) > .95)
+
+# })
 
 
 ################################################################################
@@ -79,6 +80,7 @@ hkgenes2use <- c("5S rRNA", "18S rRNA")
 #which reports to take data from
 alltRNAreps <- Sys.glob(here("ext_data/tRNA_data/*Rep*/*")) %>%
     str_subset("/[PT8][^/]+$")
+stopifnot(alltRNAreps%>%length%>%`>`(3))
 # data is pulled from a combination of report and 'test/'ctrl' status
 datasources <- tibble(
     file = c(alltRNAreps, alltRNAreps[1]),
@@ -170,9 +172,9 @@ allcodsig_isomerge <- allcodonsig %>%
     #note here we flip the dCt so the infinities don't effect the summation
     summarise(Ct = -logSumExp2(-Ct),dCt = -logSumExp2(-dCt),abundance= - dCt)%>%
     mutate(abundance=ifelse(abundance== -Inf,NA,abundance))
-#get balance - the residuals of the linear fit between abundance and weighted usage
+#get availability - the residuals of the linear fit between abundance and weighted usage
 allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
-    mutate(balance = map(data,~ {
+    mutate(availability = map(data,~ {
         l=nrow(.);
         lm(data=.,abundance ~ weightedusage)$residuals%>%
         {.[as.character(seq_len(l))]}
@@ -181,10 +183,10 @@ allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
 #now get the mean across replicates
 allcodsigmean_isomerge <- allcodsig_isomerge %>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
-    summarise_at(vars(one_of(c('Ct','dCt','abundance','balance'))),list(mean))
+    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
 allcodsigmean <- allcodonsig%>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
-    summarise_at(vars(one_of(c('Ct','dCt','abundance','balance'))),list(mean))
+    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
 # add codon info
 allcodsigmean_isomerge %<>% addcodon
 allcodsigmean %<>% addcodon
@@ -426,8 +428,8 @@ get_ws <- function(abundance, codons, # tRNA gene copy number
 
 
 weighted_aa_usage <- lapply(times, function(itime) {
-    aas <- DNAStringSet(colnames(usedcodonfreqs))%>%translate%>%as.character
-    split(1:ncol(usedcodonfreqs),aas)%>%lapply(function(cols)usedcodonfreqs[,cols,drop=F]%>%rowSums)%>%bind_cols%>%
+    aas <- DNAStringSet(colnames(codonfreqs))%>%translate%>%as.character
+    split(1:ncol(codonfreqs),aas)%>%lapply(function(cols)codonfreqs[,cols,drop=F]%>%rowSums)%>%bind_cols%>%
     as.matrix%>%    
      multiply_by( cdsexprdf[[itime]])%>%
      colSums%>%{./sum(.)}%>%
@@ -479,8 +481,8 @@ wus_tab_cors <- usage_v_abundance_df %>%
  # conflict_prefer('rename','dplyr')
 
 allcodsigmean_isomerge$ntime<-allcodsigmean_isomerge$time%>%as_factor%>%as.numeric
-sigcol=sym('balance')
-tRNAlmlist <- lapply(list(sym('abundance'), sym('balance')),function(sigcol){
+sigcol=sym('availability')
+tRNAlmlist <- lapply(list(sym('abundance'), sym('availability')),function(sigcol){
 # tRNAlmlist <- lapply(list(sym('abundance')),function(sigcol){
     #prep data for the lm
     tRNAlmdf<-allcodsigmean_isomerge%>%
@@ -514,12 +516,12 @@ tRNAlmlist <- lapply(list(sym('abundance'), sym('balance')),function(sigcol){
 left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','fraction','codon'))
 #
 tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','fraction','codon'))%>%
-    dplyr::rename('abundance_enrich':=value.x,'balance_enrich':=value.y)
+    dplyr::rename('abundance_enrich':=value.x,'availability_enrich':=value.y)
 
 # allcodsigmean_isomerge%>%filter(fraction=='Poly',time=='E13')%>%
 #     mutate(abundance=ifelse(abundance %in% -Inf,min(abundance[is.finite(abundance)],na.rm=T)-1,abundance))%>%
-#     mutate(balance=ifelse(balance %in% -Inf,min(balance[is.finite(balance)],na.rm=T)-1,balance))%>%
-#     {cor(.$abundance,.$balance)}
+#     mutate(availability=ifelse(availability %in% -Inf,min(availability[is.finite(availability)],na.rm=T)-1,availability))%>%
+#     {cor(.$abundance,.$availability)}
 pdf <- cairo_pdf
 fractions <- c("Poly", "Total")
 for (ifraction in fractions) {
@@ -558,7 +560,7 @@ for (ifraction in fractions) {
 # are and global frequency correlated? - AA level?
 pdf("plots/figures/figure2/trna_codons/AAusage_vs_summed_tRNAab.pdf")
 allcodsigmean_isomerge %>%
-    left_join(enframe(usedcodonfreqs %>% colSums(), "codon", "freq")) %>%
+    left_join(enframe(codonfreqs %>% colSums(), "codon", "freq")) %>%
     group_by(fraction, time, AA) %>%
     # slice(which.max(abundance))%>%
     # slice(which.max(freq))%>%
@@ -660,13 +662,13 @@ names(trs)%>%is_in(unique(ncrnas$gene_id))%>%table
 
 names(trs)%>%intersect(unique(ncrnas$gene_id))%>%head
 
-trs['ENSMUSG00000000031']
+# trs['ENSMUSG00000000031']
 
-gtf_gr%>%subset(gene_id=='ENSMUSG00000000031')
-
-
+# gtf_gr%>%subset(gene_id=='ENSMUSG00000000031')
 
 
+
+{
 
 ################################################################################
 ######## Now plot it
@@ -800,3 +802,4 @@ allcodsigmean$codon%<>%factor
 # allcodsigmean_pa %<>%
 #     safe_left_join(weighted_codon_usage) %>% 
 #     mutate(abundance = abundance / weightedusage)
+}

@@ -1,3 +1,4 @@
+
 #!udsr/bin/env Rscript
 	# facet_grid(scale='free',ifelse(model%in%names(assay2model),'Seq Data','MS') ~ . )+
 message('loading libraries')
@@ -513,7 +514,7 @@ all(featuredata$protein_id%in%allsegcounts_nz$protein_id)
 ################################################################################
 ########Manipulate the effects from spline space to linear space 
 ################################################################################
-
+# design(allcountebayes)
 {
 itime_modelmat<-model.matrix(~ 1 + ribo+MS+time+time:(ribo+MS),data=mscountvoomdesign%>%mutate(time=factor(tps[add(time,3)])))
 itime_modelmat%<>%set_colnames(itime_modelmat%>%colnames%>%str_replace('riboTRUE','TE')%>%str_replace('MSTRUE','MS_dev'))

@@ -1,9 +1,9 @@
-
+clusts<-clustlist[[1]]
+clusts$data%>%head
 make_cluster_trajplots<-function(clusts){
 	indata = clusts$data %||% stop()
 	plotname = clusts$name %||% stop()
     #process data for plot
- 
   ggdf =  indata%>%as.data.frame%>%rownames_to_column('gene_name')%>%
      gather(dataset,value,-gene_name)%>%
     separate(dataset,c('time','assay','rep'),extra='warn',fill='right')%>%
@@ -17,12 +17,17 @@ make_cluster_trajplots<-function(clusts){
     summarise(value = mean(value))%>%
     group_by(gene_name,assay)%>%
     mutate(value = value-mean(value,na.rm=T))
-    
+
+  assayorder =  distinct(ungroup(ggdf),assay)%>%arrange(assay=='MS',assay=='TE',assay=='ribo')%>%.$assay
+
+  ggdf$assay%<>%factor(assayorder)
+  limwidth = if(str_detect(plotname,'effect')) 2 else 4
+
   clutplot =ggplot(ggdf,aes(x=as_factor(time),y=value,group=gene_name,color=as.factor(clustern)))+
     #    geom_line(alpha=I(0.1))+
     geom_line(alpha=I(0.1))+
-    facet_grid(assay~clustern)+
-    coord_cartesian(ylim=c(-2,2))+
+    facet_grid(clustern ~ assay)+
+    coord_cartesian(ylim=c(-limwidth,limwidth))+
     scale_y_continuous('Centered log2-signal')+
     stat_summary(aes(x=as_factor(time),group=clustern,color=as.factor(clustern)),alpha=I(1),color=I('black'),fun=median, fun.min=median, fun.max = median, geom='line',linetype=2)+
     theme_bw()+
@@ -30,10 +35,9 @@ make_cluster_trajplots<-function(clusts){
     #now save
     here('plots/clusters/')%>%dir.create(showWarn=F)
     plotfile = here(paste0('plots/clusters/',plotname,'.pdf'))
-
-	cairo_pdf(w=16,h=12,plotfile%T>%{normalizePath(.)%>%message})
-	print(clutplot)
-	dev.off()
+    cairo_pdf(w=9,h=2*n_distinct(ggdf$clustern),plotfile%T>%{normalizePath(.)%>%message})
+    print(clutplot)
+    dev.off()
 
 }
 
@@ -70,11 +74,16 @@ make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
     fname
 })
 }
-
+clustlist[['Cluto_K10_Bis_large_exprlevels']]%>%make_cluster_trajplots
+clustlist[['Cluto_K10_Bis_large_t0_effect']]%>%make_cluster_trajplots
+clustlist[['Cluto_K10_Bis_large_stepwise_effect']]%>%make_cluster_trajplots
+clustlist[['Cluto_K20_Bis_large_stepwise_effect']]%>%make_cluster_trajplots
+stop()
 lapply(clustlist,make_cluster_trajplots)%>%unlist
 stop()
-imap(clustergos,make_cluster_goplots)
-clustlist[['Cluto_K10_Bis_large_voom_time_effects']]$cluster%>%{names(.)[.==1]}%>%na.omit
+if(FALSE){
+    imap(clustergos,make_cluster_goplots)
+    clustlist[['Cluto_K10_Bis_large_t0_effects']]$cluster%>%{names(.)[.==1]}%>%na.omit
 
-clustlist
-
+    clustlist    
+}

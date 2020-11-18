@@ -15,9 +15,25 @@ library(ggalluvial)
 # 'plots/figures/figureS1'%>%dir.create
 plotfile%>%dirname%>%dir.create(rec=TRUE)
 
-LOWCOUNTLIM <- 32
-allsegcounts%<>%separate(sample,into=c('time','assay','rep'))%>%group_by(protein_id,assay,time)%>%mutate(hascounts = sum(total)>LOWCOUNTLIM)
-allsegcounts%<>%unite(sample,time,assay,rep)
+# LOWCOUNTLIM <- 32
+# allsegcounts%<>%separate(sample,into=c('time','assay','rep'))%>%group_by(protein_id,assay,time)%>%mutate(hascounts = sum(total)>LOWCOUNTLIM)
+# allsegcounts%<>%unite(sample,time,assay,rep)
+
+#in annotation
+#in salmon (filterd because too short, etc)
+
+#detect in MS
+#detect in rnaseq
+#detect in riboseq
+
+#in ms table
+#matched to gene
+#in selected ms_ids
+
+
+
+
+stepstepprotcontrdf$gene_name%>%n_distinct
 
 
 {
@@ -34,32 +50,68 @@ count_detection_df <-
 	group_by(gene_id,time,assay)%>%
 	summarise(hascount = any(hascounts))
 
+
+count_detection_df$gene_id%>%inclusiontable(tx_countdata$counts%>%rownames)
+
+count_detection_df$gene_name=gid2gnm[[count_detection_df$gene_id]]
+
 # sampprotids <- sample(best_uprotein_ids,10)
 # sampprotids%<>%str_replace('_\\d+$','')
 
 count_detection_df$hascount%>%table
+
 }
+
+
 {
+proteinmsdata<-readRDS('data/proteinmsdata.rds')
 
-count_detection_df%>%group_by(assay,gene_id)%>%filter(all(hascount))%>%.$gene_id%>%n_distinct
-count_detection_df%>%group_by(assay,gene_id)%>%filter(!any(hascount))%>%.$gene_id%>%n_distinct
-count_detection_df%>%group_by(assay,gene_id)%>%filter(any(hascount),!all(hascount))%>%.$gene_id%>%n_distinct
-count_detection_df%>%.$gene_id%>%n_distinct
+msdetectdf = proteinmsdata%>%
+	filter(!is.na(gene_name))%>%
+ 	select(gene_name,matches('iBAQ.*input'))%>%
+ 	gather(dataset,signal,,-gene_name)%>%
+ 	mutate(gene_id=gnm2gid[[gene_name]])%>%
+ 	separate(dataset,c('sigtype','time','fraction','rep'))%>%
+ 	group_by(gene_name,gene_id,time)%>%
+ 	summarise(hascount=any(!is.na(signal)))%>%
+ 	mutate(time=str_replace(time,'p',''))
 
-stopifnot(all(ms_id2protein_id$gene_id %in% count_detection_df$gene_id))
+msdetectdf$gene_id = gnm2gid[[msdetectdf$gene_name]]
+timepoints <- count_detection_df$time%>%unique
+allids = count_detection_df%>%distinct(gene_id,gene_name)
 
-msdetection_df<-matched_ms%>%left_join(ms_id2protein_id%>%distinct(ms_id,gene_id))%>%group_by(gene_id,time)%>%summarise(hascount=any(!is.na(signal)))%>%
-	mutate(assay='MS')
 
-msdetection_df%<>%bind_rows(data.frame(gene_id=count_detection_df$gene_id%>%unique%>%setdiff(msdetection_df$gene_id)%>%rep(each=5),time=timepoints,hascount=FALSE,assay='MS'))
+msdetectdf%>%group_by(.,gene_id,time,hascount)%>%filter(n()>1)%>%group_slice(1)
+
+
+msdetection_df<-bind_rows(
+	msdetectdf,
+	data.frame(gene_id=allids$gene_id%>%unique%>%setdiff(msdetectdf$gene_id)%>%rep(each=5),time=timepoints,hascount=FALSE,assay='MS')
+)
+msdetection_df$assay='MS'
+msdetection_df%>%group_by(.,gene_id,time,hascount)%>%filter(n()>1)%>%group_slice(1)
+
 
 countriverdfall <- count_detection_df%>%
 	bind_rows(msdetection_df)
 
+countriverdfall%>%filter(is.na(gene_id))
+countriverdfall%>%filter(is.na(gene_name))
+
+countriverdfall$gene_name=gid2gnm[[countriverdfall$gene_id]]
+
+stopifnot(countriverdfall$assay%>%is.na%>%`!`%>%all)
+
+countriverdfall%>%group_by(.,gene_id,time,assay,hascount)%>%filter(n()>1)%>%group_slice(1)
+countriverdfall%>%distinct(.,gene_id,time,assay,hascount)%>%nrow
+countriverdfall%>%nrow
+
+stopifnot(countriverdfall%>%{nrow(distinct(.,gene_id,time,assay,hascount))==nrow(.)  })
 
 
 countriverdf<-countriverdfall%>%	group_by(assay,gene_id)%>%filter(!all(hascount),any(hascount))%>%
 	mutate(hascount = ifelse(hascount,'Detected','Not-Detected'))%>%
+	# ungroup%>%
 	spread(time,hascount)%>%
 	mutate(Annotated='Detected')
 
@@ -82,6 +134,7 @@ detecttbl_toprint<-countriverdfall%>%group_by(time,assay,hascount)%>%tally%>%fil
 	select(n_gene_ids_detected=n)%>%
 	bind_rows(data.frame(time='Annotation',assay='Annotation',n_gene_ids_detected=allids$gene_id%>%n_distinct),.)
 
+
 countriverdfall%>%group_by(time,assay,hascount)%>%tally%>%filter(hascount)%>%
 	select(n_gene_ids_detected=n)
 
@@ -89,6 +142,8 @@ countriverdfall%>%group_by(time,assay,hascount)%>%tally%>%filter(hascount)%>%
 (here('tables/manuscript/n_detections.tsv'))%>%dirname%>%dir.create
 detecttbl_toprint%>%write_tsv(here('tables/manuscript/n_detections.tsv'))
 
+
+countriverdfall%>%group_by(time,gene_id)%>%summarise(n=n_distinct(assay))%>%filter(n!=3)
 countriverdfall%>%group_by(time,gene_id)%>%filter(hascount[assay=='ribo'],!hascount[assay=='total'])%>%distinct(gene_id,time)%>%group_by(time)%>%tally
 countriverdfall%>%group_by(time,gene_id)%>%filter(!hascount[assay=='ribo'],hascount[assay=='total'])%>%distinct(gene_id,time)%>%group_by(time)%>%tally
 
@@ -122,8 +177,6 @@ gainlossdf%>%bind_rows(gainlosspcrows)%>%unite(tmp,still_present,lost,gained)%>%
 
 'tables/manuscript/assay_time_gainloss.tsv'%>%normalizePath
 
-
-
 }
 # # countriverdf%>%tail
 # # #For each protein ID get a factor 
@@ -149,7 +202,9 @@ gainlossdf%>%bind_rows(gainlosspcrows)%>%unite(tmp,still_present,lost,gained)%>%
 stopifnot(gainlossdfall%>%group_by(gene_id)%>%tally%>%.$n%>%table%>%n_distinct%>%`==`(1))
 
 filterfuncs <- list(
-	'_' = identity,'_detectchange_'=	.%>%filter(any(hascount))%>%filter(!all(hascount)),'_isdetected_'=.%>%filter(any(hascount))
+	'_' = identity,
+	'_detectchange_'=	.%>%filter(any(hascount))%>%filter(!all(hascount)),
+	'_isdetected_'=.%>%filter(any(hascount))
 )
 imap(filterfuncs,function(filterfunc,filtername){
 	countriverdflong <- gainlossdfall%>%

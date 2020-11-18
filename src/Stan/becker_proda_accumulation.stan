@@ -10,13 +10,10 @@ data {
   real l_pihalf_priormu;
   real l_pihalf_priorsd;
 }
-transformed data{
-  vector[G] l_st; // the ratio of steady state ratio to ribo
-  for(g in 1:G) l_st[g] = -20;
-}
+
 parameters {
+  vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lribo;  // log vector of ribo-seq levels
-  vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
   vector[G] lprot0; // initial LOG amount of protein
 }
 
@@ -26,6 +23,8 @@ transformed parameters{
     vector[G] lKd; // the degred
     vector[G] Ks; // the synthesis constant
     vector[G] m; // the slope in ribo/mRNA
+    vector[G] l_pihalf;  //log half life
+    l_pihalf = rep_vector(10,G);
     //get Kd
     lKd = log(log(2)) -  l_pihalf;
     //get Ks
@@ -50,17 +49,16 @@ transformed parameters{
       // we also can't do vectorized exponentiation, so we worth with lKd
       m = ribo[,i] - ribo[,i-1] ;
       prot[,i] = 
-        // (Ks .* ribo[,i-1])./exp(lKd) - 
-        // ((Ks .* m) ./ (exp(lKd*2))) + 
-        // ((Ks .* m)  ./ exp(lKd)) +
-        ((prot[,i-1])).*exp(-exp(lKd));
+        (Ks .* ribo[,i-1])./exp(lKd) - 
+        ((Ks .* m) ./ (exp(lKd*2))) + 
+        ((Ks .* m)  ./ exp(lKd)) +
+        ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
         // print((Ks .* ribo[,i-1])./exp(lKd));
         // print(((Ks .* m) ./ (exp(lKd*2))) );
         // print(((Ks .* m)  ./ exp(lKd)) );
         // print(((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd)));
     }
 }
-
 
 model {
   // l_st ~ normal(0,l_st_priorsd);

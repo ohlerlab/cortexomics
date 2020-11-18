@@ -76,8 +76,9 @@ exons%>%setdiff(cds,rev=TRUE)
 cts <- iso_tx_countdata$counts
 cts <- cts[rowSums(cts) > 0,]
 
-tx2genemap%>%head
-txdf = tx2genemap%>%select(GENEID=gene_id,TXNAME=transcript_id)%>%group_by(GENEID)%>%mutate(ntx=n())
+tx2genemap%<>%set_colnames(c('tr_id','g_id'))
+
+txdf = tx2genemap%>%select(GENEID=g_id,TXNAME=tr_id)%>%group_by(GENEID)%>%mutate(ntx=n())
 
 txdf <- txdf[match(rownames(cts),txdf$TXNAME),]
 all(rownames(cts) == txdf$TXNAME)
@@ -86,8 +87,8 @@ counts <- data.frame(gene_id=txdf$GENEID,
                      feature_id=txdf$TXNAME,
                      cts)
 library(DRIMSeq)
-allcountdesign%<>%mutate(sample_id=sample)
-d <- dmDSdata(counts=counts, samples=allcountdesign)
+allcountdesign%<>%mutate(sample_id=dataset)
+d <- dmDSdata(counts=counts, samples=allcountdesign%>%as.data.frame)
 n.small = allcountdesign%>%group_by(time,assay)%>%tally%>%.$n%>%min
 n = nrow(allcountdesign)
 d <- dmFilter(d,
@@ -100,7 +101,7 @@ design_full <- model.matrix(~assay*time, data=DRIMSeq::samples(d))
 
 
 #Run drimseq
-d = d[1:500,]
+d = d
 d <- dmPrecision(d, design=design_full)
 d <- dmFit(d, design=design_full)
-d <- dmTest(d, '')
+d <- dmTest(d6 vbgt556655ee.  rrrr r )

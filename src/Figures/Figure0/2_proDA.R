@@ -3,14 +3,13 @@
 ########This (hopefully final) version of the script uses deepshape prime
 ########to quantify Riboseq data
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
+	# base::source(here::here('src/R/Rprofile.R'))
+	# if(!exists('tx_countdata'))load('data/1_integrate_countdata.R')
 	base::source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure0/0_load_annotation.R")
 }
 
 #mcols(cds)[,c('transcript_id','gene_id')]%>%as.data.frame%>%
-if(!exists('tx_countdata'))load('data/1_integrate_countdata.R')
-gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]])}
 
 # msid2pid = metainfo%>%
 # 	distinct(ms_id,protein_id)%>%
@@ -118,119 +117,11 @@ colnames(ms_mat) <- colnames(ms_mat)%>%
 	str_replace('rep','')%>%
 	str_replace('p(\\d)','\\1')
 ms_mat = proDA::median_normalization(ms_mat)
+
+################################################################################
+########Now run proDA
+################################################################################
 	
-################################################################################
-########Import it all to get tr length scaled counts
-################################################################################
-{	
-library(tximport)
-library(tidyverse)
-
-rnasalmonfiles = Sys.glob(here('pipeline/salmon/data/*total*/quant.sf'))
-dpoutfiles = Sys.glob(here('pipeline/deepshapeprime/fakesalmonfiles/*ribo*/*'))
-
-allquantfiles = c(rnasalmonfiles,dpoutfiles)
-names(allquantfiles) <- allquantfiles%>%dirname%>%basename
-
-dptrs = dpoutfiles[[1]]%>%fread%>%.$Name
-salmontrs = allquantfiles[[1]]%>%fread%>%.$Name%>%str_extract('ENSMUST\\w+')
-# inclusiontable(dptrs,salmontrs)
-trs = intersect(dptrs,salmontrs)
-
-
-####KEY STEP
-ms_trs = intersect(trs,ms_transcripts)
-
-ms_tx_countdata = tximport(files=allquantfiles,
-	ignoreTxVersion=TRUE,
-	tx2gene=mcols(cds)[,c('transcript_id','gene_id')]%>%as.data.frame%>%distinct(transcript_id,gene_id),
-	type='salmon',
-	countsFromAbundance='scaledTPM',
-	importer=function(file){
-		read_tsv(file,col_types=cols())%>%
-			mutate(Name=str_extract(Name,'ENSMUST\\w+'))%>%
-			filter(Name%in%ms_trs)%>%arrange(match(Name,trs))
-})
-
-randomround = function(x)floor(x)+rbinom(length(x),1,x%%1)
-ms_tx_countdata$counts%<>%as.data.frame%>%
-	mutate_all(randomround)%>%
-	as.matrix%>%
-	set_rownames(rownames(ms_tx_countdata$counts))
-
-ms_tx_countdata$counts%>%as.data.frame%>%
-	rownames_to_column('gene_id')%>%
-	mutate(gene_name = gid2gnm[[gene_id]])%>%
-	select(-gene_id)%>%select(gene_name,everything())%>%
-	mutate_at(vars(-gene_name),list(randomround))%>%
-	write_tsv('data/ms_tx_scaled_countData.tsv')
-}
-
-{
-sharedgenes = intersect(ms_tx_countdata$abundance%>%rownames,tx_countdata$abundance%>%rownames)
-
-quicktest(
-	log2(ms_tx_countdata$abundance[sharedgenes,1]),
-	log2(tx_countdata$abundance[sharedgenes,1])
-)
-ms_matgidrows <- ms_mat%>%set_rownames(proteinmsdatamatch$g_id)
-mssharedgenes <- intersect(rownames(ms_matgidrows),
-	intersect(
-		ms_tx_countdata$abundance[,]%>%rownames,
-		tx_countdata$abundance[highcountgenes,]%>%rownames)
-		)
-
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(tx_countdata$abundance[mssharedgenes,'E13_total_1'])
-)
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
-)
-
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_total_1'])
-)
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
-)
-
-#also test salmon tpms for ribo
-salmonribo = tximport(files= Sys.glob(here('pipeline/salmon/data/*ribo*/quant.sf')),
-	ignoreTxVersion=TRUE,
-	tx2gene=mcols(cds)[,c('transcript_id','gene_id')]%>%as.data.frame%>%distinct(transcript_id,gene_id),
-	type='salmon',
-	countsFromAbundance='scaledTPM',
-	importer=function(file){
-		read_tsv(file,col_types=cols())%>%
-			mutate(Name=str_extract(Name,'ENSMUST\\w+'))%>%
-			filter(Name%in%ms_trs)%>%arrange(match(Name,trs))
-})
-salmonribogenes = salmonribo$abundance%>%rownames
-srshgenes = intersect(mssharedgenes,salmonribogenes)
-
-quicktest(
-	(ms_tx_countdata$abundance[srshgenes,'E13_ribo_1']),
-	(salmonribo$abundance[srshgenes,1])
-)
-
-quicktest(
-	(ms_tx_countdata$counts[srshgenes,'E13_ribo_1']),
-	(salmonribo$counts[srshgenes,1])
-)
-ms_tx_countdata$counts[srshgenes,'E13_ribo_1']%>%sum%>%divide_by(1e6)
-salmonribo$counts[srshgenes,1]%>%sum%>%divide_by(1e6)
-}
-
-
-
 
 
 
@@ -240,20 +131,45 @@ sample_info_df <- data.frame(name = colnames(ms_mat),
 sample_info_df$time <- sample_info_df$name%>%str_extract('[^_]+')
 sample_info_df$assay <- sample_info_df$name%>%str_extract('(?<=_)[^_]+')
 
-proDAfitms <- proDA::proDA(
+
+if(!file.exists(here('data/proDAfitms.rds'))){
+	proDAfitms <- proDA::proDA(
 			ms_mat, design = ~ time, 
             col_data = sample_info_df%>%filter(assay=='MS'),
             # reference_level = "E13"
             reference_level = NULL
 )
+	saveRDS(proDAfitms,here('data/proDAfitms.rds'))
+}else{
+	proDAfitms<-readRDS(here('data/proDAfitms.rds'))
+}
+tps = sample_info_df$time%>%unique
+sample_info_df[[tps[[1]]]]=TRUE
+for(i in seq_along(tps)){
+	sample_info_df[[tps[i]]] = sample_info_df[['time']]%in%tps[length(tps):i]
+}
+stepdesign = as.formula(paste0('~',paste0(collapse='+',tps[-1])))
+
+if(!file.exists(here('data/stepproDAfitms.rds'))){
+		
+	stepproDAfitms <- proDA::proDA(
+				ms_mat, design = stepdesign, 
+	            col_data = sample_info_df%>%filter(assay=='MS'),
+	            # reference_level = "E13"
+	            reference_level = NULL
+	)
+	saveRDS(stepproDAfitms,here('data/stepproDAfitms.rds'))
+}else{
+	stepproDAfitms<-readRDS(here('data/stepproDAfitms.rds'))
+}
 
 
-#get predictions
-predmat = proDA::predict(proDAfitms)
-preddf = predmat%>%as.data.frame%>%
-	rownames_to_column('ms_id')%>%
-	gather(dataset,estimate,-ms_id)%>%
-	separate(dataset,c('time','assay','rep'))
+# #get predictions
+# predmat = proDA::predict(proDAfitms)
+# preddf = predmat%>%as.data.frame%>%
+# 	rownames_to_column('ms_id')%>%
+# 	gather(dataset,estimate,-ms_id)%>%
+# 	separate(dataset,c('time','assay','rep'))
 
 timevals = paste0('time',sample_info_df$time%>%unique%>%tail(-1))%>%setNames(.,.)
 
@@ -270,9 +186,9 @@ times = sample_info_df%>%filter(assay=='MS')%>%.$time%>%unique
 # })a
 # proda_pref_ses = proda_pref_ses%>%map_df(.id='ms_id',~enframe(setNames(.,times),'time','se'))
 #now create confidence intervals
-preddf = preddf%>%safe_left_join(proda_pref_ses,by=c('ms_id','time'))%>%
-	mutate(CI.L = estimate - (1.96*se))%>%
-	mutate(CI.R = estimate + (1.96*se))
+# preddf = preddf%>%safe_left_join(proda_pref_ses,by=c('ms_id','time'))%>%
+	# mutate(CI.L = estimate - (1.96*se))%>%
+	# mutate(CI.R = estimate + (1.96*se))
 
 contrasts = lapply(1:5,function(.) as.numeric(1:5%in%c(1,.)))
 contrasts%<>%setNames(times)
@@ -284,7 +200,35 @@ preddf <- preddf %>%
 	mutate(CI.L = diff - (se*1.96))%>%
 	mutate(CI.R = diff + (se*1.96))
 #also add the se se to the E13 ones, they don't have it for some reason
-preddf%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,))
+preddf%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,se))
+
+
+contrasts = lapply(1:5,function(.) as.numeric(1:5%in%c(.)))%>%setNames(tps)
+contrdf<- map_df(.id='time',contrasts[-1], ~proDA::test_diff(proDAfitms,contrast=.))
+contrdf%<>%rename('ms_id'='name')
+
+contrdf <- contrdf %>% 	
+	mutate(estimate=diff)%>%
+	mutate(CI.L = diff - (se*1.96))%>%
+	mutate(CI.R = diff + (se*1.96))
+#also add the se se to the E13 ones, they don't have it for some reason
+contrdf%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,se))
+
+
+
+# proDA::test_diff(stepproDAfitms,contrast='P0TRUE')
+contrasts = paste0(tps[-1],'TRUE')%>%setNames(tps[-1])
+stepstepprotcontrdf<- map_df(.id='time',contrasts, ~ proDA::test_diff(stepproDAfitms,contrast=.))
+stepstepprotcontrdf$time%<>%str_replace('TRUE','')
+stepstepprotcontrdf%<>%rename('ms_id'='name')
+
+stepstepprotcontrdf <- stepstepprotcontrdf %>% 	
+	mutate(estimate=diff)%>%
+	mutate(CI.L = diff - (se*1.96))%>%
+	mutate(CI.R = diff + (se*1.96))
+#also add the se se to the E13 ones, they don't have it for some reason
+stepstepprotcontrdf%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,se))
+
 
 # prodalfcs <- prodalfcs%>%mutate(time=time%>%str_replace('time',''))%>%
 # 	mutate(CI.L = diff - (1.96*se))%>%a
@@ -345,17 +289,6 @@ ms_metadf <- tibble(
 	median = ms_mat%>%matrixStats::rowMedians(.)
 )
 
-#add number of missing stages
-ms_metadf <- ms_metadf%>%safe_left_join(by='gene_id',
-	sel_ms_mat[,]%>%
-    as.data.frame%>%
-    rownames_to_column('gene_id')%>%
-    # filter(!is.na(gene_id))%>%
-    gather(dataset,signal,-gene_id)%>%
-    separate(dataset,into=c('time','assay','replicate'))%>%
-    group_by(gene_id,time)%>%summarise(missing=all(is.na(signal)))%>%
-    summarise(n_stagemissing=sum(missing))
-)
 
 ################################################################################
 ########Identify ribosomal proteins
@@ -381,17 +314,63 @@ preddf%<>%safe_left_join(distinct(ms_metadf,gene_name,gene_id,ms_id))
 
 sel_ms_ids = ms_metadf%>%group_by(gene_name)%>%
 	arrange(n_missing,desc(median))%>%slice(1)%>%.$ms_id
+ms_metadf$best = ms_metadf$ms_id %in% sel_ms_ids
+# ms_metadf%>%group_by(gene_name)%>%filter(gene_id==tgene)%>%
+# 	arrange(n_missing,desc(median))%>%slice(1)%>%.$ms_id
 
+
+contrdf = contrdf%>%safe_left_join(ms_metadf%>%select(ms_id,gene_id,gene_name))%>%
+	filter(ms_id %in% sel_ms_ids)
+
+stepstepprotcontrdf <- stepstepprotcontrdf%>%safe_left_join(ms_metadf%>%select(ms_id,gene_id,gene_name))%>%
+	filter(ms_id %in% sel_ms_ids)
 
 sel_ms_mat <- ms_mat
 sel_ms_mat = sel_ms_mat[sel_ms_ids,]
 rownames(sel_ms_mat) = proteinmsdatamatch$g_id[match(rownames(sel_ms_mat),proteinmsdatamatch$ms_id)]
-sel_prodpreds <- preddf%>%filter(gene_id %in% rownames(sel_ms_mat))
+sel_prodpreds <- preddf%>%filter(ms_id %in% sel_ms_ids)
 
 proDAfitms%>%saveRDS('data/proDAfitms.rds')
 sel_prodpreds%>%saveRDS('data/sel_prodpreds.rds')
 sel_ms_mat%>%saveRDS('data/sel_ms_mat.rds')
-ms_metadf%>%write_tsv('tables/ms_metadf.tsv')
+contrdf%>%saveRDS('data/contrdf.rds')
+stepstepprotcontrdf%>%saveRDS('data/stepcontrdf.rds')
+
+proDAfitms<-readRDS('data/proDAfitms.rds')
+sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
+sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
+contrdf<-readRDS('data/contrdf.rds')
+
+
+
+#add number of missing stages
+ms_metadf <- ms_metadf%>%safe_left_join(by='gene_id',
+	sel_ms_mat[,]%>%
+    as.data.frame%>%
+    rownames_to_column('gene_id')%>%
+    # filter(!is.na(gene_id))%>%
+    gather(dataset,signal,-gene_id)%>%
+    separate(dataset,into=c('time','assay','replicate'))%>%
+    group_by(gene_id,time)%>%summarise(missing=all(is.na(signal)))%>%
+    summarise(n_stagemissing=sum(missing))
+)
+
+#add number of missing stages
+# ms_metadf <- ms_metadf%>%safe_left_join(by='gene_id',
+anymissingdf = sel_ms_mat[,]%>%
+    as.data.frame%>%
+    rownames_to_column('gene_id')%>%
+    # filter(!is.na(gene_id))%>%
+    gather(dataset,signal,-gene_id)%>%
+    separate(dataset,into=c('time','assay','replicate'))%>%
+    group_by(gene_id,time)%>%summarise(missing=any(is.na(signal)))%>%
+    mutate(time = paste0(time,'_anymissing'))%>%
+    spread(time,missing)
+
+ms_metadf <- ms_metadf%>%safe_left_join(anymissingdf,by='gene_id')
+
+ms_metadf%>%saveRDS('data/ms_metadf.rds')
+
 
 if(F){
 	testgname='Magohb'
