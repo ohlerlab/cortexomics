@@ -21,6 +21,9 @@ proteinmsdata$gene_name%>%inclusiontable(cds$gene_name)
 
 proteinmsdata$gene_name%>%setdiff(cds$gene_name)
 
+
+
+
 proteinsequences = GenomicFeatures::extractTranscriptSeqs(cdsgrl,x=FaFile('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'))
 aaproteinsequences = translate(proteinsequences)
 

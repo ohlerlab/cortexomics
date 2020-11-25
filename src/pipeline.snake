@@ -140,7 +140,26 @@ nontestribosamples = list(filter(lambda x: not 'test' in x,ribosamples))
 
 # motseqsets = ['translregged','uptranslregged','downtranslregged','xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
 motseqsets = ['xtailtranslregged','xtaildowntranslregged','xtailuptranslregged','randomset']
-motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
+# motseqregions = ['CDS','three_prime_UTR','five_prime_UTR']
+#ame/cds/techangegenes/.done
+motseqregions = [
+#'tr',
+#'cds',
+#'fputr',
+'tputr'
+]
+motseqsets = [ 
+  # 'techangegenes',
+  # 'teupgenes',
+  # 'tedowngenes',
+  # 'extrtechangegenes',
+  # 'extrteupgenes',
+  # 'extrtedowngenes',
+  # 'teupgeneslmatch',
+  # 'tedowngeneslmatch'
+  'teupgenesshuff',
+  'tedowngenesshuff'
+]
 
 
 
@@ -200,14 +219,15 @@ rule all:
     # expand("SaTAnn/{sample}/.done", sample = ribosamples),
     # expand('riboqc/reports/{sample}/riboqcreport.html', sample = ribosamples+groupnames),
     # expand('motscans/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
+    expand('ame/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('motifs/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('riboWaltz/{sample}/.done',sample=ribosamples),
     # expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
-    expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
-    expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
-    expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples),
-    expand('scikit_ribo/{sample}/codons.csv',sample=mainribosamples)
+    # expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
+    # expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
+    # expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples),
+    # expand('scikit_ribo/{sample}/codons.csv',sample=mainribosamples)
 
 MINREADLENGTH=12
 MAXREADLENGTH=300
@@ -1697,34 +1717,34 @@ rule reg_seqs:
 #Things we want to search for motifs - anything that's translationally reuglated
 #later, clusters
 
-rule motseqs:
-  input:'ribodiff/.done','exprdata/allcounts_snorm.tsv',GFF,REF,  
-  output: 
-    touch('motseqs/.done'),
-    expand('motseqs/{reg}/{set}/{set}.fa',reg=motseqregions,set=motseqsets)
-  run:
-    input[0]=input[0].replace('.done','')
-    shell(r"""
-      Rscript ../exploration/createseqmot_background.R {input} $(dirname {output})
-    """)
+# rule motseqs:
+#   input:'ribodiff/.done','exprdata/allcounts_snorm.tsv',GFF,REF,  
+#   output: 
+#     touch('motseqs/.done'),
+#     expand('motseqs/{reg}/{set}/{set}.fa',reg=motseqregions,set=motseqsets)
+#   run:
+#     input[0]=input[0].replace('.done','')
+#     shell(r"""
+#       Rscript ../exploration/createseqmot_background.R {input} $(dirname {output})
+#     """)
 
-rule motifs:
-  input: 'motseqs/{reg}/{set}/{set}.fa'
-  output: touch('motifs/{reg}/{set}/.done')
-  run: 
-    outputdir = os.path.dirname(output[0])
-    background = input[0].replace('.fa','_background.fa')
-    nontransbackground = os.path.dirname(os.path.dirname(input[0]))+'/nontransregged.fa'
-    shell(r"""set -x
-      source activate meme
-      mkdir -p {outputdir}_dreme {outputdir}_dreme_rback {outputdir}_dreme_ntback
+# rule motifs:
+#   input: 'motseqs/{reg}/{set}/{set}.fa'
+#   output: touch('motifs/{reg}/{set}/.done')
+#   run: 
+#     outputdir = os.path.dirname(output[0])
+#     background = input[0].replace('.fa','_background.fa')
+#     nontransbackground = os.path.dirname(os.path.dirname(input[0]))+'/nontransregged.fa'
+#     shell(r"""set -x
+#       source activate meme
+#       mkdir -p {outputdir}_dreme {outputdir}_dreme_rback {outputdir}_dreme_ntback
 
-      dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_ntback  -n {nontransbackground} 2>&1 > {outputdir}_dreme_rback/enlist.txt
+#       dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_ntback  -n {nontransbackground} 2>&1 > {outputdir}_dreme_rback/enlist.txt
 
-      dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme -n {background} 2>&1 > {outputdir}_dreme/enlist.txt
+#       dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme -n {background} 2>&1 > {outputdir}_dreme/enlist.txt
 
-      # dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_rback  2>&1 > {outputdir}_dreme_rback/enlist.txt
-    """)
+#       # dreme-py3 -e 0.05 -mink 4 -maxk 12 -p {input} -norc  -oc {outputdir}_dreme_rback  2>&1 > {outputdir}_dreme_rback/enlist.txt
+#     """)
     # shell(r"""findMotifs.pl -p {threads} {input} fasta {outputdir} -fastaBg {background} """)
     # shell(r"""findMotifs.pl -p {threads} {input} fasta {outputdir}_randbackground  """)
 
@@ -1737,43 +1757,60 @@ rule motifs:
 pwmfolder = '../ext_data/mouse_cisrbp/pwms_all_motifs/'
 pwms = list(filter(lambda f: '.meme' in f, list(os.walk(pwmfolder))[0][2]))
 
-rule motscans:
-  input: fasta='motseqs/{reg}/{set}/{set}.fa',pwmfolder='../ext_data/mouse_cisrbp/pwms_all_motifs'
-  output: touch('motscans/{reg}/{set}/.done')
-  run:
-    backgroundfasta = input.fasta.replace('.fa','_background.fa')
-    pwmfolder = input['pwmfolder']+'/'
-    pwmfiles = [pwmfolder + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f]
-    pwmfiles = [ f for f in pwmfiles if 'M287' in f]
-    outputdir = os.path.dirname(output[0])
-    shell(r"""
-        source activate meme
-        for pwmfile in {pwmfiles}; do
-          echo $pwmfile
-          pwmbase=$(basename ${{pwmfile%.txt.meme}})
-          rm -rf {outputdir}/$pwmbase
-          mast -ev 1 --o {outputdir}/$pwmbase $pwmfile {input.fasta} 
-          mast -ev 1 --o {outputdir}/${{pwmbase}}_background $pwmfile {backgroundfasta} 
-        done
-      """)
+# rule motscans:
+#   input: fasta='motseqs/{reg}/{set}/{set}.fa',pwmfolder='../ext_data/mouse_cisrbp/pwms_all_motifs'
+#   output: touch('motscans/{reg}/{set}/.done')
+#   run:
+#     backgroundfasta = input.fasta.replace('.fa','_background.fa')
+#     pwmfolder = input['pwmfolder']+'/'
+#     pwmfiles = [pwmfolder + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f]
+#     pwmfiles = [ f for f in pwmfiles if 'M287' in f]
+#     outputdir = os.path.dirname(output[0])
+#     shell(r"""
+#         source activate meme
+#         for pwmfile in {pwmfiles}; do
+#           echo $pwmfile
+#           pwmbase=$(basename ${{pwmfile%.txt.meme}})
+#           rm -rf {outputdir}/$pwmbase
+#           mast -ev 1 --o {outputdir}/$pwmbase $pwmfile {input.fasta} 
+#           mast -ev 1 --o {outputdir}/${{pwmbase}}_background $pwmfile {backgroundfasta} 
+#         done
+#       """)
 
+def getamectrlstring(wc,input):
+  if 'ranked' in wc.set:
+    ctrlstring = ''
+  elif 'shuff' in wc.set:
+    ctrlstring = '--control --shuffle-- --kmer 2 '
+  else:
+    ctrlstring = '--control '+input.fasta.replace('.fa', '.background.fa')
+  return ctrlstring
+
+
+def getamefasta(wc):
+  reg = wc['reg']
+  inset = wc['set']
+  inset = inset.replace('shuff','')
+  return 'motseqs/'+reg+'/'+inset+'/'+inset+'.fa'
 
 rule ame:
   input: 
-    fasta = 'motseqs/{reg}/{set}/{set}.fa',
-    pwmfolder='../ext_data/mouse_cisrbp/pwms_all_motifs'
-  output: touch('ame/{reg}/{set}/.done')
+    fasta = getamefasta ,
+    pwmfile='../ext_data/motif_databases/CISBP-RNA/Mus_musculus.meme'
+      #pwmfile='../ext_data/mouse_cisrbp/pwms_all_motifs/M317_0.6.txt.meme'
+  output: touch('ame/{reg}/{set}/.done'),'ame/{reg}/{set}/all/ame.html'
   conda: '../envs/meme'
   params: 
-    pwmfiles = lambda wc,input:[input.pwmfolder+'/' + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f if 'M287' in f],
-    outdir = lambda wc,output: output[0].replace('.done','')
+    # pwmfiles = lambda wc,input:[input.pwmfolder+'/' + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f if 'M287' in f],
+    outdir =   lambda wc,output: output[0].replace('.done', ''),
+    ctrlstr =  getamectrlstring
   shell: r"""
-    for pwmfile in {params.pwmfiles}; do
-      echo $pwmfile
-      pwmbase=$(basename ${{pwmfile%.txt.meme}})
-      rm -rf {params.outdir}/$pwmbase
-      ame --scoring totalhits --method fisher  --o {params.outdir}/$pwmbase --sequence {input.fasta} $pwmfile
-    done
+      rm -rf {params.outdir}
+      mkdir -p {params.outdir}
+      ame --scoring totalhits --method fisher {params.ctrlstr} --o {params.outdir}/all --sequence {input.fasta} {input.pwmfile} 
+      [[ -s {params.outdir}/all/ame.html ]]  || rm {params.outdir}/all/ame.html
+
+   # done
   """
 
 rule gquad_enrich:
@@ -2079,3 +2116,5 @@ rule dpprimecov:
     [[ -s {output.distsig} ]] || rm {output.distsig}
 """
 
+
+# SMARTBIN=../Applications/SSMART1.2/SSMART;python ssmart.py -f motseqs/tputr/teranked/teranked.fa -o teranked.ssmart.out -c 2 -p $SMARTBIN

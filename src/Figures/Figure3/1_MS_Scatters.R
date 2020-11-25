@@ -185,8 +185,8 @@ techangedf%>%group_by(up,down)%>%tally
 
 genesets = list(
 	all = techangedf$gene_id,
-	te_up = txnchangedf%>%filter(up==1)%>%.$gene_id,
-	te_down = txnchangedf%>%filter(down==1)%>%.$gene_id,
+	txn_up = txnchangedf%>%filter(up==1)%>%.$gene_id,
+	txn_down = txnchangedf%>%filter(down==1)%>%.$gene_id,
 	te_up = techangedf%>%filter(up==1)%>%.$gene_id,
 	te_down = techangedf%>%filter(down==1)%>%.$gene_id,
 	ms_up = mschangedf%>%filter(up==1)%>%.$gene_id,
@@ -244,46 +244,51 @@ msscatterlist = lapply(cassays,function(countassay){
 })
 
 
-
-stop()
+{
 #now plot
 
-plotfile<- here(paste0('plots/','ms_count_scatter','.pdf'))
-pdf(plotfile)
-msscatterlist[[2]][[1]][[1]][[1]]
-dev.off()
-normalizePath(plotfile)
 
 
-totcormat = msscatterlist[[1]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
-ribocormat = msscatterlist[[2]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
+# totcormat = msscatterlist[[1]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
+# ribocormat = msscatterlist[[2]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
 
+# totcormat%>%filter(geneset=='te_down',assay=='total',stage_count=='E13',stage_ms=='E13')
 
-countmscors = msscatterlist%>%map_df(.id='assay',.%>%map_df(.id='geneset',.%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))))
+# countmscors = msscatterlist%>%map_df(.id='assay',.%>%map_df(.id='geneset',.%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))))
+
+countmscors = msscatterlist%>%map_df(.id='assay',.%>%map_df(.id='geneset',.%>%map_df(.id='stage_count',.%>%map_df(.id='stage_ms',~.[[2]]$estimate))))
+
+countmscors%>%filter(geneset=='te_down',assay=='total',stage_count=='E13',stage_ms=='E13')
 
 #now plot
 plotfile<- here(paste0('plots/','cortilesribo','.pdf'))
 pdf(plotfile,w=10,h=15)
-countmscors%>%
+print(countmscors%>%
 	ggplot(data=.,aes(fill=cor,x=stage_count,y=stage_ms))+
 	geom_tile()+
 	geom_text(aes(label = round(cor,2)))+
 	facet_grid(geneset~assay)+
 	scale_x_discrete(paste0('Stage Ribo-seq'))+
 	scale_y_discrete(paste0('Stage MS'))+
-	scale_fill_continuous(low='#8904B1',middle='white',high='#FF8000')+
+	# scale_fill_gradient2(low='#8904B1',mid='white',high='#FF8000',limits = range(countmscors$cor))+
+	scale_fill_gradient2(low='purple',mid='white',high='orange',midpoint = mean(range(countmscors$cor)),limits = range(countmscors$cor))+
 	ggtitle(paste0('Stage-stage correlations MS vs Ribo-seq'))+
 	theme_bw()
+)
 dev.off()
-normalizePath(plotfile)
+message(normalizePath(plotfile))
 
 techangedf = read_tsv(here('tables/xtailTEchange.tsv'))
+}
 
-
-
+{
 ################################################################################
 ########Time correlations
 ################################################################################
+countpred_df<-readRDS('data/countpred_df.rds')
+tx_countdata<-readRDS('data/tx_countdata.rds')
+
+
 cests = countpred_df%>%filter(str_detect(contrast,'total'))%>%distinct(gene_id,contrast,logFC)%>%spread(contrast,logFC)
 rcests = countpred_df%>%filter(str_detect(contrast,'ribo'))%>%distinct(gene_id,contrast,logFC)%>%spread(contrast,logFC)
 pests = sel_prodpreds%>%distinct(gene_id,time,diff)%>%spread(time,diff)
@@ -295,7 +300,7 @@ corggdf = bind_rows(.id='assay',rnaseq=data.frame(cor=rnacors),ribo=data.frame(c
 #now plot
 plotfile<- here(paste0('plots/','timecordensity','.pdf'))
 pdf(plotfile)
-corggdf%>%
+print(corggdf%>%
 	ggplot(.,aes(x=cor,color=assay))+
 	geom_density()+
 	# facet_grid(assay~.)+
@@ -303,6 +308,7 @@ corggdf%>%
 	scale_x_continuous(paste0('Temporal Correlation'))+
 	ggtitle(paste0('Correlations for Riboseq vs RNAseq'))+
 	theme_bw()
+)
 dev.off()
 normalizePath(plotfile)
 
@@ -310,7 +316,8 @@ normalizePath(plotfile)
 cassaynames = c('RNAseq','Riboseq')%>%setNames(c('all','ribo'))
 
 stepcountcontrdf <- readRDS(here('data/stepcountcontrdf.rds'))
-stepstepprotcontrdf <- readRDS(here('data/stepstepprotcontrdf.rds'))
+stepstepprotcontrdf<-readRDS('data/stepprotcontrdf.rds')
+
 
 for(cassay in c('all','ribo')){
 steplcdf = stepcountcontrdf%>%mutate(csig = adj.P.Val<0.05)%>%select(gene_id,time,logFC,assay,csig)%>%
@@ -328,7 +335,8 @@ lfccorlabels = steplcdf%>%group_by(time)%>%filter(is.finite(logFC),is.finite(pro
 	mutate(label = paste0('rho = ',round(conf.low,3),'-',round(conf.high,3),'\np = ',format(p.value,sci=T,digits=2)%>%str_replace('.*0.0.*',' < 1.0e-300')
 ))
 
-sisetcolors = c('None'='grey',csigname='blue','MS Sig'='red','Both Sig'='Purple')
+sisetcolors = c('None'='#D8D8D8',csigname='#000000','MS Sig'='#04B404','Both Sig'='#DF0174')
+# BOTH sig (); Riboseq or RNAseq sig (); MS sig (); not sig ()
 names(sisetcolors)%<>%str_replace('csigname',csigname)
 steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%.$sigset%>%setdiff(names(sisetcolors))
 #now plot
@@ -336,19 +344,20 @@ plotfile<- here(paste0('plots/','lfc_cors_',cassay,'.pdf'))
 pdf(plotfile,w=16,h=4)
 print(steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%
 	ggplot(aes(x=logFC,y=prot_logFC,color=sigset))+facet_grid(.~time)+geom_point(size=I(0.2),aes(alpha=sigset!='None'))+
-	geom_text(data=lfccorlabels,aes(label=label,color=NULL),y=I(-Inf),x=I(-Inf),vjust=0,hjust=0)+
+	geom_text(data=lfccorlabels,aes(label=label,color=NULL),y=I(-Inf),x=I(-Inf),vjust=0,hjust=0,guide=F)+
 	scale_color_manual(name='colorname',values=sisetcolors)+
-	scale_x_continuous(paste0('RNAseq Fold Change'),limits=c(-5,5))+
+	scale_x_continuous(paste0(cassay,' Fold Change'),limits=c(-5,5))+
 	scale_y_continuous(paste0('MS Fold Change'),limits=c(-5,5))+
 	ggtitle(paste0('Fold Change Comparison - MS vs ',cassaynames[cassay]))+
+	scale_alpha_discrete(guide=F)+
 	theme_bw())
 dev.off()
 message(normalizePath(plotfile))
 
 }
-
+stop()
 stepcountcontrdf%>%group_by(gene_id)%>%group_slice(1)
-
+}
 ################################################################################
 ########Look at binarized trajectories - concordances
 ################################################################################

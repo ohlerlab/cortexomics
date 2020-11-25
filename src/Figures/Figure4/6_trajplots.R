@@ -61,6 +61,7 @@ make_trajplot = function(gname){
   stopifnot(exists('prediction_df'))
   prediction_df%<>%mutate(passay=assaynames[assay])
   exprdf%<>%mutate(passay=assaynames[assay])
+  if(!gname %in% exprdf$gene_name) return(NULL)
 ggpred <- prediction_df%>%filter(gene_name==gname)%>%filter(!assay=='TE')%>%
   arrange(passay=='MS',passay=='Ribo-seq')%>%
   ungroup%>%
@@ -77,6 +78,7 @@ ggexpr = exprdf%>%
   left_join(t0sig)%>%
   mutate(signal = signal - t0)
 #
+ 
 ggexpr%>%
     # filter(signal < -3)
   ggplot(.,aes(y=signal,x=as.numeric(as.factor(time)),group=gene_name))+
@@ -92,8 +94,12 @@ ggexpr%>%
   # geom_line(data=medggdf,aes(group=cat),color=I('black'))+
   theme_bw()
 }
+
+
+
 pdf(plotfile,w=3*4,h=4*4)
 plotfile<- here('plots/figures/figure4/trajectory.pdf')
 ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4'),make_trajplot),nrow=4)
 dev.off()
 normalizePath(plotfile)
+

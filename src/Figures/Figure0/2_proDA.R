@@ -334,7 +334,9 @@ proDAfitms%>%saveRDS('data/proDAfitms.rds')
 sel_prodpreds%>%saveRDS('data/sel_prodpreds.rds')
 sel_ms_mat%>%saveRDS('data/sel_ms_mat.rds')
 contrdf%>%saveRDS('data/contrdf.rds')
+# stepstepprotcontrdf%>%saveRDS('data/stepprotcontrdf.rds')
 stepstepprotcontrdf%>%saveRDS('data/stepcontrdf.rds')
+
 
 proDAfitms<-readRDS('data/proDAfitms.rds')
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')

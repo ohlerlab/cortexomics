@@ -5,7 +5,7 @@ stopifnot(exists("GTOGO"))
 
 GTOGO%<>%dplyr::mutate(gene_id=ensembl_gene_id)
 
-gnm2gid = metainfo%>%filter(isbest)%>%distinct(gene_name,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
+# gnm2gid = metainfo%>%filter(isbest)%>%distinct(gene_name,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 onts = c('BP','MF','CC')
 
 #mark satb2

@@ -251,6 +251,7 @@ countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
 #
+countpred_df$gene_name = gid2gnm[[countpred_df$gene_id]]
 countpred_df%>%saveRDS('data/countpred_df.rds')
 tx_countdata%>%saveRDS('data/tx_countdata.rds')
 allvoom%>%saveRDS('data/allvoom.rds')
@@ -347,8 +348,9 @@ countcontr_df%>%group_by(gene_id)%>%group_slice(1)
 stepcountcontrdf%>%group_by(gene_id)%>%group_slice(1)
 
 allvoom %>% saveRDS(here('data/allvoom.rds'))
+iso_tx_countdata %>% saveRDS(here('data/iso_tx_countdata.rds'))
 
-
+highcountgnms %>% saveRDS(here('data/highcountgnms.rds'))
 #data.frame(trid=besttrs)%>%write_tsv('pipeline/scikitribotrs.txt',col_names=F)
 
 #system('grep -f pipeline/scikitribotrs.txt annotation/gencode.vM12.annotation.gtf > pipeline/scikitribo.gtf')

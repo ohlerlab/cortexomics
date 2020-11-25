@@ -48,11 +48,6 @@ inclusiontable(names(fputrs),alltrs)
 inclusiontable(names(tputrs),alltrs)
 inclusiontable(utrtrs,alltrs)
 
-
-
-
-# utrtrs%>%intersect(ribocovtrs)%>%head(3)%>%paste0(collapse='\n')%>%cat(file='pipeline/sktesttrs.txt')
-
  #make gene names non redundant - put a _2 after the couple of repeated ones
 if(!exists('ids_nrgname')){
 	ids_nrgname <- mcols(cds)%>%as.data.frame%>%distinct(gene_name,gene_id)%>%group_by(gene_name)%>%
@@ -74,58 +69,28 @@ gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]
 gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[1]],.[[2]])}
 trid2gnm = ids_nrgname%>%select(transcript_id,gene_name)%>%{hashmap(.[[1]],.[[2]])}
 gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
-gnm2trid = ids_nrgname%>%distinct(gene_na`me,transcript_id)%>%{safe_hashmap(.[[1]],.[[2]])}
+gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 
 allgids = trid2gid[[alltrs]]%>%unique
 allgnms = trid2gnm[[alltrs]]%>%unique
 
 
-trid2gid%>% save_hashmap('data/trid2gid.hmp')
-gid2gnm%>%save_hashmap('data/gid2gnm.hmp')
-gnm2gid%>%save_hashmap('data/gnm2gid.hmp')
-trid2gnm%>%save_hashmap('data/trid2gnm.hmp')
-gnm2gid%>%save_hashmap('data/gnm2gid.hmp')
-gnm2trid%>%save_hashmap('data/gnm2trid.hmp')
+trid2gid%>% save_hashmap(here('data/trid2gid.hmp'))
+gid2gnm%>%save_hashmap(here('data/gid2gnm.hmp'))
+gnm2gid%>%save_hashmap(here('data/gnm2gid.hmp'))
+trid2gnm%>%save_hashmap(here('data/trid2gnm.hmp'))
+gnm2gid%>%save_hashmap(here('data/gnm2gid.hmp'))
+gnm2trid%>%save_hashmap(here('data/gnm2trid.hmp'))
 
 
 }else{
 
-	trid2gid<-load_hashmap('trid2gid.hmp')
-	gid2gnm<-load_hashmap('gid2gnm.hmp')
-	gnm2gid<-load_hashmap('gnm2gid.hmp')
-	trid2gnm<-load_hashmap('trid2gnm.hmp')
-	gnm2gid<-load_hashmap('gnm2gid.hmp')
-	gnm2trid<-load_hashmap('gnm2trid.hmp')
+	trid2gid<-load_hashmap(here('data/trid2gid.hmp'))
+	gid2gnm<-load_hashmap(here('data/gid2gnm.hmp'))
+	gnm2gid<-load_hashmap(here('data/gnm2gid.hmp'))
+	trid2gnm<-load_hashmap(here('data/trid2gnm.hmp'))
+	gnm2gid<-load_hashmap(here('data/gnm2gid.hmp'))
+	gnm2trid<-load_hashmap(here('data/gnm2trid.hmp'))
+
 }
-testtr='ENSMUST00000028342'
 
-if(TRUE)test_that({
-#all slamon failes have the same stuff
-	identical(
-		'pipeline/salmon/data/E13_total_1/quant.sf'%>%fread%>%.[[1]]%>%str_extract('ENSMUST\\w+'),
-		'pipeline/salmon/data/P0_total_1/quant.sf'%>%fread%>%.[[1]]%>%str_extract('ENSMUST\\w+')
-	)
-	
-	
-	identical(salmontrs,names(cdsgrl))
-
-
-	#loss of ms gene names is pretty negligable
-# inclusiontable(trid2gnm[[presalmontrs]],allms$gene_name%>%intersect(gnm2gid$keys()))
-# inclusiontable(trid2gnm[[salmontrs]],allms$gene_name%>%intersect(gnm2gid$keys()))
-
-	#so whatever is lost in the dp cov datait gives many fewer gene names, but mostly not the ms ones
-# inclusiontable(trid2gnm[[names(dpcovdata[[1]])]],allms$gene_name%>%intersect(gnm2gid$keys()))
-
-# inclusiontable(dptrs,names(dpcovdata[[1]]))
-
-
-readLines('pipeline/deepshapebamdata/E13_ribo_1.bam.reformat.absolute',10)
-stopifnot(names(cdsgrl)%>%setequal(alltrs))
-stopifnot(names(exonsgrl)%>%setequal(alltrs))
-stopifnot(gtf_gr$transcript_id%>%setequal(alltrs))
-
-stopifnot(setdiff(names(tputrs),alltrs)%>%length%>%`==`(0))
-stopifnot(setdiff(names(fputrs),alltrs)%>%length%>%`==`(0))
-
-})

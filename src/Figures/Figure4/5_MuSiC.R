@@ -30,7 +30,6 @@ techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
   )
 techangegenes = techangedf%>%filter(up==1|down==1)%>%.$gene_name
 dtegenes = techangegenes
-telleycoregenes = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[1]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
 
 
 if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*tsv.gz')))
@@ -52,6 +51,15 @@ if(!exists('tx_countdata'))tx_countdata <- readRDS(here('data/tx_countdata.rds')
 	sscountexprdata%>%saveRDS(here('pipeline/exprdata/telleyexprset.rds'))
 	}
 
+#
+telleycoregenes = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[1]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
+wteltcoregs = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[2]]),.[[1]])}%>%.[telleycoregenes]
+#
+telleycoregenesdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[3]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
+wteltcoregsdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[4]]),.[[3]])}%>%.[telleycoregenesdiff]
+
+
+telleycoregenesboth = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%{c(.[[1]],.[[3]])}%>%tail(-1)%>%intersect(rownames(sscountexprdata))
 
 
 
@@ -73,16 +81,17 @@ genessets <- list(
   allgenes=rownames(sscountexprdata),
   dte_genes = rownames(sscountexprdata)%>%intersect(dtegenes),
   non_dte_genes = rownames(sscountexprdata)%>%setdiff(dtegenes),
-  telleycoregenes = telleycoregenes
+  telleycoregenes = telleycoregenes,
+  telleycoregenesdiff = telleycoregenesdiff,
+  telleycoregenesboth = telleycoregenesboth
 )
 
 exprs <- Biobase::exprs
-
 music_reslist = genessets%>%lapply(function(geneset){
-  music_prop(bulk.eset = bestcountexprdata, sscountexprdata[geneset,] = sscountexprdata[geneset,],clusters = 'cellType',clusters.type=clusters.type,sample='sampleID')
+  music_prop(bulk.eset = bestcountexprdata, sscountexprdata[geneset,],clusters = 'cellType',clusters.type=clusters.type,sample='sampleID')
 })
 
-i=1
+i=4
 #now plot all sets
 music_reslist %>% seq_along%>%lapply(function(i){
   musicres <- music_reslist[[i]]
@@ -137,6 +146,8 @@ music_reslist %>% seq_along%>%lapply(function(i){
   dev.off()
   plotfile%>%normalizePath(mustWork=TRUE)%>%message
 }) 
+
+
 
 
 for(geneset in names(music_reslist)){
@@ -229,6 +240,18 @@ dev.off()
 normalizePath(plotfile)
 
 
+sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
+countpred_df<-readRDS('data/countpred_df.rds')
+
+prediction_df = bind_rows(
+  sel_prodpreds%>%
+    mutate(assay='MS')%>%
+    select(gene_id,time,assay,estimate,CI.L,CI.R),
+  countpred_df%>%
+    separate(contrast,c('time','assay'))%>%
+    select(gene_id,time,assay,estimate=logFC,CI.L,CI.R)
+)
+
 stem_prop_df%<>%mutate(techangegene = gene_name%in%techangegenes)
 stem_prop_df %<>% separate(dset,c('time','assay','rep'),remove=F)%>%inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('time','gene_name'))
 
@@ -258,3 +281,84 @@ stem_prop_df%>%
   group_by(gene_name)%>%
   mutate(estimate = estimate - estimate[time=='E13'])%>%
   {cor.test(.$estimate,.$prop_stem,method='pearson')}
+
+
+################################################################################
+########Try to understand
+################################################################################
+#if it was two cell types we could just plot like, 
+telleystemcountmat = cbind(
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff=='1H']%>%rowSums,
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff=='96H']%>%rowSums
+)
+telleystemcountmat <- telleystemcountmat[telleystemcountmat%>%rowMins%>%`>`(32),]
+stemcountweights = log2(telleystemcountmat) %>% {.[,2]-.[,1]}
+
+#now plot
+plotfile<- here(paste0('plots/','telleyweightsvste','.pdf'))
+pdf(plotfile)
+print(
+stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+  # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
+  ggplot(data=.,aes(x=(diff_weight),y=estimate))+
+  scale_x_continuous('Ratio of Expression in Neurons to Stem Cells as per Telley')+
+  scale_y_continuous('TE')+
+  facet_wrap(time+assay~.)+
+  # geom_smooth(method='lm')+
+  # geom
+  geom_point(size=I(1.0))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  theme_bw()
+  )
+dev.off()
+normalizePath(plotfile)
+
+
+countcontr_df
+
+#now plot
+plotfile<- here(paste0('plots/','telleyweightsvsdte','.pdf'))
+pdf(plotfile)
+print(
+stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(countcontr_df%>%filter(assay=='TE',!is.na(time))%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+  # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
+  ggplot(data=.,aes(x=(diff_weight),y=logFC))+
+  scale_x_continuous('Ratio of Expression in Neurons to Stem Cells as per Telley')+
+  scale_y_continuous('dTE')+
+  facet_wrap(time+assay~.)+
+  # geom_smooth(method='lm')+
+  # geom
+  geom_point(size=I(1.0))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  theme_bw()
+  )
+dev.off()
+normalizePath(plotfile)
+
+
+# #now plot
+# plotfile<- here(paste0('plots/','telleyweightsvste','.pdf'))
+# pdf(plotfile)
+# print(
+# stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+#   # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
+#   ggplot(data=.,aes(x=abs(diff_weight),y=estimate))+
+#   scale_x_continuous('abs(Ratio of Expression in Neurons to Stem Cells as per Telley)')+
+#   scale_y_continuous('TE')+
+#   facet_wrap(time+assay~.)+
+#   # geom_smooth(method='lm')+
+#   # geom
+#   geom_point(size=I(1.0))+
+#   # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+#   # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+#   theme_bw()
+#   )
+# dev.off()
+# normalizePath(plotfile)
+
+
+
+
+

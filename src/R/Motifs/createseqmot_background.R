@@ -116,10 +116,12 @@ reduce<-GenomicRanges::reduce
 getmatchingset<-function(testset,data){
 	data$testvar <- data[[1]] %in% testset
 	stopifnot(sum(data[['testvar']]) > 10)
-	matchformula <- as.formula(paste0('testvar ~ ',colnames(data)%>%str_subset('total')%>%paste0(collapse='+')) )
+	matchformula <- as.formula(paste0('testvar ~ ',colnames(data)%>%str_subset(neg=T,'testvar')%>%paste0(collapse='+')) )
 	matchobject <- MatchIt::matchit(matchformula,data=data)
 	data[[1]][matchobject[[1]]%>%as.numeric]
 }
+
+
 
 subtract_gr<- function(anno,subanno){
 	disjoin <- c(anno[,NULL],subanno[,NULL])%>%disjoin(with=TRUE)
