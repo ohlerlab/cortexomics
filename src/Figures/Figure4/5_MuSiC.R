@@ -276,6 +276,8 @@ dev.off()
 normalizePath(plotfile)
 
 
+
+
 stem_prop_df%>%
   filter(rep==1,assay.x=='total')%>%
   group_by(gene_name)%>%
@@ -336,6 +338,69 @@ stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(countcontr_df
   )
 dev.off()
 normalizePath(plotfile)
+
+
+################################################################################
+########now weight birthdate
+################################################################################
+telleybdcountmat = cbind(
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$fttime=='E15']%>%rowSums,
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$fttime=='E12']%>%rowSums
+)
+telleybdcountmat <- telleybdcountmat[telleybdcountmat%>%rowMins%>%`>`(32),]
+bdcountweights = log2(telleybdcountmat) %>% {.[,2]-.[,1]}
+#now plot
+plotfile<- here(paste0('plots/','telleyweightsvste','.pdf'))
+pdf(plotfile)
+print(
+bdcountweights%>%
+  enframe('gene_name','BD_weight')%>%
+  mutate(techangegene = gene_name%in%techangegenes)%>%
+  inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+  # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
+  ggplot(data=.,aes(x=(BD_weight),y=estimate))+
+  scale_x_continuous('Ratio of Expression in E15 to 12 Cells as per Telley')+
+  scale_y_continuous('TE')+
+  facet_wrap(time+assay~.)+
+  # geom_smooth(method='lm')+
+  # geom
+  # geom_point(size=I(1.0))+
+  geom_point(aes(color=techangegene),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  theme_bw()
+  )
+dev.off()
+normalizePath(plotfile)
+
+
+bdcountweights%>%enframe('gene_name','BD_weight')%>%inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+  filter(time==time[1])%>%
+  filter(estimate>5)
+
+#now plot
+plotfile<- here(paste0('plots/','bdweight_vs_te','.pdf'))
+pdf(plotfile)
+print(
+wteltcoregs%>%
+enframe('gene_name','bd_weight')%>%
+  inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name'))%>%
+  # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
+  ggplot(data=.,aes(x=(bd_weight),y=estimate))+
+  scale_x_continuous('Birthdate_weight')+
+  scale_y_continuous('TE')+
+  facet_wrap(time~.)+
+  # geom_smooth(method='lm')+
+  # geom_point(aes(color=techangegene),size=I(.2))+
+  geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  theme_bw()
+  )
+dev.off()
+normalizePath(plotfile)
+
+
+
 
 
 # #now plot

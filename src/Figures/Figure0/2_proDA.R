@@ -373,6 +373,8 @@ ms_metadf <- ms_metadf%>%safe_left_join(anymissingdf,by='gene_id')
 
 ms_metadf%>%saveRDS('data/ms_metadf.rds')
 
+ms_metadf<-readRDS('data/ms_metadf.rds')
+
 
 if(F){
 	testgname='Magohb'

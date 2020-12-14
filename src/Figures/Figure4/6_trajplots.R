@@ -47,59 +47,89 @@ exprdf$gene_name = gid2gnm[[exprdf$gene_id]]
 prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
 }
 
-
+teexprdf = left_join(
+  exprdf%>%filter(assay=='ribo'),
+  exprdf%>%filter(assay=='total'),
+  suffix=c('_ribo','_total'),
+  by=c("gene_id", "time", "replicate", "gene_name")
+)%>%mutate(signal = signal_ribo - signal_total,assay='TE')%>%
+  select(one_of(c("gene_id", "time", "replicate", "gene_name",'assay','signal')))
+exprdf = bind_rows(exprdf,teexprdf)
 
 gname='Satb2'
+
+{
 #now plot
 # dir.create(plotfile%>%dirname,rec=TRUE)
 #
 assaynames = c('total'='RNA-seq','ribo'='Ribo-seq','TE'='TE','MS'='Mass-Spec')
 stagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
 tpnames = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
-make_trajplot = function(gname){
+make_trajplot = function(gname,assays2plot=c('total','MS','ribo')){
   stopifnot(exists('exprdf'))
   stopifnot(exists('prediction_df'))
   prediction_df%<>%mutate(passay=assaynames[assay])
   exprdf%<>%mutate(passay=assaynames[assay])
   if(!gname %in% exprdf$gene_name) return(NULL)
-ggpred <- prediction_df%>%filter(gene_name==gname)%>%filter(!assay=='TE')%>%
-  arrange(passay=='MS',passay=='Ribo-seq')%>%
+
+ggpred <- prediction_df%>%filter(gene_name%in%gname)%>%
+  filter(assay%in%assays2plot)%>%
+  arrange(passay=='TE',passay=='MS',passay=='Ribo-seq')%>%
   ungroup%>%
   mutate(passay=as_factor(passay))%>%
   group_by(gene_name,assay)
 t0sig = ggpred%>%ungroup%>%filter(time==time[1])%>%distinct%>%select(assay,gene_name,t0=estimate)
 ggpred = ggpred%>%left_join(t0sig)%>%mutate_at(vars(estimate,CI.L,CI.R),~ .-t0)
 ggexpr = exprdf%>%
-  filter(gene_name==gname)%>%
-  arrange(passay=='Mass-Spec',passay=='Ribo-seq')%>%
+  filter(assay%in%assays2plot)%>%
+  filter(gene_name%in%gname)%>%
+  arrange(passay=='TE',passay=='MS',passay=='Ribo-seq')%>%
   ungroup%>%
   mutate(passay=as_factor(passay))%>%
   group_by(gene_name,assay)%>%
   left_join(t0sig)%>%
   mutate(signal = signal - t0)
 #
- 
+drange = c(ggexpr$signal,ggpred$CI.R,ggpred$CI.L)%>%range
+drange = drange%>%divide_by(0.5)%>%floor%>%{.[2]=.[2]+1;.}%>%multiply_by(0.5)
+drange[1]%<>%min(.,-1)
+drange[2]%<>%max(.,1)
+#
 ggexpr%>%
     # filter(signal < -3)
   ggplot(.,aes(y=signal,x=as.numeric(as.factor(time)),group=gene_name))+
   geom_point()+
-  geom_line(data=ggpred,aes(y=estimate))+
-  geom_ribbon(data=ggpred,aes(y=estimate,ymax=CI.R,ymin=CI.L),,fill='darkgreen',alpha=I(0.5))+
+  geom_line(data=ggpred,aes(y=estimate,group=gene_name))+
+  geom_ribbon(data=ggpred,aes(y=estimate,ymax=CI.R,ymin=CI.L,group=gene_name),fill='darkgreen',alpha=I(0.5))+
   # geom_line(alpha=I(.8),color=I("black"))+
   # scale_color_discrete(name='colorname',colorvals)+
   scale_x_continuous(paste0('Time'),labels = exprdf$time%>%unique%>%tpnames[.])+
-  scale_y_continuous(paste0('log2(CPM/iBAQ) relative to T0'))+
+  scale_y_continuous(paste0('log2(CPM/iBAQ) relative to T0'),limits=drange)+
   ggtitle(str_interp('${gname} - Expression Trajectory'))+
-  facet_wrap(~passay,ncol=3)+
+  facet_wrap(~passay,ncol=4)+
   # geom_line(data=medggdf,aes(group=cat),color=I('black'))+
   theme_bw()
 }
+}
 
-
-
-pdf(plotfile,w=3*4,h=4*4)
+{
 plotfile<- here('plots/figures/figure4/trajectory.pdf')
-ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4'),make_trajplot),nrow=4)
+pdf(plotfile,w=4*3,h=4*5)
+print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot),nrow=5))
 dev.off()
 normalizePath(plotfile)
 
+plotfile<- here('plots/figures/figure4/trajectory_te.pdf')
+pdf(plotfile,w=4,h=4*5)
+print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot,assays2plot='TE'),nrow=5))
+dev.off()
+normalizePath(plotfile)
+}
+
+{
+plotfile<- here('plots/figures/figure4/pumsatoverlay.pdf')
+pdf(plotfile,w=4,h=4*2)
+print(ggarrange(plotlist=list(make_trajplot(c('Satb2','Pum2'),assays2plot='MS'))),nrow=2)
+dev.off()
+normalizePath(plotfile)
+}

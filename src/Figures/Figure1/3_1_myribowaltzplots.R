@@ -155,7 +155,7 @@ countfile='pipeline/exprdata/countexprset.rds'
 countexprdata <- readRDS(countfile)
 
 
-cdsids2use<-names(bestcds)
+cdsids2use<-
 cds2use <- cds%>%subset(protein_id%in%cdsids2use)%>%split(.,.$protein_id)
 firstcds <- cds2use%>%.[as(rep(1,length(.)),'IntegerList')]%>%unlist
 lastcds <- cds2use%>%revElements%>%.[as(rep(1,length(.)),'IntegerList')]%>%unlist

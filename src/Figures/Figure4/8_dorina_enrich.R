@@ -48,7 +48,7 @@ reggrlist = list(
 	tputr = long_tputr
 )
 }
-
+allrnaexpdatalist%>%names%>%str_subset('Zhang')
 stop()
 
 regnm='tputr'

@@ -145,7 +145,7 @@ motseqsets = ['xtailtranslregged','xtaildowntranslregged','xtailuptranslregged',
 motseqregions = [
 #'tr',
 #'cds',
-#'fputr',
+'fputr',
 'tputr'
 ]
 motseqsets = [ 
@@ -155,10 +155,10 @@ motseqsets = [
   # 'extrtechangegenes',
   # 'extrteupgenes',
   # 'extrtedowngenes',
-  # 'teupgeneslmatch',
-  # 'tedowngeneslmatch'
-  'teupgenesshuff',
-  'tedowngenesshuff'
+  'teupgeneslmatch',
+  'tedowngeneslmatch'
+  # 'teupgenesshuff',
+  # 'tedowngenesshuff'
 ]
 
 
@@ -1793,21 +1793,31 @@ def getamefasta(wc):
   inset = inset.replace('shuff','')
   return 'motseqs/'+reg+'/'+inset+'/'+inset+'.fa'
 
+def get_cermit_mots(wc):
+  motset = ('terev' if 'down' in wc['set'] else 'teranked')
+  return 'motseqs/'+wc['reg']+'/'+motset+'/'+motset+'_cermit/cermitmotifs.meme'
+
+#this was run on the max cluster - cermit won't run on the BIH cluster
+#for fa in $( find  motseqs/ ! -iname '*top*' ! -iname '*background*' -iname 'teranked.fa' -o -iname 'terev.fa'  ) ; do NSEQS=2500;awk "/^>/ {n++} n>$NSEQS {exit} {print}" $fa > ${fa%.fa}.top$NSEQS.fa ;echo $fa "\n"; python cermit.py  -fasta ${fa%.fa}.top$NSEQS.fa -output ${fa%.fa}_cermit -motifdb Mus_musculus.wpum.dna.meme  -tomtom_norc -strand_specific_analysis=yes  ; done
+
 rule ame:
   input: 
     fasta = getamefasta ,
-    pwmfile='../ext_data/motif_databases/CISBP-RNA/Mus_musculus.meme'
-      #pwmfile='../ext_data/mouse_cisrbp/pwms_all_motifs/M317_0.6.txt.meme'
+    pwmfile='../ext_data/Mus_musculus.wpum.rna.meme'
   output: touch('ame/{reg}/{set}/.done'),'ame/{reg}/{set}/all/ame.html'
   conda: '../envs/meme'
   params: 
     # pwmfiles = lambda wc,input:[input.pwmfolder+'/' + f for f in list(os.walk(pwmfolder))[0][2] if '.meme' in f if 'M287' in f],
+    cermitmots = get_cermit_mots,
+    meme = lambda wc,output: output[0].replace('.done', 'comb.meme'),
     outdir =   lambda wc,output: output[0].replace('.done', ''),
     ctrlstr =  getamectrlstring
   shell: r"""
       rm -rf {params.outdir}
       mkdir -p {params.outdir}
-      ame --scoring totalhits --method fisher {params.ctrlstr} --o {params.outdir}/all --sequence {input.fasta} {input.pwmfile} 
+      cat {params.cermitmots} ../ext_data/tops_yamashita_etal_2008/top_pwm.txt.meme | sed -e  's/ACGT/ACGU/' | meme2meme {input.pwmfile} /dev/stdin > {params.meme}
+      ame --scoring totalhits --method fisher {params.ctrlstr} --o {params.outdir}/all --sequence {input.fasta} {params.meme}
+      ame --scoring totalhits --method fisher --control --shuffle-- --kmer 2 --o {params.outdir}/all_shuff --sequence {input.fasta} {params.meme}
       [[ -s {params.outdir}/all/ame.html ]]  || rm {params.outdir}/all/ame.html
 
    # done
@@ -2118,3 +2128,21 @@ rule dpprimecov:
 
 
 # SMARTBIN=../Applications/SSMART1.2/SSMART;python ssmart.py -f motseqs/tputr/teranked/teranked.fa -o teranked.ssmart.out -c 2 -p $SMARTBIN
+apsiteanno = 'asite_ip_preprocess/asite_ip_anno.tsv'
+rule asite_ip_anno:
+  input: TRFASTA
+  output: apsiteanno
+  # shell:r"""grep -e '>' {TRFASTA} | perl -lane 'if($.==1){{print join "\t","Gene name","Start index", "CDS Length"}}; /(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$1,$2,$3-$2' > {output}"""
+  shell:r"""grep -e '>' {TRFASTA} | perl -lane ';/(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$_,$2,$3-$2' | tr -d '>'  > {output}"""
+
+rule asite_ip_preprocess:
+  input: 'star_transcript/data/{sample}/{sample}.sort.bam',apsiteanno=apsiteanno
+  output: touch('asite_ip_preprocess/{sample}/.done'),'asite_ip_preprocess/{sample}/output/Multiple_mapped_gene_read_counts_20_35.tab'
+  conda: '../envs/biopython2.7'
+  shell: r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_preprocess.py -g {input.apsiteanno} -e {TRFASTA} -a transcriptome -m 20 -x 35 -i {input[0]} -o $(dirname {output})"""
+rule asite_ip:
+  input: 'asite_ip_preprocess/{sample}/.done'
+  output: touch('asite_ip/{sample}/.done')
+  conda: '../envs/biopython2.7'
+  shell:r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_run.py -i $(dirname {input[0]})/output/ -j $(dirname {input[0]})/output/Multiple_mapped_gene_read_counts_20_35.tab -m 20 -x 35 -o $(dirname {output[0]})"""
+

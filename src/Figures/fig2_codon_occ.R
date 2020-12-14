@@ -76,7 +76,7 @@ normalizePath(plotfile)
 # normalizePath('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf')
 
 samplestage <- unique(codonprofiles$sample)%>%{setNames(stageconv[str_replace(.,'_.*?_.*?$','')],.)}
-pdf('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf',w=24,h=14)
+cairo_pdf('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf',w=24,h=14)
 codonprofiles%>%
 	# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
 	filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%

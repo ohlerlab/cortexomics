@@ -4,42 +4,51 @@
 make_cluster_trajplots<-function(clusts,dteenrichdf){
 	indata = clusts$data %||% stop()
 	plotname = clusts$name %||% stop()
+    ccols = clusts$clustercols %||% stop()
     names(clusts$cluster) %||% stop('no names on the cluster vect')
 
-    if(is.character(clusts$cluster)) clusts$cluster%<>%as.factor%>%as.numeric%>%setNames(names(clusts$cluster))
+    if(is.character(clusts$cluster)) clusts$cluster%<>%as_factor%>%setNames(names(clusts$cluster))
+    clusters = clusts$cluster
+    clustersizes = clusts$cluster%>%table
+    clusternames = paste0('Cluster_',names(clustersizes),' n = ',clustersizes)%>%setNames(names(clustersizes))
+    clusters = clusternames[clusters]%>%setNames(names(clusters))
+
+    ccols = ccols[names(clusternames)]%>%setNames(clusternames)
+
     #process data for plot
   ggdf =  indata%>%as.data.frame%>%rownames_to_column('gene_name')%>%
      gather(dataset,value,-gene_name)%>%
     separate(dataset,c('time','assay','rep'),extra='warn',fill='right')%>%
-    left_join(tibble(gene_name=names(clusts$cluster),cluster=clusts$cluster))%>%
-    select(gene_name,time,assay,value,cluster)%>%
+    left_join(tibble(gene_name=names(clusters),clustern=clusters))%>%
+    select(gene_name,time,assay,value,clustern)%>%
     filter(!is.na(value))%>%
-    filter(!is.na(cluster))%>%
-    group_by(cluster)%>%
-    mutate(clustern=paste0('Cluster_',LETTERS[cluster],' n = ',n_distinct(gene_name)))%>%
+    filter(!is.na(clustern))%>%
     group_by(clustern,gene_name,assay,time)%>%
     summarise(value = mean(value))%>%
     group_by(gene_name,assay)
   if(!'E13'%in%ggdf$time)ggdf=bind_rows(ggdf%>%distinct(clustern,gene_name,assay)%>%mutate(time='E13',value=0),ggdf)
 
-    ggdf%<>%mutate(value = value-value[time=='E13'],na.rm=T)
+  ggdf%<>%mutate(value = value-value[time=='E13'],na.rm=T)
 
   assayorder =  distinct(ungroup(ggdf),assay)%>%arrange(assay=='MS',assay=='TE',assay=='ribo')%>%.$assay
 
   ggdf$assay%<>%factor(assayorder)
   limwidth = if(str_detect(plotname,'effect')) 2 else 4
 
-  clutplot =ggplot(ggdf,aes(x=as_factor(time),y=value,group=gene_name,color=as.factor(clustern)))+
+  ggdf$clustern%<>%factor(clusternames)
+
+  clutplot =ggplot(ggdf,aes(x=as_factor(time),y=value,group=gene_name,color=clustern))+
     # geom_line(alpha=I(0.1))+
     facet_grid(clustern ~ assay,scale='free')+
     scale_y_continuous('Centered log2-signal')+
     # coord_cartesian(ylim=c(-limwidth,limwidth))+
-    stat_summary(aes(x=as_factor(time),group=clustern,fill=as.factor(clustern)),alpha=I(1),fun=median, 
+    stat_summary(aes(x=as_factor(time),group=clustern,fill=clustern),alpha=I(1),fun=median, 
         fun.min = function(x) quantile(x, 0.25), 
         fun.max  = function(x) quantile(x, 0.75), 
         geom=c('ribbon'),linetype=0,alpha=I(0.5))+
-     stat_summary(aes(x=as_factor(time),group=clustern,fill=as.factor(clustern)),alpha=I(1),color=I('black'),fun=median, 
+     stat_summary(aes(x=as_factor(time),group=clustern,fill=clustern),alpha=I(1),color=I('black'),fun=median, 
         geom=c('line'),linetype=2,alpha=I(1))+
+     scale_fill_manual(values = ccols)
     theme_bw()+
     ggtitle(paste0(plotname))
     fracffdf=dteenrichdf%>%select(cluster,up,down,nodte)%>%gather(class,n,-cluster)%>%group_by(cluster)%>%mutate(n=n/sum(n))
@@ -53,7 +62,7 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
 
   dteplot = ggplot(data=fracffdf%>%
     #filter(class!='nodte')%>%
-    left_join(siglabels)%>%group_by(cluster),aes(x='',fill=class,y=n))+
+    left_join(siglabels)%>%mutate(cluster = factor(cluster,unique(hclustob$cluster))),aes(x='',fill=class,y=n))+
     scale_fill_manual(values=c('up'='red','down'='blue','nodte'='grey'))+
     # scale_y_continuous('Fraction of Cluster in Class')+
     # stat_identity(geom='bar')+
@@ -66,7 +75,8 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
         axis.ticks = element_blank(),
         # panel.grid  = element_blank()
     )
-    enrichplot = enrichggdf%>%left_join(siglabels)%>%ggplot(data=.,aes(x=class,y=log2(estimate),ymin=log2(conf.low),ymax=log2(conf.high),fill=class))+
+
+    enrichplot = enrichggdf%>%left_join(siglabels)%>%mutate(cluster = factor(cluster,unique(hclustob$cluster)))%>%ggplot(data=.,aes(x=class,y=log2(estimate),ymin=log2(conf.low),ymax=log2(conf.high),fill=class))+
      scale_fill_manual(values=c('up'='red','down'='blue','nodte'='grey'))+
      geom_bar(stat='identity',width=1,geom='bar')+
      facet_grid(cluster~.)+
@@ -81,7 +91,7 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
     dev.off()
 
 }
-# make_cluster_trajplots(hclustob)
+# make_cluster_trajplots(hclustob,dteenrichdf)
 
 make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
   #go_comparison_plot <-

@@ -97,6 +97,7 @@ getmatchingset<-function(testset,mdata,ratio=1){
 }
 
 mdata = enframe(sum(width(long_tputr)),'gene_name','length')
+fmdata = enframe(sum(width(long_fputr)),'gene_name','length')
 
 
 ctlsetlist = list(
@@ -108,13 +109,13 @@ ctlsetlist = list(
 	teupgenes=notechangegenes,
 	teupgeneslmatch=getmatchingset(teupgenes,mdata%>%filter(gene_name%in%c(teupgenes,notechangegenes,tedowngenes)),ratio=3),
 	tedowngenes=notechangegenes,
-	tedowngeneslmatch=getmatchingset(tedowngenes,mdata%>%filter(gene_name%in%c(tedowngenes,notechangegenes,tedowngenes)),ratio=3),
+	tedowngeneslmatch=getmatchingset(tedowngenes,fmdata%>%filter(gene_name%in%c(tedowngenes,notechangegenes,tedowngenes)),ratio=3),
 	extrtechangegenes=notechangegenes,
 	extrteupgenes=notechangegenes,
 	extrtedowngenes=notechangegenes
 )
 
-stop()
+# stop()
 
 regnm='tputr'
 setnm='terev'
@@ -147,6 +148,19 @@ if(!file.exists(fafile)){
 motifmatches = vmatchPattern('TGTA',long_tputrseq)%>%lapply(as.data.frame)%>%bind_rows(.id='gene')
 
 long_tputrseq['Satb2']
+
+readDNAStringSet('pipeline/motseqs/fputr/tedowngeneslmatch/tedowngeneslmatch.fa')%>%nchar%>%log2%>%txtdensity
+readDNAStringSet('pipeline/motseqs/fputr/tedowngeneslmatch/tedowngeneslmatch.background.fa')%>%nchar%>%log2%>%txtdensity
+
+readDNAStringSet('pipeline/motseqs/fputr/teupgeneslmatch/teupgeneslmatch.fa')%>%nchar%>%log2%>%.[between(.,4,11)]%>%txtdensity
+readDNAStringSet('pipeline/motseqs/fputr/teupgeneslmatch/teupgeneslmatch.background.fa')%>%nchar%>%log2%>%.[between(.,4,11)]%>%txtdensity
+
+readDNAStringSet('pipeline/motseqs/tputr/tedowngeneslmatch/tedowngeneslmatch.fa')%>%nchar%>%log2%>%.[between(.,4,15)]%>%txtdensity
+readDNAStringSet('pipeline/motseqs/tputr/tedowngeneslmatch/tedowngeneslmatch.background.fa')%>%nchar%>%log2%>%.[between(.,4,15)]%>%txtdensity
+
+readDNAStringSet('pipeline/motseqs/tputr/teupgeneslmatch/teupgeneslmatch.fa')%>%nchar%>%log2%>%.[between(.,4,15)]%>%txtdensity
+readDNAStringSet('pipeline/motseqs/tputr/teupgeneslmatch/teupgeneslmatch.background.fa')%>%nchar%>%log2%>%.[between(.,4,15)]%>%txtdensity
+
 
 #get the files on the max cluster
 #conda activate biopython

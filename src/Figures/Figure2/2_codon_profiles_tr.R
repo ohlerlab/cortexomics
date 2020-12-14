@@ -37,7 +37,7 @@ bamtbls = Sys.glob('pipeline/deepshapebamdata/*.bam.reformat')
 names(bamtbls) = bamtbls%>%str_extract('[^/]*?(?=.bam.ref)')
 bamtbl=bamtbls[1]
 
-
+offsets <- read_tsv('ext_data/offsets_manual.tsv')
 
 if(!file.exists(here('data/fpcovlist.rds'))){
 	fpcovlist = bamtbls%>%mclapply(mc.cores=4,function(bamtbl){
@@ -69,7 +69,7 @@ cdsends = cdsgrl[highcountcovtrs]%>%sort_grl_st%>%resize_grl(1,'end')%>%unlist%>
 	{setNames(start(.),as.character(seqnames(.)))}
 trcds = GRanges(names(cdsstarts),IRanges(cdsstarts,cdsends))
 
-top1ktrs = iso_tx_countdata$abundance%>%
+toptrs = iso_tx_countdata$abundance%>%
   as.data.frame%>%rownames_to_column('transcript_id')%>%
   pivot_longer(-transcript_id,names_to='dataset',values_to='TPM')%>%
   separate(dataset,c('time','assay','rep'))%>%
@@ -78,8 +78,8 @@ top1ktrs = iso_tx_countdata$abundance%>%
   filter(transcript_id%>%is_in(ribocovtrs))%>%
   summarise(TPM=mean(TPM))%>%
   arrange(desc(TPM))
-top1ktrs=top1ktrs%>%head(5e3)%>%.$transcript_id
-exonseq = exonsgrl[top1ktrs]%>%extractTranscriptSeqs(x=fafile)
+toptrs=toptrs%>%head(5e3)%>%.$transcript_id
+exonseq = exonsgrl[toptrs]%>%extractTranscriptSeqs(x=fafile)
 
 i=1
 if(!file.exists(here('data/codmatchwindowlist.rds'))){
@@ -87,7 +87,7 @@ if(!file.exists(here('data/codmatchwindowlist.rds'))){
 		#	
 		codon=names(allcodons)[[i]]
 		message(codon)
-		codmatches<-vmatchPattern(pattern=codon,exonseq[top1ktrs])#exclude the start ccodon
+		codmatches<-vmatchPattern(pattern=codon,exonseq[toptrs])#exclude the start ccodon
 		#
 		nmatches = 	codmatches%>%elementNROWS 
 		#
@@ -112,6 +112,7 @@ trseqinfo = Seqinfo(seqnames=names(trlens),seqlengths=trlens)
 # startsigs = 
 
 
+reduce=purrr::reduce
 startproflist = 
 	imap(fpcovlist['E13_ribo_1'],function(sampfpcov,sampname){
 		trsums = sampfpcov%>%map(sum)%>%reduce(`+`)#sum over counts for that transcript
@@ -133,6 +134,8 @@ startproflist =
 		})
 	})
 
+sampname = 'E13_ribo_1'
+sampfpcov = fpcovlist[[1]]
 
 endproflist = 
 	imap(fpcovlist['E13_ribo_1'],function(sampfpcov,sampname){
@@ -154,12 +157,14 @@ endproflist =
 			startwindsums = rlfpcov[startwinds]%>%as.matrix%>%colMeans
 		})
 	})
+stop()
 
 startproflist[[1]][['28']][1:9]%>%txtplot
 endproflist[[1]][['28']][(48-2-6):48]%>%txtplot
 
 startproflist[[1]][['29']][1:9]%>%txtplot
 endproflist[[1]][['29']][(48-2-6):48]%>%txtplot
+
 
 
 startproflist[[1]]%>%map(.%>%matrix(byrow=TRUE,ncol=3)%>%{cbind(.,.-.)}%>%t%>%{txtplot(.,ylim=c(1,max(.)),height=20,width=100)})
@@ -204,16 +209,9 @@ fpprofilelist =
 
 
 saveRDS(fpprofilelist,here('data/fpprofilelist.rds'))
-# }else{
+
 fpprofilelist<-readRDS(here('data/fpprofilelist.rds'))
-# # }
 
-# 	cov = fpcovlist[[1]]
-# 	covtrs = names(cov)%>%intersect(names(codmatchwindows))
-
-# 	cov[codmatchwindows%>%subset(seqnames%in%covtrs)%>%head]%>%as.matrix%>%colSums
-
-# 	inclusiontable(names(codmatchwindows),alltrs)
 
 ################################################################################
 ########testing the pca based a-site calls
@@ -266,7 +264,6 @@ ggplot(data=.,aes(y=pca1,x=as.numeric(position)))+geom_point()+
 dev.off()
 normalizePath(plotfile)
 
-}
 
 {
 offsets%<>%mutate(readlen=paste0(length))

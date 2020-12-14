@@ -314,7 +314,14 @@ for(i in seq(1,length(collist),1)){
 }
 
 KMAX=13
+MAXCLUSTNUM=12
 {
+
+hmclust=row.hc
+
+  clusterorder = cutreelistorig[[MAXCLUSTNUM-1]][labels(hmclust)]%>%unique
+
+  # grpcolors['a']='black'
 genesofinterest=c('Nes','Tle4','Flna','Satb2','Bcl11b')
 library(circlize)
 library(dendextend)
@@ -324,16 +331,20 @@ library(dendextend)
 # clustercutdend = cutheights[as.character(MAXCLUSTNUM)]
 # cdend = cut(row.dend,h=clustercutdend)
 #
-hmclust=row.hc
 #
 hmcols = clustdata%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%.[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
 gs2plot = genesofinterest
 #
 selclusts = cutreelistorig%>%last
 selclustsn = selclusts%>%unique%>%as.factor%>%as.numeric%>%setNames(selclusts%>%unique)
+grpcolors = gg_color_hue(kmax)%>%setNames(names(selclustsn))
 # row_annotation = rowAnnotation( width = 0.2,df=as.data.frame(cutreelist),show_legend=F,col = collist,border=TRUE,na_col='black')
-row_annotation = rowAnnotation( width = unit(4,'cm'),df=as.data.frame(cutreelistorig[MAXCLUSTNUM-1])%>%set_colnames('grps'),col=list(grps=gg_color_hue(kmax)[selclustsn]%>%setNames(names(selclustsn))),show_legend=F,border=TRUE,na_col='black')
-#
+row_annotation = rowAnnotation(
+    width = unit(4,'cm'),
+    df=as.data.frame(selclusts)%>%set_colnames('grps'),
+    col=list(grps=grpcolors),
+    show_legend=F,border=TRUE,na_col='black')
+
 colorder = clustdata%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%.[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
 #
 teup2plot = teupgenes%>%intersect(rownames(clustdata))
@@ -364,12 +375,14 @@ draw(datahm[['all']]+datahm[['ribo']]+datahm[['TE']]+datahm[['MS']]+row_annotati
 # draw(row_annotation + datahm[['all']]+purrr::reduce(.f='+',.x=datahm[teribostring])+datahm[['MS']],column_title=coltitle)
 dev.off()
 message(normalizePath(plotfile))
+
+
 }
 
 {
 teribostring
-capture.output(cutreelistorig[[KMAX]][genesofinterest])%>%paste0(collapse='\n')%>%message
-cutreelistorig[[KMAX]][genesofinterest]%>%n_distinct
+capture.output(cutreelistorig[[KMAX-1]][genesofinterest])%>%paste0(collapse='\n')%>%message
+cutreelistorig[[KMAX-1]][genesofinterest]%>%n_distinct
 message(map_dbl(1:length(cutreelistorig),function(i)cutreelistorig[[i]][genesofinterest]%>%n_distinct)%>%`==`(4)%>%which%>%first)
 }
 
@@ -377,24 +390,14 @@ message(map_dbl(1:length(cutreelistorig),function(i)cutreelistorig[[i]][genesofi
 hclusterlist = c(list(rep('a',length(cutreelistorig[[1]]))),cutreelistorig)
 MAXCLUSTNUM = 13
 hclustob = list(data=clustdata,names=paste0(str_replace_all(coltitle,' ','_'),'_effect'),cluster = hclusterlist[[MAXCLUSTNUM]])
-
-stop()
-
-
+hclustob$cluster%<>%.[order(match(.,clusterorder))]
+hclustob$clustercols = grpcolors[clusterorder]
 
 
 
 
-{
-#now plot
-plotfile<- here(paste0('plots/','nb_clust_data','.pdf'))
-pdf(plotfile)
-nbclustplot2<-factoextra::fviz_nbclust(clustdata_clust, function(mat,n) list(cluster=hclusterlist[[n]]), method = "wss",k.max = 26) +
-  labs(subtitle = "Elbow method - processed data")
-print(nbclustplot2)
-dev.off()
-normalizePath(plotfile)%>%message
-}
+
+
 
 # {a
 # #now plot
@@ -449,8 +452,6 @@ dteenrichdf = enrichdf %>%left_join(map_df(.id='cluster',clusters,function(cl){
 }))
 }
 
-hclustob$cluster[genesofinterest]
-
 
 hclustob%>%make_cluster_trajplots(dteenrichdf)
 
@@ -478,13 +479,17 @@ normalizePath(plotfile)
 }
 
 
+# hclustob$cluster%>%enframe('gene_name','cluster')%>%inner_join(mcshanethalfs)%>%mutate(is_ned=McShane_deg_cat=='NED')%>%
+#   group_by(cluster)%>%
+#   summarise(mean(is_ned))%>%
+#   arrange(match(cluster,clusterorder))
 
 #now plot
 source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure4/2_clustergos.R")
 clustergos<-get_cluster_gos(hclustob$cluster)
 
 plotfile<- here(paste0('plots/','cluster_go_bp',hclustob$name,'.pdf'));cairo_pdf(h=21,w=21,plotfile)
-go_comparison_plot(clustergos%>%filter(ontology=='BP')%>%{split(.,.$cluster)})+ggtitle('Biological Process')
+go_comparison_plot(clustergos%>%filter(ontology=='BP')%>%{split(.,as_factor(.$cluster))})+ggtitle('Biological Process')
 dev.off()
 normalizePath(plotfile)%>%message
 clustergos%>%write_tsv(here('tables/cluster_go.tsv'))
@@ -492,6 +497,7 @@ clustergos%>%write_tsv(here('tables/cluster_go.tsv'))
 ################################################################################
 ########Now make split heatmaps with TE classes
 ################################################################################
+{
 teclasses = list(te_up = teupgenes,te_down = tedowngenes, te_nochange=rownames(clustdata)%>%setdiff(c(teupgenes,tedowngenes)))
 teclasses%<>%map(intersect,rownames(clustdata))
 teclass = teclasses[[1]]
@@ -539,7 +545,9 @@ hmaps = lapply(teclasses,function(teclass){
       datahm
     })
 })
+}
 
+{
 teribostring = names(datahm)%>%str_extract('TE|ribo')%>%na.omit%>%unique
 #now plot
 plotfile<- here(paste0('plots/','contrasts_heatmap',str_replace_all(coltitle,' ','_'),'split..pdf'))
@@ -557,12 +565,29 @@ pushViewport(viewport(layout.pos.row = 3, layout.pos.col = 1))
 p = hclustob$cluster%>%enframe%>%filter(name%in%unlist(teclasses[1:2]))%>%
   mutate(te_class=ifelse(name%in%teclasses[[1]],'up','down'))%>%group_by(te_class,value)%>%
   summarise(n=n())%>%
-  ggplot(data=.,aes(y=n,fill=value,x=value,alpha=te_class))+geom_bar(stat='identity',position='dodge',width=0.5)+theme_bw()+xlab('cluster')+ylab('n_genes')
+  mutate(value = factor(value,hclustob$cluster%>%unique))%>%
+  ggplot(data=.,aes(y=n,fill=value,x=value,color=I('black'),alpha=te_class))+
+    geom_bar(stat='identity',position='dodge',width=0.5)+
+    xlab('cluster')+ylab('n_genes')+theme_minimal()+
+    scale_fill_manual(values = grpcolors )
 print(p,  vp = viewport(layout.pos.row = 3, layout.pos.col = 1))
 dev.off()
 message(normalizePath(plotfile))
+}
+
+hclustob %>% saveRDS(here('data/hclustob.rds'))
 
 
+{
+#now plot
+plotfile<- here(paste0('plots/','nb_clust_data','.pdf'))
+pdf(plotfile)
+nbclustplot2<-factoextra::fviz_nbclust(clustdata_clust, function(mat,n) list(cluster=hclusterlist[[n]]), method = "wss",k.max = 13) +
+  labs(subtitle = "Elbow method - processed data")
+print(nbclustplot2)
+dev.off()
+normalizePath(plotfile)%>%message
+}
 
 
 ################################################################################

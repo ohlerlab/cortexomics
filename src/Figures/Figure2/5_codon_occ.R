@@ -97,6 +97,55 @@ GENETIC_CODE<-Biostrings::GENETIC_CODE
 
 	# #occpancy vs AA
 
+samplestage <- unique(codonprofiles$sample)%>%{setNames(stageconv[str_replace(.,'_.*?_.*?$','')],.)}
+cairo_pdf('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf',w=24,h=14)
+codonprofiles%>%
+	# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
+	filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
+	ungroup%>%
+	mutate(codon = as_factor(codon))%>%
+	# filter(sample%>%str_detect(c('ribo')))%>%
+	{print(ggplot(.,aes(position,signal,group=sample,
+		color=samplestage[sample]))+
+		scale_color_manual(values=displaystagecols)+
+		scale_x_continuous(minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+		scale_y_continuous(limits=c(0,6))+
+		facet_grid(codon~readlen)+
+		geom_line(aes())+
+		geom_vline(xintercept=0,linetype=2)+
+		geom_vline(data=filter(codonproftppos,codon%in%.$codon),aes(xintercept=tppos),linetype=2)+
+		coord_cartesian(xlim=c(-39,12))+
+		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)+
+		# geom_rect(data=offsets,color=I('black'),alpha = I(0.1),aes(x=NULL,y=NULL,xmin= -8-offset, xmax = -offset, ymin = 0 ,ymax = Inf))+
+		theme_bw())}
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf')
+
+pdf('plots/figures/figure2/trna_codons/offsetwindow_rlmerge_codprofs.pdf',w=24,h=14)
+codonprofiles%>%
+	inner_join(offsets)%>%
+	mutate(position = position+offset)%>%
+	group_by(sample,codon,position)%>%summarise(signal=sum(signal))%>%
+		filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
+	# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
+	# filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
+	# filter(sample%>%str_detect(c('ribo')))%>%
+	{print(ggplot(.,aes(position,signal,group=sample,
+		color=samplestage[sample]))+
+		geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+		scale_color_manual(values=displaystagecols)+
+		scale_x_continuous(minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+		facet_grid(codon~.)+
+		geom_line(aes())+
+		geom_vline(xintercept=0,linetype=2)+
+		# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+		coord_cartesian(xlim=c(-39,12))+
+		# geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+		theme_bw())}
+dev.off()
+normalizePath('plots/figures/figure2/trna_codons/offsetwindow_rlmerge_codprofs.pdf')
+
 
 	#plot with the AAs as colors
 	pdf('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf',w=12,h=5)
@@ -494,68 +543,52 @@ GENETIC_CODE<-Biostrings::GENETIC_CODE
 
 	trna_occ_df_samp%>%filter(fraction=='total',)%>%lm(data=.,dwell_time ~ codon+codon:abundance)%>%.$coefficients%>%sort
 	
-
-	slowclassdf = tRNA_occ_df%>%filter(fraction=='total',time=='E13')%>%arrange(desc(dwell_time))%>%
+	tRNA_occ_df%>%filter(fraction=='total')%>%group_by(time)%>%summarise(mean(abundance))
+	
+	slowclassdf = tRNA_occ_df%>%
+		filter(fraction=='total')%>%
+		group_by(codon)%>%summarise(dwell_time=mean(dwell_time))%>%
+		# filter(fraction=='total',time=='E13')%>%
+		# arrange(desc(dwell_time))%>%
 		# group_by(dwell_time = dwell_time / mean(dwell_time))
 		mutate(slowclass = case_when(
-			dwell_time > quantile(dwell_time,.75,na.rm=TRUE) ~ 'Top 25% DT at E13',
-			dwell_time < quantile(dwell_time,.25,na.rm=TRUE) ~ 'Bottom 25% DT at E13',
+			dwell_time > quantile(dwell_time,.75,na.rm=TRUE) ~ 'Top 25% DT at E13 (slowest)',
+			dwell_time < quantile(dwell_time,.25,na.rm=TRUE) ~ 'Bottom 25% DT at E13 (fastest)',
 			TRUE ~ 'Middle 50%'
-		))%>%select(codon,slowclass)
+		))%>%select(codon,slowclass)%>%mutate(slowclass=factor(slowclass,rev(unique(slowclass))))
 	codreldf = trna_occ_df_samp%>%filter(fraction=='total')%>%
 		left_join(slowclassdf)%>%
+		# mutate(codrelab=abundance-mean(abundance),codreldt=dwell_time/mean(dwell_time))
+		group_by(time)%>%mutate(abundance = abundance - mean(na.rm=T,abundance))%>%
+		# group_by(time)%>%mutate(abundance = availability - mean(na.rm=T,availability))%>%
 		group_by(codon)%>%
-		mutate(codrelab=abundance-mean(abundance),codreldt=dwell_time/mean(dwell_time))
+		# mutate(codrelab=abundance-mean(abundance))%>%	
+		mutate(codrelab=abundance-mean(abundance))%>%	
+		mutate(codreldt=dwell_time/mean(dwell_time))
     codreltests = codreldf%>%group_by(slowclass)%>%summarise(tidy(cor.test(codreldt,codrelab)))
-	codreltests = codreltests%>%mutate(acor_label=paste0('rho = ',round(estimate,3),'\n','pval = ',ifelse(p.value > 0.001,round(p.value,2),format(p.value,format='e',digits=2))))
+	codreltests = codreltests%>%mutate(acor_label=paste0('rho = ',round(estimate,3),'\n','pval = ',ifelse(p.value > 0.001,round(p.value,4),format(p.value,format='e',digits=4))))
 	#now plot
 	plotfile<- here(paste0('plots/','cod_rel_df','.pdf'))
-	pdf(plotfile,width=9,h=4)
+	pdf(plotfile,width=5,h=9)
 		codrelplot = ggplot(data=codreldf , aes(x = codrelab,y = codreldt,color=time))+geom_point()+
-		facet_grid(.~slowclass,scales='free_x')+
+		facet_grid(slowclass~.,scales='free_x')+
 		geom_smooth(aes(color=NA),method='lm')+
 		geom_text(data=codreltests,color=I('black'),aes(label=acor_label,x=1.5,y=1.5))+
 		theme_bw()
 	#
 	codrelplot+
 		scale_color_manual(name='Time',values=stagecols)+
-		scale_x_continuous(paste0('Abundance / Mean Abundance [Codon]'),limits=c(-4,3))+
-		scale_y_continuous(paste0('Dwell Time / Mean DT [Codon]'))+
+		scale_x_continuous(paste0('log2(Abundance / Mean Abundance [Codon])'),limits=c(-3,2))+
+		scale_x_continuous(paste0('log2(Abundance / Mean Abundance [Codon])\n time corrected'),limits=c(-4,3))+
+		scale_y_continuous(paste0('Dwell Time / Mean DT [Codon] (relative slowness)'))+
 		ggtitle(paste0('Relationship Between tRNA abundance and Dwell time for fast/slow codons'))+
 		theme_bw()
 	dev.off()
 	normalizePath(plotfile)
 
-	slowclassdf = tRNA_occ_df%>%filter(fraction=='total',time=='E13')%>%arrange(desc(dwell_time))%>%
-	# group_by(dwell_time = dwell_time / mean(dwell_time))
-	mutate(slowclass = case_when(
-		dwell_time > quantile(dwell_time,.75,na.rm=TRUE) ~ 'Top 25% DT at E13',
-		dwell_time < quantile(dwell_time,.25,na.rm=TRUE) ~ 'Bottom 25% DT at E13',
-		TRUE ~ 'Middle 50%'
-	))%>%select(codon,slowclass)
-	codreldf = trna_occ_df_samp%>%filter(fraction=='total')%>%
-		left_join(slowclassdf)%>%
-		group_by(codon)%>%
-		mutate(codrelab=availability-mean(availability),codreldt=dwell_time/mean(dwell_time))
-    codreltests = codreldf%>%group_by(slowclass)%>%summarise(tidy(cor.test(codreldt,codrelab)))
-	codreltests = codreltests%>%mutate(acor_label=paste0('rho = ',round(estimate,3),'\n','pval = ',ifelse(p.value > 0.001,round(p.value,2),format(p.value,format='e',digits=2))))
-	#now plot
-	plotfile<- here(paste0('plots/','cod_rel_df_av','.pdf'))
-	pdf(plotfile,width=9,h=4)
-		codrelplot = ggplot(data=codreldf , aes(x = codrelab,y = codreldt,color=time))+geom_point()+
-		facet_grid(.~slowclass,scales='free_x')+
-		geom_smooth(aes(color=NA),method='lm')+
-		geom_text(data=codreltests,color=I('black'),aes(label=acor_label,x=1.5,y=1.5))+
-		theme_bw()
-	#
-	codrelplot+
-		scale_color_manual(name='Time',values=stagecols)+
-		scale_x_continuous(paste0('Abundance / Mean Abundance [Codon]'),limits=c(-4,3))+
-		scale_y_continuous(paste0('Dwell Time / Mean DT [Codon]'))+
-		ggtitle(paste0('Relationship Between tRNA availability and Dwell time for fast/slow codons'))+
-		theme_bw()
-	dev.off()
-	normalizePath(plotfile)
+	stop()
+
+	trna_occ_df_samp%>%filter(fraction=='total')
 
 
 		# {quicktest(.$dwell_time,.$abundance)}

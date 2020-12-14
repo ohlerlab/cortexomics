@@ -1,3 +1,4 @@
+{
 library(Biostrings)
 library(GenomicFeatures)
 library(Rsamtools)
@@ -23,11 +24,18 @@ proteinmsdata$gene_name%>%setdiff(cds$gene_name)
 
 
 
-
+cdsgrl = cdsgrl[str_order_grl(cdsgrl)]
 proteinsequences = GenomicFeatures::extractTranscriptSeqs(cdsgrl,x=FaFile('pipeline/my_GRCm38.p5.genome.chr_scaff.fa'))
 aaproteinsequences = translate(proteinsequences)
+}
 
 # missingprotmsdata = peptidemsdata%>%filter(!gene_name%in%cds$gene_name)
+trlist = ids_nrgname%>%distinct(gene_name,transcript_id)%>%{split(.[[2]],.[[1]])}
+
+igene='Satb2'
+
+library(GenomicFeatures)
+
 
 if(!file.exists(here('data/pepmatch.rds'))){
 	pepmatch = mclapply(AAStringSet(peptidemsdata$Sequence),function(pattern){

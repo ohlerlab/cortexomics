@@ -33,14 +33,14 @@ get_cluster_gos <- function(clustvect){
 #clustergos%<>%.[names(clustlist)]
 #memoise
 
-go_comparison_plot <-function(x)x%>%map_df(.id='cluster',.%>%arrange(elimFisher)%>%head(10)%>%select(Term,elimFisher))%>%
+go_comparison_plot <-function(x){x%>%map_df(.id='cluster',.%>%arrange(elimFisher)%>%head(10)%>%select(Term,elimFisher))%>%
   mutate(Term = as_factor(Term))%>%
   mutate(cluster = as_factor(cluster))%>%
   ggplot(.,aes(x=cluster,y=Term,color=-log10(elimFisher),size=-log10(elimFisher)))+
   geom_point()+
   # ggtitle(mapname)+
   theme_bw()
-
+}
 
 # go_comparison_plot <- projmemoise(go_comparison_plot)
 

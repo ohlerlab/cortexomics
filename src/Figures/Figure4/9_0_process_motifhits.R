@@ -148,3 +148,34 @@ allcermitmatches%>%left_join(cermitclustpatterndf)%>%group_by(gene,cluster)%>%ta
 allcermitmatches%>%left_join(cermitclustpatterndf)%>%filter(cluster==1)%>%.$gene%>%n_distinct
 
 allcermitmatches%>%left_join(cermitclustpatterndf)%>%.$gene%>%n_distinct
+
+################################################################################
+########readexcel pum1/2
+################################################################################
+library(readxl)	
+read_xlsx('ext_data/Zhang_2017_pum_sites.xlsx',sheet=1)[[6]]%>%.[nchar(.)==8]%>%na.omit%>%paste0(collapse='\n')%>%cat(file='ext_data/Pum1.txt')
+read_xlsx('ext_data/Zhang_2017_pum_sites.xlsx',sheet=2)[[6]]%>%.[nchar(.)==8]%>%na.omit%>%paste0(collapse='\n')%>%cat(file='ext_data/Pum1.txt')
+scp projects/cortexomics/ext_data/Pum*  max-login2:~/
+mkdir Pum
+mv Pum*.txt Pum
+sites2meme Pum > Pumbetter.meme
+
+
+################################################################################
+########temp code on max while bih down
+################################################################################
+TGTANATA
+library(magrittr)
+
+seqs = readDNAStringSet('motseqs/tputr/teranked/teranked.fa')
+upnames =  readDNAStringSet('motseqs/tputr/terankeduponly/terankeduponly.fa')%>%names
+nocnames =  readDNAStringSet('motseqs/tputr/terankednodown/terankednodown.fa')%>%names%>%setdiff(upnames)
+downnames =  readDNAStringSet('motseqs/tputr/teranked/teranked.fa')%>%names%>%setdiff(c(upnames,nocnames))
+
+vmatchPattern('TGTANATA',fixed=F,seqs[upnames])%>%as.data.frame%>%nrow%>%divide_by(length(upnames))
+vmatchPattern('TGTANATA',fixed=F,seqs[nocnames])%>%as.data.frame%>%nrow%>%divide_by(length(nocnames))
+vmatchPattern('TGTANATA',fixed=F,seqs[downnames])%>%as.data.frame%>%nrow%>%divide_by(length(downnames))
+
+
+
+	

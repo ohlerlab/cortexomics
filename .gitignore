@@ -68,3 +68,6 @@ src/.idea
 proDD_fit.RData
 packrat/lib*/
 Reports
+*yeast_test*
+*Weinberg_yeast**
+*telleybams*

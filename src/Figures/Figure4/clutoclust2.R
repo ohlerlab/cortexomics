@@ -7,6 +7,7 @@ trid2gid<-load_hashmap('trid2gid.hmp')
 gid2gnm<-load_hashmap('gid2gnm.hmp')
 gnm2gid<-load_hashmap('gnm2gid.hmp')
 trid2gnm<-load_hashmap('trid2gnm.hmp')
+gnm2gid<-load_hashmap('gnm2gid.hmp')
 gnm2trid<-load_hashmap('gnm2trid.hmp')
 library(tidyverse)
 library(ggplot2)
@@ -189,8 +190,9 @@ rownames(t0_minmax) = gid2gnm[[rownames(t0_minmax)]]
 # predictionmat = prediction_df%>%unite(contrast,time,assay)%>%
 #   select(contrast,estimate,gene_name)
 #   spread(contrast,estimate)
+# }
 #We need to perform cluto clustering with filled in data.
-}
+
 # exprdf$gene_name = gid2gnm[[exprdf$gene_id]]
 # prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
 

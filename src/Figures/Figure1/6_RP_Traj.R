@@ -15,6 +15,7 @@ sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 countpred_df<-readRDS('data/countpred_df.rds')
 tx_countdata<-readRDS('data/tx_countdata.rds')
+ms_metadf<-readRDS('data/ms_metadf.rds')
 allvoom <- readRDS(here('data/allvoom.rds'))
 prediction_df = bind_rows(
   sel_prodpreds%>%
