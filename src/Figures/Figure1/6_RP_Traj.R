@@ -156,7 +156,6 @@ make_traj_plot <- function(genes2plot,myymin,myymax,exprdf,prediction_df){
         points = geom_point()
         # linerange=geom_linerange(color=I('blue'),data=ggdf_msconf%>%uidfilt%>%filter(assay==assay2plot)%>%scaledata(assay2plot),aes(y=signal,ymin=CI.L,ymax=CI.R))
       }
-      browser()
       ggplot(
       data = plotdf%>%filter(assay==assay2plot)%>%scaledata(assay2plot),
       aes(

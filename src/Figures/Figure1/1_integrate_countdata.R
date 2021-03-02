@@ -12,7 +12,7 @@ if(!exists("cdsgrl")) {
 ########Load dpprime data, write as salmon files
 ################################################################################
 
-dpfiles = Sys.glob(here('pipeline/deepshapeprime/*ribo*/run*'))%>%
+dpfiles = Sys.glob(here('pipeline/deepshapeprime/*/run*'))%>%
 	data.frame(file=.)%>%
 	mutate(sample=basename(dirname(file)))%>%
 	mutate(name=basename(file))%>%
@@ -63,7 +63,7 @@ dpoutfiles = dpexprdata%>%split(.,.$sample)%>%imap_chr(function(dpexprdata_s,sam
 library(tximport)
 library(tidyverse)
 
-rnasalmonfiles = Sys.glob(here('pipeline/salmon/data/*/quant.sf'))
+rnasalmonfiles = Sys.glob(here('pipeline/salmon/data/*total*/quant.sf'))
 
 allquantfiles = c(rnasalmonfiles,dpoutfiles)
 names(allquantfiles) <- allquantfiles%>%dirname%>%basename
@@ -102,20 +102,20 @@ tx_countdata$counts%>%as.data.frame%>%
 	write_tsv('data/tx_scaled_countData.tsv')
 
 }
-alldpgeneids = tx2genetbl
-tx_countdata$abundance%>%rownames%>%inclusiontable(allgids)
+# alldpgeneids = tx2genetbl
+# allgids = tx2genetbl
+# tx_countdata$abundance%>%rownames%>%inclusiontable(allgids)
 
-stopifnot(tx_countdata$abundance%>%rownames%>%setequal(allgids))
-
+# stopifnot(tx_countdata$abundance%>%rownames%>%setequal(allgids))
 
 ################################################################################
 ########Save as exprset object
 ################################################################################
 ribosamples = str_subset(colnames(tx_countdata$counts),'ribo')
 rnasamples = str_subset(colnames(tx_countdata$counts),'total')
+mainsamples = c(ribosamples,rnasamples)
 
-
-ishighcount = tx_countdata$counts%>%
+ishighcount = tx_countdata$counts[,ribosamples]%>%
 	as.data.frame%>%
 	rownames_to_column('gene_id')%>%
 	pivot_longer(-gene_id)%>%
@@ -130,9 +130,10 @@ ishighcount = ishighcount[rownames(tx_countdata$counts)]
 highcountgenes = rownames(tx_countdata$counts)[ishighcount]
 highcountgnms = gid2gnm[[highcountgenes]]
 
-allcountmat <- tx_countdata$counts
+allcountmat <- tx_countdata$counts[,mainsamples]
 allcountdesign = colnames(allcountmat)%>%data.frame(sample=.)%>%separate(sample,into=c('time','assay','rep'),remove=F)
 allcountdesign = allcountdesign%>%arrange(assay=='ribo')%>%mutate(assay=as_factor(assay))%>%as.data.frame%>%set_rownames(.$sample)
+allcountmat <- allcountmat[,rownames(allcountdesign)]
 
 {
 
@@ -147,6 +148,8 @@ dim(allcountdesign)
 dim(featuredata)
 colnames(allcountmat)
 
+colnames(allcountmat)==rownames(allcountdesign)
+
 countexprdata <- ExpressionSet(
 	allcountmat,
 	AnnotatedDataFrame(allcountdesign),
@@ -156,6 +159,7 @@ countexprdata <- ExpressionSet(
 countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
 
 }
+
 ################################################################################
 ########Also get isoform level 
 ################################################################################
@@ -176,20 +180,17 @@ iso_tx_countdata = tximport(files=allquantfiles,
 stopifnot(iso_tx_countdata$abundance%>%rownames%>%setequal(alltrs))
 
 ################################################################################
-########Run Limma (different variances)
+########Now run limma on the main samples
 ################################################################################
-tx_countdata_highcounts = tx_countdata%>%map_if(is.matrix,~ .[highcountgenes,])
-
-
 library(limma)
 library(edgeR)
-allcountdge <- DGEList(tx_countdata_highcounts$counts)
+allcountdge <- DGEList(tx_countdata$counts)
 allcountkeep = filterByExpr(allcountdge)
 allcountkeep[] = TRUE #NB - sicne we filter above with highcountgenes, we can just do this
 allcountdge = allcountdge[allcountkeep,]
 allcountdge <- calcNormFactors(allcountdge)
 
-ribosamples = str_subset(colnames(allcountdge),'ribo')
+monosamples = str_subset(colnames(allcountdge),'80S')
 rnasamples = str_subset(colnames(allcountdge),'total')
 
 ribovoom = voom(allcountdge[,ribosamples],design=model.matrix(~rep+time,allcountdesign[ribosamples,]))
@@ -214,7 +215,7 @@ alllimmares%<>%mutate(gene_name=gid2gnm[[gene_id]])
 
 
 limmatechangesumtable <- alllimmares%>%
-	rename('adj_p_value' := adj.P.Val,'log2fc':=logFC)%>%
+	dplyr::rename('adj_p_value' := adj.P.Val,'log2fc':=logFC)%>%
 	group_by(gene_id,gene_name)%>%
   mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
   summarise(
@@ -253,9 +254,8 @@ countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 #
 countpred_df$gene_name = gid2gnm[[countpred_df$gene_id]]
 countpred_df%>%saveRDS('data/countpred_df.rds')
-tx_countdata%>%saveRDS('data/tx_countdata.rds')
+tx_countdata%>%map_if(is.matrix,~.[,mainsamples])%>%saveRDS('data/tx_countdata.rds')
 allvoom%>%saveRDS('data/allvoom.rds')
-
 
 
 # contrnames = as.list(contrnames)
@@ -383,3 +383,167 @@ if(F)test_that({
 #next
 # /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/TE_change/run_xtail.R
 # 
+
+
+################################################################################
+########Run Limma (different variances)
+################################################################################
+satb2trid = 'ENSMUST00000177424'
+iso_tx_countdata$counts[satb2trid,]
+
+{
+tx_countdata_highcounts = tx_countdata%>%map_if(is.matrix,~ .[highcountgenes,])
+
+monosamples = tx_countdata$abundance%>%colnames%>% str_subset('80S')
+polysamples = tx_countdata$abundance%>%colnames%>% str_subset('Poly')
+fracsamples = c(monosamples,polysamples)
+
+ribofrac_design = data.frame(sample=fracsamples)%>%	
+	mutate(fraction = str_extract(sample,'80S|Poly'))%>%
+	mutate(time = sample%>%str_extract('(?<=80S|Poly).*?(?=_)'))%>%
+	mutate(rep = sample%>%str_extract('[0-9]+$'))%>%
+	arrange(fraction=='80S',time=='P0',time=='E16')%>%
+	set_rownames(.$sample)
+ribofrac_design$fraction%<>%as_factor
+
+fracvoom = voom(allcountdge[,ribofrac_design$sample],design=model.matrix(~rep:time+fraction*time, ribofrac_design))
+
+stopifnot(colnames(fracvoom$E)==ribofrac_design$sample)
+fr_allcountebayes <- eBayes(lmFit(fracvoom))
+
+fr_timecoefs = fr_allcountebayes$coef%>%colnames%>%str_subset('^time')
+fr_tetimecoefs = fr_allcountebayes$coef%>%colnames%>%str_subset('assayribo:time')
+fr_allcontrasts = c('fraction80S',fr_timecoefs,fr_tetimecoefs)%>%setNames(.,.)
+
+fr_alllimmares = 
+	map_df(.id='contrast',fr_allcontrasts,function(contrasti){
+		topTable(contrasts.fit(fr_allcountebayes,coef=c(contrasti)),n=Inf,confint=.95)
+	})
+#unmangle the gene ids
+fr_alllimmares%<>%rownames_to_column('gene_id')%>%mutate(gene_id=str_replace(gene_id,'\\..*',''))
+fr_alllimmares%<>%mutate(gene_name=gid2gnm[[gene_id]])
+
+fr_alllimmares %>% saveRDS(here('data/fr_alllimmares.rds'))
+
+
+fr_limmatechangesumtable <- fr_alllimmares%>%
+	dplyr::rename('adj_p_value' := adj.P.Val,'log2fc':=logFC)%>%
+	group_by(gene_id,gene_name)%>%
+  mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
+  summarise(
+    up = as.numeric(any(sig & (log2fc > 0))),
+    down = as.numeric(any(sig & (log2fc < 0)))
+  )
+
+fr_limmatechangesumtable%>%write_tsv(here('tables/fr_limmaTEchange.tsv'))
+stop()
+
+#get the designs describing the average at a given timepoint/assay
+f_tpavdesign = fr_allcountebayes$design[rownames(fr_allcountebayes$design)%>%str_subset('_2$'),]
+rownames(f_tpavdesign) %<>% str_replace('_2','')
+f_tpavdesign[,colnames(f_tpavdesign)%>%str_detect('rep2:')]%<>%multiply_by(0.5)
+f_tpavdesign%<>%t
+datagroup = colnames(f_tpavdesign)[1]
+monocols <- colnames(f_tpavdesign)%>%str_subset('80S')
+polycols <- colnames(f_tpavdesign)%>%str_subset('Poly')
+mfracdesign = f_tpavdesign[,monocols] - f_tpavdesign[,polycols]
+colnames(mfracdesign)%<>%str_replace('RP.*80S','MonoFrac_')
+f_tpavdesign%<>%cbind(f_tpavdesign, mfracdesign)
+#
+fr_countpred_df<-	lapply(colnames(f_tpavdesign)%>%setNames(.,.),function(datagroup){
+		message(datagroup)
+		topTable(eBayes(contrasts.fit(fr_allcountebayes,f_tpavdesign[,datagroup,drop=F])),coef=1,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+#
+fr_countpred_df$gene_name = gid2gnm[[fr_countpred_df$gene_id]]
+fr_countpred_df%>%saveRDS('data/fr_countpred_df.rds')
+tx_countdata%>%map_if(is.matrix,~.[,fracsamples])%>%saveRDS('data/fr_tx_countdata.rds')
+allvoom%>%saveRDS('data/allvoom.rds')
+
+}
+	
+{
+
+ftps = ribofrac_design$time%>%unique
+f_contrnames = fr_allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
+names(f_contrnames) = fr_allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%
+	str_replace('(.*)fraction80S','MonoFrac_\\1')%>%
+	str_replace(':','_')%>%
+	str_replace('time','')%>%
+	str_replace('_$','')%>%
+	str_replace('^(E16|P0)$','time_\\1')%T>%print
+	
+contr = f_contrnames[1]
+
+stopifnot(contr %in% colnames(fr_allcountebayes$design))
+
+fr_countcontr_df<-	lapply(f_contrnames,function(contr){
+		topTable(fr_allcountebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+fr_countcontr_df%<>%separate(contrast,c('assay','time'))
+fr_countcontr_df%>%distinct(time,assay)
+
+monovoom = voom(allcountdge[,monosamples],design=model.matrix(~time, ribofrac_design[monosamples,]))
+monocountebayes <- eBayes(lmFit(monovoom))
+
+monocontrasts = colnames(monocountebayes$design)%>%setNames(.,str_replace(.,'time','mono_')%>%str_replace('\\(Intercept\\)','mono_E13'))
+
+monocontr_df<-	lapply(monocontrasts,function(contr){
+		topTable(monocountebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+monocontr_df%<>%separate(contrast,c('assay','time'))
+
+fr_countcontr_df <- bind_rows(fr_countcontr_df,monocontr_df)
+fr_countcontr_df$contrast%>%unique
+fr_countcontr_df %>% saveRDS(here('data/fr_countcontr_df.rds'))
+fr_countcontr_df%>%distinct(time,assay)
+fr_countcontr_df$gene_name = gid2gnm[[fr_countcontr_df$gene_id]]
+
+}
+################################################################################
+########Stepwise
+################################################################################
+	
+{
+desmat = fracvoom$design
+tpcontrnames = desmat%>%colnames%>%str_subset('^time')
+for(i in 2:length(tpcontrnames)){
+	haslatr = desmat[,tpcontrnames[i]]==1
+	for(j in (i-1):1){
+		desmat[haslatr,tpcontrnames[j]]<- 1
+	}
+}
+tpcontrnames = desmat%>%colnames%>%str_subset('^time.*:fraction80S')
+for(i in 2:length(tpcontrnames)){
+	haslatr = desmat[,tpcontrnames[i]]==1
+	for(j in (i-1):1){
+		desmat[haslatr,tpcontrnames[j]]<- 1
+	}
+}
+fracvoomstep = fracvoom
+fracvoomstep$design = desmat
+
+fr_stepallebayes = eBayes(lmFit(fracvoomstep))
+}
+{
+f_contrnames = fr_stepallebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
+names(f_contrnames) = fr_allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%
+	str_replace('(.*)fraction80S','MonoFrac_\\1')%>%
+	str_replace(':','_')%>%
+	str_replace('time','')%>%
+	str_replace('_$','')%>%
+	str_replace('^(E16|P0)$','time_\\1')%T>%print
+
+fr_stepcountcontrdf<-	lapply(f_contrnames,function(contr){
+		topTable(fr_stepallebayes,coef=contr,number=Inf,confint=.95)%>%
+		as.data.frame%>%rownames_to_column('gene_id')
+	})%>%bind_rows(.id='contrast')	
+fr_stepcountcontrdf%<>%separate(contrast,c('assay','time'))
+fr_stepcountcontrdf%>%distinct(assay,time)
+
+fr_stepcountcontrdf %>% saveRDS(here('data/fr_stepcountcontrdf.rds'))
+}
+

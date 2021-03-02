@@ -17,7 +17,6 @@ exprs = Biobase::exprs
 HIGHCOUNTTHRESH <- 32
 
 {
-
 trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]])}
 gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[1]],.[[2]])}
@@ -27,7 +26,6 @@ gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%{safe_hashmap(.[[1]
 
 allgids = trid2gid[[alltrs]]%>%unique
 allgnms = trid2gnm[[alltrs]]%>%unique
-
 }
 #THis statement from dunn and weismann 2013:
 ##A4 size is 8 by 11Remarkably, we find that the range of translation efficiencies for different messages spans four orders of magnitude, a range comparable to that observed for mRNA abundance of well-counted genes (Figure 1D). Moreover, translation efficiency is uncorrelated with mRNA abundance (r2 = 8.29 × 10−5; Figure 1E) and mRNA abundance predicts only one third of the variance in the rate of protein production as measured by ribosome footprint density (Figure 1F). Translational regulation is therefore a major determinant of gene expression in the early embryo (supplementary table 1 at Dryad: Dunn et al., 2013), and ribosome profiling provides a quantitative and robust means to monitor translational regulation during development.
@@ -138,8 +136,10 @@ repcors = txi_counttbl_reps%>%group_by(time,assay)%>%filter(highcount)%>%summari
 
 
 terepcors = txi_tetbl_reps%>%group_by(time)%>%filter(highcount)%>%filter(is.finite(Replicate_1))%>%
-	filter(is.finite(Replicate_2))%>%	filter(Replicate_1%>%between(-12,12))%>%
-	filter(Replicate_2%>%between(-12,12))%>%summarise(cor=cor(use='complete',Replicate_1,Replicate_2))
+	filter(is.finite(Replicate_2))%>%
+	filter(Replicate_1%>%between(-12,12))%>%
+	filter(Replicate_2%>%between(-12,12))%>%
+	summarise(cor=cor(use='complete',Replicate_1,Replicate_2))
 
 txi_tetbl_reps%>%filter(gene_id==testgn)
 

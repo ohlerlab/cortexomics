@@ -13,6 +13,7 @@ if(!exists("cdsgrl")) {
 # # install the MuSiC package
 # devtools::install_github("renozao/xbioc")
 # devtools::install_github('xuranw/MuSiC')
+
 # devtools::install_github('')
 
 # load
@@ -288,42 +289,60 @@ stem_prop_df%>%
 ################################################################################
 ########Try to understand
 ################################################################################
+library(ggrepel)
+
+library(LSD)
+source('Applications/LSD/R/LSD.heatscatter.R')
 #if it was two cell types we could just plot like, 
+comptp1='24H'
+comptp2='96H'
 telleystemcountmat = cbind(
-  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff=='1H']%>%rowSums,
-  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff=='96H']%>%rowSums
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff==comptp1]%>%rowSums,
+  exprs(sscountexprdata)[,sscountexprdata@phenoData$ftdiff==comptp2]%>%rowSums
 )
 telleystemcountmat <- telleystemcountmat[telleystemcountmat%>%rowMins%>%`>`(32),]
+telleystemcountmat = telleystemcountmat%>%sweep(.,2,FUN='/',STAT= colSums(.))
 stemcountweights = log2(telleystemcountmat) %>% {.[,2]-.[,1]}
+#
 
 #now plot
 plotfile<- here(paste0('plots/','telleyweightsvste','.pdf'))
-pdf(plotfile)
-print(
-stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
-  # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
-  ggplot(data=.,aes(x=(diff_weight),y=estimate))+
+pdf(h=14,w=14,plotfile)
+# print(
+stemcountweights%>%enframe('gene_name','diff_weight')%>%
+# wteltcoregsdiff%>%enframe('gene_name','diff_weight')%>%
+  inner_join(prediction_df%>%filter(assay=='TE')%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+  # filter(gene_name %in% telleycoregenesdiff)%>%
+  mutate(lbl = ifelse(diff_weight>3,gene_name,''))%>%
+  left_join(techangedf%>%transmute(gene_name,dTE = (up==1|(down==1))))%>%
+  filter(!is.na(dTE))%>%{
+  # ggplot(data=.,aes(x=(diff_weight),y=estimate,label=lbl,color=dTE))+
+  . = filter(.,time=='E13');
+  heatscatter((.$diff_weight),.$estimate,ggplot=TRUE)+
+  geom_smooth(method='lm')+
+  # geom_label_repel()+
   scale_x_continuous('Ratio of Expression in Neurons to Stem Cells as per Telley')+
+  # scale_x_continuous('Expression weight Neurons to Stem Cells as per Telley')+
   scale_y_continuous('TE')+
   facet_wrap(time+assay~.)+
-  # geom_smooth(method='lm')+
-  # geom
   geom_point(size=I(1.0))+
-  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
-  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
-  theme_bw()
-  )
+  theme_bw()+
+  ggtitle(paste0(comptp1,' vs. ',comptp2))
+  # })
 dev.off()
 normalizePath(plotfile)
 
 
-countcontr_df
-
+techangedf<-read_tsv('tables/xtailTEchange.tsv') 
 #now plot
+
+countcontr_df%>%filter(assay=='TE',!is.na(time))%>%mutate(gene_name=gid2gnm[[gene_id]])
+
 plotfile<- here(paste0('plots/','telleyweightsvsdte','.pdf'))
 pdf(plotfile)
 print(
-stemcountweights%>%enframe('gene_name','diff_weight')%>%inner_join(countcontr_df%>%filter(assay=='TE',!is.na(time))%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
+stemcountweights%>%enframe('gene_name','diff_weight')%>%
+  inner_join(countcontr_df%>%filter(assay=='TE',!is.na(time))%>%mutate(gene_name=gid2gnm[[gene_id]]),by=c('gene_name')) %>%
   # filter(dset%>%str_detect('E16_total_1'),dset%>%str_detect('_1'))%>%
   ggplot(data=.,aes(x=(diff_weight),y=logFC))+
   scale_x_continuous('Ratio of Expression in Neurons to Stem Cells as per Telley')+
@@ -343,6 +362,7 @@ normalizePath(plotfile)
 ################################################################################
 ########now weight birthdate
 ################################################################################
+
 telleybdcountmat = cbind(
   exprs(sscountexprdata)[,sscountexprdata@phenoData$fttime=='E15']%>%rowSums,
   exprs(sscountexprdata)[,sscountexprdata@phenoData$fttime=='E12']%>%rowSums
@@ -379,7 +399,7 @@ bdcountweights%>%enframe('gene_name','BD_weight')%>%inner_join(prediction_df%>%f
   filter(estimate>5)
 
 #now plot
-plotfile<- here(paste0('plots/','bdweight_vs_te','.pdf'))
+plotfile<- here(paste0source("", chdir = TRUE)('plots/','bdweight_vs_te','.pdf'))
 pdf(plotfile)
 print(
 wteltcoregs%>%
@@ -422,7 +442,6 @@ normalizePath(plotfile)
 #   )
 # dev.off()
 # normalizePath(plotfile)
-
 
 
 

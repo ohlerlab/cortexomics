@@ -93,4 +93,4 @@ gnm2trid%>%save_hashmap(here('data/gnm2trid.hmp'))
 	gnm2trid<-load_hashmap(here('data/gnm2trid.hmp'))
 
 }
-
+genesofinterest=c('Nes','Tle4','Flna','Satb2','Bcl11b')

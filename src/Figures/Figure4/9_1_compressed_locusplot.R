@@ -161,8 +161,12 @@ if(!exists('peptidemsdata')){
 igene='Flna'
 
 COMPRESS=T
-for(COMPRESS in c(TRUE,FALSE)){
-for(igene in c('Satb2','Flna','Nes','Bcl11b','Tle4'))
+# for(COMPRESS in c(TRUE,FALSE)){
+for(COMPRESS in c(TRUE)){
+# for(igene in c('Satb2','Flna','Nes','Bcl11b','Tle4'))
+# for(igene in c('Kat6a','Arhgef12'))
+for(igene in c('Slc31a2','Dlg2','Dock9','Msra','Sbno2'))
+# for(igene in c('Tuba1a','Tuba1b',))
 # for(igene in c('Satb2','Bcl11b'))
 {
 {
@@ -235,6 +239,7 @@ get_cov_track <- function(igeneanno,bams=ribobams,offsets_=offsets){
 peptidemsdata_=peptidemsdata;cdsgrl_=cdsgrl;aaproteinsequences_ = aaproteinsequences
 get_gene_pepgr = function(igene,peptidemsdata_=peptidemsdata,cdsgrl_=cdsgrl,aaproteinsequences_ = aaproteinsequences){
 	gpep_df = peptidemsdata_%>%filter(gene_name==igene)
+	if(nrow(gpep_df)==0) return(NULL)
 	peptides=gpep_df$Sequence
 	# peptides = 'AAPAETDQR'
 	ig_seqs = aaproteinsequences_[trlist[[igene]]]
@@ -268,6 +273,7 @@ get_peptide_track<-function(igeneanno){
 	igeneanno%<>%subset(type!='gene')
 	igene = igeneanno$gene_name[1]
 	pepgr = get_gene_pepgr(igene)
+	if(is.null(pepgr))return(DataTrack(NULL))
 	pepgr = pepgr[!duplicated(pepgr$peptide),]
 	# igeneanno = annotation%>%subset(gene_name=igene)
 	ov = findOverlaps(pepgr,igeneanno)
@@ -287,29 +293,31 @@ get_peptide_track<-function(igeneanno){
 motifpattern='TGTANATA'
 
 getmotiftrack = function(motifpattern,igeneanno){
-		igeneanno%<>%subset(type!='gene')
-spligeneanno = igeneanno%>%split(.,.$transcript_id)
-spligeneanno%<>%sort_grl_st
-trs = names(spligeneanno)
-igeneannoseq = spligeneanno%>%extrseq
+	igeneanno%<>%subset(type!='gene')
+	spligeneanno = igeneanno%>%split(.,.$transcript_id)
+	spligeneanno%<>%sort_grl_st
+	trs = names(spligeneanno)
+	igeneannoseq = spligeneanno%>%extrseq
 
-motifgr = vmatchPattern(motifpattern,fixed=F,igeneannoseq)%>%
-	as.data.frame%>%
-	transmute(start,end,width,seqnames=names(igeneannoseq)[group])%>%
-	GRanges%>%
-	mapFromTranscripts(spligeneanno)
-
-ov = findOverlaps(motifgr,igeneanno)
-ov = ov[trs[motifgr$transcriptsHits][queryHits(ov)]== igeneanno$transcript_id[subjectHits(ov)],]
-ov = ov[!duplicated(queryHits(ov)),]
-motifgr = GenomicRanges::shift(motifgr[ov@from],-igeneanno$toshift[ov@to])
-motifgr = unique(motifgr)
-AnnotationTrack(motifgr)
+	motifgr = vmatchPattern(motifpattern,fixed=F,igeneannoseq)%>%
+		as.data.frame%>%
+		transmute(start,end,width,seqnames=names(igeneannoseq)[group])
+	if(nrow(motifgr)==0) return(AnnotationTrack(NULL))
+	motifgr = motifgr%>% GRanges%>%
+		mapFromTranscripts(spligeneanno)
+		
+	ov = findOverlaps(motifgr,igeneanno)
+	ov = ov[trs[motifgr$transcriptsHits][queryHits(ov)]== igeneanno$transcript_id[subjectHits(ov)],]
+	ov = ov[!duplicated(queryHits(ov)),]
+	motifgr = GenomicRanges::shift(motifgr[ov@from],-igeneanno$toshift[ov@to])
+	motifgr = unique(motifgr)
+	AnnotationTrack(motifgr)
 }
 
 
 peaktrack = function(gr,igeneanno){		
 	ov = findOverlaps(gr,igeneanno,select='first')
+	if(is.na(ov)) return(AnnotationTrack(NULL))
 	gr = GenomicRanges::shift(gr,-igeneanno$toshift[ov])
 	gr = unique(gr)
 	AnnotationTrack(gr)
@@ -327,6 +335,7 @@ getstart_track = function(igeneanno){
 tps = names(tpcols)
 
 zhangetal_pum2clip = GRanges('chr1:56794013-56794101:-')
+pum1clip = GRanges('chr1:56796631-56796712')
 
 {
 nametrack = function(x,tnm) x%>%{.@name=tnm;.}
@@ -342,13 +351,12 @@ plotTracks(list(
  	exontrack%>%nametrack('Transcripts'),
  	getstart_track(igeneanno)%>%nametrack('AUG'),
  	getmotiftrack('TGTANATA',igeneanno)%>%nametrack('Pum2 Motifs'),
- 	peaktrack(zhangetal_pum2clip,igeneanno)%>%nametrack('Zhang et al Clip')
- 	
+ 	peaktrack(zhangetal_pum2clip,igeneanno)%>%nametrack('Zhang et al Clip'),
+ 	peaktrack(pum1clip,igeneanno)%>%nametrack('PUM1 Clip')
 ),col = tpcols)
 dev.off()
 message(normalizePath(plotfile))
 }
-
 }
 }
 

@@ -1,14 +1,14 @@
 ################################################################################
 ################################################################################
 if(!exists('safe_left_join'))base::source(here::here('src/R/Rprofile.R'))
-if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
+if(!exists('iso_tx_countdata')) load(here('data/1_integrate_countdata.R'))
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
 # base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
 trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 library(GenomicFeatures)
 
 
-
+setwd(here())
 cdsseq = extractTranscriptSeqs(x=fafile,cdsgrl)
 
 ################################################################################
@@ -481,7 +481,7 @@ wus_tab_cors <- usage_v_abundance_df %>%
  # conflict_prefer('rename','dplyr')
 
 allcodsigmean_isomerge$ntime<-allcodsigmean_isomerge$time%>%as_factor%>%as.numeric
-sigcol=sym('availability')
+sigcol=sym('abundance')
 tRNAlmlist <- lapply(list(sym('abundance'), sym('availability')),function(sigcol){
 # tRNAlmlist <- lapply(list(sym('abundance')),function(sigcol){
     #prep data for the lm
@@ -503,20 +503,32 @@ tRNAlmlist <- lapply(list(sym('abundance'), sym('availability')),function(sigcol
     #     mutate(time=str_extract(name,'(?<=time)(\\w+)'))%>%
     #     mutate(fraction=str_extract(name,'(?<=fraction)(\\w+)'))%>%
     #     mutate(codon=str_extract(name,'(?<=codon)(\\w+)'))%>%
-    tRNAeffectdf<-tRNAlm$coef%>%enframe%>%filter(!name%>%str_detect('ntercept'))%>%
+    tRNAlmdf_vm = tRNAlmdf
+    tRNAlmdf_vm$fraction%<>%factor(levels=c('80S','Poly','Total'))
+    tRNAlm_vmono <- lm(data=tRNAlmdf_vm,sigcol ~ time*fraction*codon)
+    names(tRNAlm_vmono$coef)%<>%str_replace('Total','Total_vmono')
+    names(tRNAlm_vmono$coef)%<>%str_replace('Poly','Poly_vmono')
+    coefs = c(tRNAlm$coef,tRNAlm_vmono$coef%>%.[names(.)%>%str_detect('vmono')])
+    tRNAeffectdf<-coefs%>%enframe%>%filter(!name%>%str_detect('ntercept'))%>%
         # mutate(timedep=str_detect(name,'ntime'))%>%
         mutate(time=str_extract(name,'(?<=time)(\\w+)'))%>%
         mutate(fraction=str_extract(name,'(?<=fraction)(\\w+)'))%>%
         mutate(codon=str_extract(name,'(?<=codon)(\\w+)'))%>%
         select(name,time,fraction,codon,value)
     tRNAeffectdf$time[((is.na(tRNAeffectdf$time))&(!is.na(tRNAeffectdf$fraction))&(!is.na(tRNAeffectdf$codon)))]<-'E13' 
-        tRNAeffectdf%>%as.data.frame
     tRNAeffectdf%>%filter(!is.na(time),!is.na(fraction),!is.na(codon),!is.na(value))%>%select(-name)
 })
-left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','fraction','codon'))
 #
 tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','fraction','codon'))%>%
     dplyr::rename('abundance_enrich':=value.x,'availability_enrich':=value.y)
+
+
+# tRNAenrichdf%>%filter(fraction=='Poly_vmono')%>%
+#     left_join(tRNA_occ_df%>%filter(fraction=='total')%>%select(time,codon,dwell_time,tAI,AA))%>%
+#     filter(time%in%c('E13'))%>%
+#     group_by(AA)%>%filter(any(tAI!=1))%>%
+#     {quicktest(.$abundance_enrich,.$tAI)}
+
 
 # allcodsigmean_isomerge%>%filter(fraction=='Poly',time=='E13')%>%
 #     mutate(abundance=ifelse(abundance %in% -Inf,min(abundance[is.finite(abundance)],na.rm=T)-1,abundance))%>%

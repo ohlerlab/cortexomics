@@ -11,8 +11,8 @@ gg_color_hue <- function(n) {
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
 
-gid2gnm<-load_hashmap('gid2gnm.hmp')
-gnm2gid<-load_hashmap('gnm2gid.hmp')
+gid2gnm<-load_hashmap('data/gid2gnm.hmp')
+gnm2gid<-load_hashmap('data/gnm2gid.hmp')
 
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 proDAfitms<-readRDS('data/proDAfitms.rds')
@@ -31,6 +31,7 @@ techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
     up = as.numeric(any(sig & (log2fc > 0))),
     down = as.numeric(any(sig & (log2fc < 0)))
   )
+ techangedf%>%write_tsv('tables/xtailTEchange.tsv') 
 techangegenes = techangedf%>%filter(up==1|down==1)%>%.$gene_name
 teupgenes = techangedf%>%filter(up==1)%>%.$gene_name
 tedowngenes = techangedf%>%filter(down==1)%>%.$gene_name
@@ -53,6 +54,7 @@ cordist <- function(X){
 
 
 }
+techangedf%>%filter(down==1)
 
 # countpred_df$gnm = gid2gnm[[countpred_df$gene_id]]
 
@@ -200,6 +202,7 @@ conttype='allPca_t0_noribo'
 # conttype='pca_t0_jribo_changegenes'
 # conttype='pca_step'
 
+stop()
 
 if(conttype%>%str_detect('step')){
   clustdata = t0_contrastdf
@@ -239,6 +242,62 @@ if(conttype%>%str_detect('allPca')){
   clustdata_clust <- pca$scores[,1:8]%>%{set_colnames(.,paste0('PCall',1:ncol(.)))%>%as.matrix}
 
 }
+
+#now plot
+# plotfile<- here(paste0('plots/','pcaplot','.pdf'))
+# pdf(plotfile)
+#perform pca
+pcafit <- princomp(ribo_t0_contrastdf%>%as.data.frame%>%select(-matches('ribo'))%>%as.matrix)
+#make plots of the pcas
+pcaplot<-here('plots/pcafit_limmafcs_stepwise.pdf')
+pdf(pcaplot)
+# plot(pcafit,main='Fold Change Over Time - PCA')
+plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
+plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
+plot(pcafit,main='Fold Change Over Time Seq Only - PCA')
+plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
+plot(pcafit$scores[,2:3],ylim=pcafit$scores[,2:3]%>%range,xlim=pcafit$scores[,2:3]%>%range)
+dev.off()
+pcaplot%>%normalizePath%>%message
+plotpcafit<-function(i=1,pcafit){
+  pcafit$loading[,i]%>%
+  enframe('dimension','loading')%>%
+  arrange(str_detect(dimension,'MS'),str_detect(dimension,'ribo|TE'),str_detect(dimension,'P0'),str_detect(dimension,'E17'),str_detect(dimension,'E16'),str_detect(dimension,'E14'))%>%
+  mutate(color = case_when(
+     str_detect(dimension,'total|rna|all') ~ 'blue',
+     str_detect(dimension,'ribo|TE') ~ 'green',
+     str_detect(dimension,'MS') ~ 'orange'
+    ))%>%
+  mutate(dimension=factor(dimension,unique(dimension)))%>%
+  ggplot(aes(x=dimension,y=loading,fill=I(color)))+stat_identity(geom='bar')+
+  theme_minimal()+
+  theme(axis.text.x=element_text(angle=45,vjust=0.5))+
+  ggtitle(str_interp('Developmental Fold Changes \n PCA${i}'))
+}
+#
+pcaloadingsplot<-here('plots/hclust_pca_loadings.pdf')
+pdf(h=5,w=8,pcaloadingsplot%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(ncol=2,plotlist=lapply(1:2,FUN=plotpcafit,pcafit))
+dev.off()
+pcaloadingsplot%>%normalizePath%>%message
+#
+pcaloadingsplot<-here('plots/hclust_pca_loadings_2.pdf')
+pdf(h=5,w=8,pcaloadingsplot%T>%{normalizePath(.)%>%message})
+ggpubr::ggarrange(ncol=2,plotlist=lapply(1:4,FUN=plotpcafit,pcafit))
+dev.off()
+pcaloadingsplot%>%normalizePath%>%message
+pcafit%>%summary
+
+# %>%
+#   ggplot(.,aes())+
+#   scale_color_discrete(name='colorname',colorvals)+
+#   scale_x_continuous(paste0('xname'))+
+#   scale_y_continuous(paste0('yname'))+
+#   ggtitle(paste0('title'))+
+#   theme_bw()
+# dev.off()
+# message(normalizePath(plotfile))
+
 
 
 if(conttype%>%str_detect('changegenes'))clustdata = clustdata[changegenes,]
