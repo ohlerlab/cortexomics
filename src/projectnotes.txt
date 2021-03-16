@@ -120,8 +120,8 @@ Tasks for after
 Deal with dropout directly.
 
 #This file is currently doing a lot of work - creating the joint and the seperate models with degredation and synthesis.
-'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_rstan.R'
-'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R'
+'src/R/modeling/degredation_rstan.R'
+'src/R/modeling/degredation_trajplot.R'
 
 
 #IDE setup wishlist
@@ -148,7 +148,7 @@ src/R/Load_data/integrate_exprdata2.R
 src/R/TE_change/run_xtail.R
 
 #figure 1 scatter plots - homodirectional etc.
-#/Users/dharnet/bih_cluster/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Load_data/integrate_exprdata_3.R
+#/Users/dharnet/bih_clustersrc/R/Load_data/integrate_exprdata_3.R
 
 src/R/Psite_offsets/figure1_foldchangescatters.R
 
@@ -202,21 +202,21 @@ src/readnumstats.R
 
 Simple scatter plots vs MS.
 2020-07-01 09:40
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/singlestagescatters.R
+src/R/singlestagescatters.R
 
 Redid cluto clustering
 2020-07-01 09:39
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/clutoclust2.R
+src/R/Clustering/clutoclust2.R
 
 Plotting these
 2020-07-01 09:41
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/plot_clutoclusts2.R
+src/R/Clustering/plot_clutoclusts2.R
 
 #go term plotting script
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Clustering/clustergos.R
+src/R/Clustering/clustergos.R
 
 #ProDA for the proteomics
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/proDA.R
+src/R/Modeling/proDA.R
 
 #MuSiC plots
-/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/MuSiC.R
+src/R/Modeling/MuSiC.R

@@ -1,6 +1,6 @@
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
-  base::source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure0/0_load_annotation.R")
+  base::source("src/Figures/Figure0/0_load_annotation.R")
 }
 rename<-dplyr::rename
 first<-dplyr::first
@@ -302,7 +302,7 @@ server <- function(input, output) {
 shinyApp(ui, server)
 
 #https://www.shinyapps.io/admin/#/dashboard - see for auth
-# appfolder <- '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Shiny/'
+# appfolder <- 'src/R/Shiny/'
 # shiny::runApp(appfolder)
 # rsconnect::deployApp(appfolder,appFiles=c('app.R','trajplotobjects.Rdata'),appTitle='Cortexomics Trajectories',appName='cortex_traj')
 

@@ -1362,6 +1362,6 @@ glmfit_p_codon%>%spread(sample,codon_dt_glm)%>%{txtplot(.[[2]],.[[3]])}
 #' 
 #' Now I"m fucked again, can't figure out why, probability trees apparently hurt??
 
- # if((!isknitr) & (interactive())) {'/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/offsets3.R'%>% {rmarkdown::render(knitr::spin(knit=F,.),output_file=here('reports',basename(str_replace(.,'.R$','.html'))))} } 
+ # if((!isknitr) & (interactive())) {'src/R/offsets3.R'%>% {rmarkdown::render(knitr::spin(knit=F,.),output_file=here('reports',basename(str_replace(.,'.R$','.html'))))} } 
 
  # inenv<-new.env() testout<-load('pipeline/riboqc/data/RPI12_PolyP0_2/_for_SaTAnn')

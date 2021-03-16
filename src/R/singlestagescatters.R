@@ -1,6 +1,6 @@
 pdf = grDevices::pdf
-# /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Load_data/integrate_exprdata2.R
-# /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Modeling/proDA.R
+# src/R/Load_data/integrate_exprdata2.R
+# src/R/Modeling/proDA.R
 
 
 

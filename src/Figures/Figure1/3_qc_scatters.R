@@ -3,7 +3,7 @@
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
 	load('data/1_integrate_countdata.R')
-	base::source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure0/0_load_annotation.R")
+	base::source("src/Figures/Figure0/0_load_annotation.R")
 }
 library(scales)
 library(dplyr)
@@ -427,4 +427,4 @@ for(myontology in c('BP','MF','CC')){
 results.tab<-read_tsv(str_interp('tables/TEoutlier_MF.pdf'))
 results.tab%>%as.data.frame%>%arrange(elimFisher)%>%head
 
-#next /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Psite_offsets/figure1_foldchangescatters.R
+#next src/R/Psite_offsets/figure1_foldchangescatters.R

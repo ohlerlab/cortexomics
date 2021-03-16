@@ -1,8 +1,0 @@
-
-
-
-
-
-seqoffsetmodel <- 
-
-cdsread_trmap

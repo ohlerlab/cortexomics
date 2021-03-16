@@ -91,7 +91,6 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
     dev.off()
 
 }
-# make_cluster_trajplots(hclustob,dteenrichdf)
 
 make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
   #go_comparison_plot <-
@@ -111,7 +110,6 @@ make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
         mutate(Term = as_factor(Term))%>%
         mutate(cluster = as.factor(LETTERS[as.numeric(cluster)]))%>%
     ggplot(.,aes(x=cluster,color=-log10(elimFisher),
-                 # size=-log10(elimFisher),
                     y=Term),
          
            )+
@@ -126,24 +124,4 @@ make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
     fname
 })
 }
-#
-if(FALSE){
-
-
-    clustlist[['Cluto_K10_Bis_large_exprlevels']]%>%make_cluster_trajplots
-    clustlist[['Cluto_K10_Bis_large_t0_effect']]%>%make_cluster_trajplots
-    clustlist[['Cluto_K10_Bis_large_stepwise_effect']]%>%make_cluster_trajplots
-    clustlist[['Cluto_K20_Bis_large_stepwise_effect']]%>%make_cluster_trajplots
-
-    stop()
-    lapply(clustlist,make_cluster_trajplots)%>%unlist
-    stop()
-
-    imap(clustergos,make_cluster_goplots)
-    clustlist[['Cluto_K10_Bis_large_t0_effects']]$cluster%>%{names(.)[.==1]}%>%na.omit
-
-    clustlist    
-}
-
-
 

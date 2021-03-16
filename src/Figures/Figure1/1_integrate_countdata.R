@@ -4,7 +4,7 @@
 ################################################################################
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/Figures/Figure0/0_load_annotation.R")
+	base::source(here("src/Figures/Figure0/0_load_annotation.R"))
 }
 
 
@@ -48,14 +48,8 @@ dpoutfiles = dpexprdata%>%split(.,.$sample)%>%imap_chr(function(dpexprdata_s,sam
 	)%>%write_tsv(fakesalmonfile)
 	invisible()
 	fakesalmonfile
-	#now import	
-	# tximport(files=fakesalmonfile,type='salmon',tx2gene=dpexprdata_s%>%select(transcript_id,gene_id))
 })
 
-# test_that({
-# 	all(dpexprdata$transcript_id %in% salmontrs)
-# 	all(names(cdsgrl) %in% salmontrs)
-# })
 ################################################################################
 ########Import it all to get tr length scaled counts
 ################################################################################
@@ -84,15 +78,9 @@ tx_countdata = tximport(files=allquantfiles,
 			filter(Name%in%trs)%>%
 			arrange(match(Name,trs))
 })
-# test_that({
-	# txIdCol
-	# inclusiontable(raw[[txIdCol]],tx2genetbl[[1]])
-	# inclusiontable(txId,tx2genetbl[[1]])
-# 
-# })
+
 randomround = function(x)floor(x)+rbinom(length(x),1,x%%1)
 for (i in 1:ncol(tx_countdata$counts)){ tx_countdata$counts[,i]%<>%randomround}
-# tx_countdata$counts%<>%as.data.frame%>%mutate_all(randomround)%>%as.matrix%>%set_rownames(rownames(tx_countdata$counts))
 
 tx_countdata$counts%>%as.data.frame%>%
 	rownames_to_column('gene_id')%>%
@@ -131,8 +119,11 @@ highcountgenes = rownames(tx_countdata$counts)[ishighcount]
 highcountgnms = gid2gnm[[highcountgenes]]
 
 allcountmat <- tx_countdata$counts[,mainsamples]
-allcountdesign = colnames(allcountmat)%>%data.frame(sample=.)%>%separate(sample,into=c('time','assay','rep'),remove=F)
-allcountdesign = allcountdesign%>%arrange(assay=='ribo')%>%mutate(assay=as_factor(assay))%>%as.data.frame%>%set_rownames(.$sample)
+allcountdesign = colnames(allcountmat)%>%data.frame(sample=.)%>%
+	separate(sample,into=c('time','assay','rep'),remove=F)
+allcountdesign = allcountdesign%>%arrange(assay=='ribo')%>%
+	mutate(assay=as_factor(assay))%>%
+	as.data.frame%>%set_rownames(.$sample)
 allcountmat <- allcountmat[,rownames(allcountdesign)]
 
 {
@@ -156,7 +147,7 @@ countexprdata <- ExpressionSet(
 	AnnotatedDataFrame(featuredata)
 )
 
-countexprdata%>%saveRDS(here('pipeline/exprdata/countexprset.rds'))
+countexprdata%>%saveRDS(here('data/countexprset.rds'))
 
 }
 
@@ -193,9 +184,14 @@ allcountdge <- calcNormFactors(allcountdge)
 monosamples = str_subset(colnames(allcountdge),'80S')
 rnasamples = str_subset(colnames(allcountdge),'total')
 
-ribovoom = voom(allcountdge[,ribosamples],design=model.matrix(~rep+time,allcountdesign[ribosamples,]))
-rnavoom = voom(allcountdge[,rnasamples],design=model.matrix(~rep+time,allcountdesign[rnasamples,]))
-allvoom = voom(allcountdge[,c(rnasamples,ribosamples)],design=model.matrix(~rep:time+assay*time,allcountdesign[c(rnasamples,ribosamples),]))
+ribodesign = model.matrix(~rep+time,allcountdesign[ribosamples,])
+ribovoom = voom(allcountdge[,ribosamples],design=ribodesign)
+rnadesign = model.matrix(~rep+time,allcountdesign[rnasamples,])
+rnavoom = voom(allcountdge[,rnasamples],design=rnadesign)
+fulldesign = model.matrix(~rep:time+assay*time,
+		allcountdesign[c(rnasamples,ribosamples),]
+	)
+allvoom = voom(allcountdge[,c(rnasamples,ribosamples)],design=fulldesign)
 
 stopifnot(colnames(allvoom$E)==c(rnasamples,ribosamples))
 allvoom$weights <- cbind(ribovoom$weights,rnavoom$weights)
@@ -210,7 +206,8 @@ alllimmares =
 		topTable(contrasts.fit(allcountebayes,coef=c(contrasti)),n=Inf,confint=.95)
 	})
 #unmangle the gene ids
-alllimmares%<>%rownames_to_column('gene_id')%>%mutate(gene_id=str_replace(gene_id,'\\..*',''))
+alllimmares%<>%rownames_to_column('gene_id')%>%
+	mutate(gene_id=str_replace(gene_id,'\\..*',''))
 alllimmares%<>%mutate(gene_name=gid2gnm[[gene_id]])
 
 
@@ -248,7 +245,8 @@ tpavdesign%<>%cbind(tpavdesign, tedesign)
 
 countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 		message(datagroup)
-		topTable(eBayes(contrasts.fit(allcountebayes,tpavdesign[,datagroup,drop=F])),coef=1,number=Inf,confint=.95)%>%
+		contrlm_object = contrasts.fit(allcountebayes,tpavdesign[,datagroup,drop=F])
+		topTable(eBayes(contrlm_object),coef=1,number=Inf,confint=.95)%>%
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
 #
@@ -270,7 +268,13 @@ allvoom%>%saveRDS('data/allvoom.rds')
 {
 tps = allcountdesign$time%>%unique
 contrnames = allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
-names(contrnames) = allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%str_replace('assayribo','TE')%>%str_replace(':','_')%>%str_replace('time','')%>%str_replace('(?=^[^T])','all_')
+names(contrnames) = allcountebayes$design%>%
+	colnames%>%
+	str_subset(neg=T,'I|rep')%>%
+	str_replace('assayribo','TE')%>%
+	str_replace(':','_')%>%
+	str_replace('time','')%>%
+	str_replace('(?=^[^T])','all_')
 contr = contrnames[1]
 
 stopifnot(contr %in% colnames(allcountebayes$design))
@@ -282,9 +286,12 @@ countcontr_df<-	lapply(contrnames,function(contr){
 countcontr_df%<>%separate(contrast,c('assay','time'))
 
 
-ribocountebayes <- eBayes(lmFit(allvoom[,11:20]))
+ribocountebayes <- eBayes(lmFit(ribovoom))
 
-ribocontr_df<-	lapply(colnames(ribocountebayes$design)%>%str_subset(neg=T,'Inter|rep|ribo')%>%setNames(paste0('ribo_',tps[-1])),function(contr){
+ribocontr_names <- colnames(ribocountebayes$design)%>%
+	str_subset(neg=T,'Inter|rep|ribo')%>%
+	setNames(paste0('ribo_',tps[-1]))
+ribocontr_df<-	lapply(ribocontr_names,function(contr){
 		topTable(ribocountebayes,coef=contr,number=Inf,confint=.95)%>%
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
@@ -321,7 +328,10 @@ stepallebayes = eBayes(lmFit(allvoomstep))
 
 {
 contrnames = stepallebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
-names(contrnames) = stepallebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')%>%str_replace('assayribo','TE')%>%str_replace(':','_')%>%str_replace('time','')%>%str_replace('(?=^[^T])','all_')
+names(contrnames) = stepallebayes$design%>%colnames%>%
+	str_subset(neg=T,'I|rep')%>%str_replace('assayribo','TE')%>%
+	str_replace(':','_')%>%
+	str_replace('time','')%>%str_replace('(?=^[^T])','all_')
 
 stepcountcontrdf<-	lapply(contrnames,function(contr){
 		topTable(stepallebayes,coef=contr,number=Inf,confint=.95)%>%
@@ -332,7 +342,10 @@ stepcountcontrdf%<>%separate(contrast,c('assay','time'))
 
 ribocountebayes <- eBayes(lmFit(allvoom[,11:20]))
 
-ribocontr_df<-	lapply(colnames(ribocountebayes$design)%>%str_subset(neg=T,'Inter|rep|ribo')%>%setNames(paste0('ribo_',tps[-1])),function(contr){
+ribocontr_names <- colnames(ribocountebayes$design)%>%
+	str_subset(neg=T,'Inter|rep|ribo')%>%
+	setNames(paste0('ribo_',tps[-1]))
+ribocontr_df<-	lapply(ribocontr_names,function(contr){
 		topTable(ribocountebayes,coef=contr,number=Inf,confint=.95)%>%
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
@@ -351,37 +364,15 @@ allvoom %>% saveRDS(here('data/allvoom.rds'))
 iso_tx_countdata %>% saveRDS(here('data/iso_tx_countdata.rds'))
 
 highcountgnms %>% saveRDS(here('data/highcountgnms.rds'))
-#data.frame(trid=besttrs)%>%write_tsv('pipeline/scikitribotrs.txt',col_names=F)
-
-#system('grep -f pipeline/scikitribotrs.txt annotation/gencode.vM12.annotation.gtf > pipeline/scikitribo.gtf')
-#'pipeline/scikitribo.gtf'%>%{rtracklayer::import(.)}
-#oanno <- 'annotation/gencode.vM12.annotation.gtf'
-#oanno %<>% rtracklayer::import(.)
-#oanno[oanno$transcript_id%>%trimids%>%is_in(besttrs)]%>%{rtracklayer::export(.,'pipeline/scikitribo.gtf')}
-
-if(F)test_that({
-	  alllimmate = alllimmares%>%filter(contrast%>%str_detect('assayribo:time'))%>%mutate(time=str_replace(contrast,'assayribo:time',''))
-		alllimmate%>%head
-	  alllimmate%<>%rename('adj_p_value' := adj.P.Val,'log2fc':=logFC)
-
-  alllimmate%>%mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.5)))%>%
-    mutate(change = ifelse(!sig,0,ifelse(log2fc>0,1,-1)))%>%
-    select(gene_name,time,change)%>%
-    group_by(gene_name)%>%
-    summarise(techangepat = paste(change,collapse=','))%>%
-    .$techangepat%>%table%>%sort
-
-
-	alllimmares%>%filter(gene_name=='Satb2')%>%as.data.frame
-})
 
 
 
-# save.image('data/1_integrate_countdata.R')
+
+save.image('data/1_integrate_countdata.R')
 # load('data/1_integrate_countdata.R')
 
 #next
-# /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/TE_change/run_xtail.R
+# src/R/TE_change/run_xtail.R
 # 
 
 

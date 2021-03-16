@@ -2041,7 +2041,7 @@ rule salmon:
       --validateMappings
 """
 
-#/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/deepshapemakeref.sh
+#src/deepshapemakeref.sh
 rule star_transcript:
   input:
     fastq='processed_reads/{sample}/{sample}.fastq.gz',

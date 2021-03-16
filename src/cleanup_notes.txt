@@ -1,0 +1,36 @@
+   rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/salmon .
+   rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/deepshapeprime .
+   rsync -pravzh --include '*runlog_199.txt' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/deepshapeprime .
+   rsync -pravzh --include '*runlog_199.txt' --exlude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/deepshapeprime .
+   rsync -pravzh --include '*runlog_199.txt' --exclude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/deepshapeprime .
+   rsync -pravzh --include '*runlog_199.txt' --include '*/' --exclude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/deepshapeprime .
+   rsync -pravzh --include '*runlog_199.txt' --include '*/' --exclude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/my_gencode.vM12.annotation.gtf .
+   rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/my_gencode.vM12.annotation.gtf .
+   conda create -n R4 r-tidyverse r-devtools
+   conda activate R4
+   R -e 'install.packages("BiocManager")'
+   R -e 'BiocManager::install(c("DESeq2","limma","magrittr","Biostrings","here"))'
+   R -e 'BiocManager::install(c("DESeq2","limma","magrittr","ComplexHeatmap","here"))'
+   R -e 'BiocManager::install(c("Biostrings"))'
+   R -e 'BiocManager::install(c("checkmate"))'
+   R -e 'BiocManager::install(c("ggpubr"))'
+   R -e 'BiocManager::install(c("here"))'
+   R -e 'BiocManager::install(c("biomaRt"))'
+   R -e 'BiocManager::install(c("txtplot"))'
+   R -e 'BiocManager::install(c("multitaper"))'
+   R -e 'BiocManager::install(c("Rsamtools"))'
+   R -e 'BiocManager::install(c("rtracklayer"))'
+   R -e 'BiocManager::install(c("tximport"))'
+   R -e 'BiocManager::install(c("proDA"))'
+   BiocManager::install(c("GenomicFeatures","GenomicAlignments"))
+   devtools::install_github("renozao/xbioc");
+   devtools::install_github('xuranw/MuSiC')
+
+   R -e 'devtools::install_git(c("https://github.com/nathan-russell/hashmap"))'
+   rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/xtail .
+rsync -pravzh --include '*GSE*' --include '*telley_we*' --exclude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/ ext_data/
+
+rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/my_GRCm38.p5.genome.chr_scaff.fa pipeline/
+
+   Only really messy part is all the codon specific stuff still not really based off of the transcript level stuff.
+   I can easily fix this though.

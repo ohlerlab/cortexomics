@@ -1,0 +1,1 @@
+ readRDS('data/tx_countdata.rds')%>%.%>%{colnames(.)%<>%str_replace('E13','E12.5')%>%str_replace('E145','E14')%>%str_replace('E16','E15.5')%>%str_replace('E175','E17');.}%>%as.data.frame%>%rownames_to_column('gene_id')%>%select(gene_id,matches('ribo'))%>%write_tsv('data/tx_countdata.tsv')

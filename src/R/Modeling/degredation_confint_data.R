@@ -575,7 +575,7 @@ parrun<-foreach(g=genes2fit) %dopar%{
 }
 
 
-source('/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/modeling/degredation_trajplot.R')
+source('src/R/modeling/degredation_trajplot.R')
 
 stop()
 

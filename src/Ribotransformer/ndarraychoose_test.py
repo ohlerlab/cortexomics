@@ -6,7 +6,7 @@ import sys
 from sklearn.preprocessing import normalize 
 from scipy.sparse import csr_matrix 
 from scipy.sparse import find
-import_folder = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/python/'
+import_folder = 'src/python/'
 sys.path = [import_folder]+list(set(sys.path)-set(import_folder)) # this tells python to look in `import_folder` for imports
 import arraychoose
 #

@@ -15,7 +15,7 @@ trimids = function(str) str_replace(str,'\\.\\d+','')
 #load various runs of ORFquant
 
 #load deepshape
-#/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/load_deepshape_cov.R
+#src/R/load_deepshape_cov.R
 
 #load the deepshape results
 deepshapedf = fread(here('pipeline/deepshape/DeepShapePrimeOutputs/runlog_199.txt'))%>%head(-1)%>%

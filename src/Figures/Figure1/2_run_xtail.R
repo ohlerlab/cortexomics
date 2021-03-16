@@ -1,4 +1,4 @@
-#from : /Users/dharnet/bih_cluster/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Load_data/integrate_countdata.R
+#from : /Users/dharnet/bih_clustersrc/R/Load_data/integrate_countdata.R
 
 suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,here))
 suppressMessages(library(warn.conflicts = FALSE,quietly=TRUE,stringr))
@@ -282,4 +282,4 @@ read_tsv(here('tables/xtailTEchange.tsv'))
 #   
 # ribodiffres%>%{qplot(data=.,x =aveLogCPM,y=l2fc_te,color=padj<0.05)}
 
-#next /fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/R/Figures/figure1_scatters.R
+#next src/R/Figures/figure1_scatters.R

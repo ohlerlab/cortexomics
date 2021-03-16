@@ -5,7 +5,7 @@ import sklearn
 import numpy as np
 import numpy
 import pandas as pd
-import_folder = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/src/python/'
+import_folder = 'src/python/'
 sys.path = [import_folder]+list(set(sys.path)-set(import_folder)) # this tells python to look in `import_folder` for imports
 from scipy.sparse import find
 from scipy.sparse import csr_matrix
