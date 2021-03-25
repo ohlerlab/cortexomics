@@ -1,19 +1,17 @@
 ################################################################################
 ################################################################################
-load('data/1_integrate_countdata.R')
+
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
 	base::source("src/Figures/Figure0/0_load_annotation.R")
 }
+if(!exists('tx_countdata')) {
+	base::source("src/Figures/Figure0/0_load_annotation.R")
+	load('data/1_integrate_countdata.R')
+}
 # base::source(here::here('src/R/Rprofile.R'))
 # base::source(here::here('src/Figures/Figures0/1_ms_data_import.R'))
-
-trid2gid<-load_hashmap('trid2gid.hmp')
-gid2gnm<-load_hashmap('gid2gnm.hmp')
-gnm2gid<-load_hashmap('gnm2gid.hmp')
-trid2gnm<-load_hashmap('trid2gnm.hmp')
-gnm2gid<-load_hashmap('gnm2gid.hmp')
-gnm2trid<-load_hashmap('gnm2trid.hmp')
+gnm2gid
 
 #
 protgnmtrids<-readRDS('data/protgnmtrids.rds')
@@ -76,52 +74,52 @@ ms_tx_countdata$counts%<>%as.data.frame%>%
 	as.matrix%>%
 	set_rownames(rownames(ms_tx_countdata$counts))
 
-ms_tx_countdata$counts%>%as.data.frame%>%
-	rownames_to_column('gene_id')%>%
-	mutate(gene_name = gid2gnm[[gene_id]])%>%
-	select(-gene_id)%>%select(gene_name,everything())%>%
-	mutate_at(vars(-gene_name),list(randomround))%>%
-	write_tsv('data/ms_tx_scaled_countData.tsv')
+# ms_tx_countdata$counts%>%as.data.frame%>%
+# 	rownames_to_column('gene_id')%>%
+# 	mutate(gene_name = gid2gnm[[gene_id]])%>%
+# 	select(-gene_id)%>%select(gene_name,everything())%>%
+# 	mutate_at(vars(-gene_name),list(randomround))%>%
+# 	write_tsv('data/ms_tx_scaled_countData.tsv')
 }
 
 {
-sharedgenes = intersect(ms_tx_countdata$abundance%>%rownames,tx_countdata$abundance%>%rownames)
+# sharedgenes = intersect(ms_tx_countdata$abundance%>%rownames,tx_countdata$abundance%>%rownames)
 
-quicktest(
-	log2(ms_tx_countdata$abundance[sharedgenes,1]),
-	log2(tx_countdata$abundance[sharedgenes,1])
-)
-ms_matgidrows <- ms_mat%>%set_rownames(proteinmsdatamatch$g_id)
-mssharedgenes <- intersect(rownames(ms_matgidrows),
-	intersect(
-		ms_tx_countdata$abundance[,]%>%rownames,
-		tx_countdata$abundance[highcountgenes,]%>%rownames)
-		)
-
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(tx_countdata$abundance[mssharedgenes,'E13_total_1'])
-)
-
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
-)
+# quicktest(
+# 	log2(ms_tx_countdata$abundance[sharedgenes,1]),
+# 	log2(tx_countdata$abundance[sharedgenes,1])
+# )
+# ms_matgidrows <- ms_mat%>%set_rownames(proteinmsdatamatch$g_id)
+# mssharedgenes <- intersect(rownames(ms_matgidrows),
+# 	intersect(
+# 		ms_tx_countdata$abundance[,]%>%rownames,
+# 		tx_countdata$abundance[highcountgenes,]%>%rownames)
+# 		)
 
 
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_total_1'])
-)
+# quicktest(
+# 	log2(ms_matgidrows[mssharedgenes,1]),
+# 	log2(tx_countdata$abundance[mssharedgenes,'E13_total_1'])
+# )
 
-quicktest(
-	log2(ms_matgidrows[mssharedgenes,1]),
-	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
-)
+# quicktest(
+# 	log2(ms_matgidrows[mssharedgenes,1]),
+# 	log2(tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
+# )
 
-library(LSD)
-source('Applications/LSD/R/LSD.heatscatter.R')
+
+# quicktest(
+# 	log2(ms_matgidrows[mssharedgenes,1]),
+# 	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_total_1'])
+# )
+
+# quicktest(
+# 	log2(ms_matgidrows[mssharedgenes,1]),
+# 	log2(ms_tx_countdata$abundance[mssharedgenes,'E13_ribo_1'])
+# )
+
+# library(LSD)
+# source('Applications/LSD/R/LSD.heatscatter.R')
 
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 proDAfitms<-readRDS('data/proDAfitms.rds')
@@ -194,6 +192,7 @@ genesets = list(
 	ms_down = mschangedf%>%filter(down==1)%>%.$gene_id
 )
 
+genesets%>%saveRDS('data/genesets.rds')
 
 
 avtpms = ms_tx_countdata$abundance[mssharedgenes,]%>%
@@ -231,14 +230,15 @@ msscatterlist = lapply(cassays,function(countassay){
 	#
 	testtidy = tidy(cor.test(scatdf$countvals,scatdf$msvals))
 	acor_label=paste0('rho = ',round(testtidy$conf.low,3),' - ',round(testtidy$conf.high,3))
-	# acor_label=paste0('rho = ',round(testtidy$estimate,3),'\n','pval = ',round(testtidy$p.value,3))
-	pdf('tmp.pdf')
-	gplot = heatscatter((scatdf$countvals),scatdf$msvals,ggplot=TRUE)+
-		scale_x_continuous(countname)+
-		scale_y_continuous(MSname)+
-		ggtitle(acor_label)
-	dev.off()
-	list(gplot,testtidy)
+	acor_label=paste0('rho = ',round(testtidy$estimate,3),'\n','pval = ',round(testtidy$p.value,3))
+	# pdf('tmp.pdf')
+	# gplot = heatscatter((scatdf$countvals),scatdf$msvals,ggplot=TRUE)+
+	# 	scale_x_continuous(countname)+
+	# 	scale_y_continuous(MSname)+
+	# 	ggtitle(acor_label)
+	# dev.off()
+	# list(gplot,testtidy)
+	list(NA,testtidy)
 })
 })
 })
@@ -246,23 +246,11 @@ msscatterlist = lapply(cassays,function(countassay){
 
 
 {
-#now plot
-
-
-
-# totcormat = msscatterlist[[1]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
-# ribocormat = msscatterlist[[2]][['all']]%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))#%>%spread(stage_ms,cor)%>%{as.matrix(.[,-1])}%>%set_rownames(.,colnames(.))
-
-# totcormat%>%filter(geneset=='te_down',assay=='total',stage_count=='E13',stage_ms=='E13')
-
-# countmscors = msscatterlist%>%map_df(.id='assay',.%>%map_df(.id='geneset',.%>%map_depth(2,~.[[2]]$estimate)%>%map_df(.id='stage_count',~bind_rows(.id='stage_ms',.))))
 
 countmscors = msscatterlist%>%map_df(.id='assay',.%>%map_df(.id='geneset',.%>%map_df(.id='stage_count',.%>%map_df(.id='stage_ms',~.[[2]]$estimate))))
 
-countmscors%>%filter(geneset=='te_down',assay=='total',stage_count=='E13',stage_ms=='E13')
-
 #now plot
-plotfile<- here(paste0('plots/','cortilesribo','.pdf'))
+plotfile<- here(paste0('plots/','Figures/Figure4/cortilesribo','.pdf'))
 pdf(plotfile,w=10,h=15)
 print(countmscors%>%
 	ggplot(data=.,aes(fill=cor,x=stage_count,y=stage_ms))+
@@ -341,7 +329,7 @@ sisetcolors = c('None'='#D8D8D8',csigname='#000000','MS Sig'='#04B404','Both Sig
 names(sisetcolors)%<>%str_replace('csigname',csigname)
 steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%.$sigset%>%setdiff(names(sisetcolors))
 #now plot
-plotfile<- here(paste0('plots/','lfc_cors_',cassay,'.pdf'))
+plotfile<- here(paste0('plots/','Figures/Figure4/lfc_cors_',cassay,'.pdf'))
 pdf(plotfile,w=16,h=4)
 print(steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%
 	ggplot(aes(x=logFC,y=prot_logFC,color=sigset))+facet_grid(.~time)+geom_point(size=I(0.2),aes(alpha=sigset!='None'))+
@@ -358,103 +346,103 @@ message(normalizePath(plotfile))
 }
 }
 
-################################################################################
-########Look at binarized trajectories - concordances
-################################################################################
+# ################################################################################
+# ########Look at binarized trajectories - concordances
+# ################################################################################
 
-mschangedf%>%
-	left_join(techangedf,by='gene_id',suffix=c('_MS','_TE'))%>%
-	left_join(txnchangedf,by='gene_id')%>%
-	group_by(up,down,up_MS,down_MS,up_TE,down_TE)%>%tally%>%as.data.frame
-	filter(! (up_MS&down_MS),!(up_TE & down_TE))
+# mschangedf%>%
+# 	left_join(techangedf,by='gene_id',suffix=c('_MS','_TE'))%>%
+# 	left_join(txnchangedf,by='gene_id')%>%
+# 	group_by(up,down,up_MS,down_MS,up_TE,down_TE)%>%tally%>%as.data.frame
+# 	filter(! (up_MS&down_MS),!(up_TE & down_TE))
 
-txntrajcatdf = mschangedf%>%
-	left_join(txnchangedf,by='gene_id',suffix=c('_MS','_txn'))%>%
-	mutate_at(vars(matches('up|down')),as.logical)%>%
-	mutate(txngroup = case_when(
-			up_txn & down_txn ~ 'txn-Both',
-			up_txn ~ 'txn-Up',
-			down_txn ~ 'txn-Down',
-			TRUE ~ 'txn-NoChange'
-		),msgroup = case_when(
-			up_MS & down_MS ~ 'MS-Both',
-			up_MS ~ 'MS-Up',
-			down_MS ~ 'MS-Down',
-			TRUE ~ 'MS-NoChange'
-		))%>%
-	group_by(txngroup,msgroup)
-txntrajcatdf %>% tally%>%
-	arrange(
-		desc(txngroup%>%str_detect('Change')),desc(txngroup%>%str_detect('Both')),desc(txngroup%>%str_detect('Down')),
-		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
-	group_by(txngroup)%>%mutate(Freq = round(n/sum(n),3))
-
-
-ribontrajcatdf = mschangedf%>%
-	left_join(ribochangedf,by='gene_id',suffix=c('_MS','_ribo'))%>%
-	mutate_at(vars(matches('up|down')),as.logical)%>%
-	mutate(ribogroup = case_when(
-			up_ribo & down_ribo ~ 'Ribo-Both',
-			up_ribo ~ 'Ribo-Up',
-			down_ribo ~ 'Ribo-Down',
-			TRUE ~ 'Ribo-NoChange'
-		),msgroup = case_when(
-			up_MS & down_MS ~ 'MS-Both',
-			up_MS ~ 'MS-Up',
-			down_MS ~ 'MS-Down',
-			TRUE ~ 'MS-NoChange'
-		))%>%
-	group_by(ribogroup,msgroup)
-ribontrajcatdf %>%	tally%>%
-	arrange(
-		desc(ribogroup%>%str_detect('Change')),desc(ribogroup%>%str_detect('Both')),desc(ribogroup%>%str_detect('Down')),
-		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
-	group_by(ribogroup)%>%mutate(Freq = round(n/sum(n),3))
+# txntrajcatdf = mschangedf%>%
+# 	left_join(txnchangedf,by='gene_id',suffix=c('_MS','_txn'))%>%
+# 	mutate_at(vars(matches('up|down')),as.logical)%>%
+# 	mutate(txngroup = case_when(
+# 			up_txn & down_txn ~ 'txn-Both',
+# 			up_txn ~ 'txn-Up',
+# 			down_txn ~ 'txn-Down',
+# 			TRUE ~ 'txn-NoChange'
+# 		),msgroup = case_when(
+# 			up_MS & down_MS ~ 'MS-Both',
+# 			up_MS ~ 'MS-Up',
+# 			down_MS ~ 'MS-Down',
+# 			TRUE ~ 'MS-NoChange'
+# 		))%>%
+# 	group_by(txngroup,msgroup)
+# txntrajcatdf %>% tally%>%
+# 	arrange(
+# 		desc(txngroup%>%str_detect('Change')),desc(txngroup%>%str_detect('Both')),desc(txngroup%>%str_detect('Down')),
+# 		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
+# 	group_by(txngroup)%>%mutate(Freq = round(n/sum(n),3))
 
 
-tetrajcatdf = mschangedf%>%
-	left_join(techangedf,by='gene_id',suffix=c('_MS','_te'))%>%
-	mutate_at(vars(matches('up|down')),as.logical)%>%
-	mutate(tegroup = case_when(
-			up_te & down_te ~ 'te-Both',
-			up_te ~ 'te-Up',
-			down_te ~ 'te-Down',
-			TRUE ~ 'te-NoChange'
-		),msgroup = case_when(
-			up_MS & down_MS ~ 'MS-Both',
-			up_MS ~ 'MS-Up',
-			down_MS ~ 'MS-Down',
-			TRUE ~ 'MS-NoChange'
-		))%>%
-	group_by(tegroup,msgroup)
-tetrajcatdf %>%	tally%>%
-	arrange(
-		desc(tegroup%>%str_detect('Change')),desc(tegroup%>%str_detect('Both')),desc(tegroup%>%str_detect('Down')),
-		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
-	group_by(tegroup)%>%mutate(Freq = round(n/sum(n),3))
+# ribontrajcatdf = mschangedf%>%
+# 	left_join(ribochangedf,by='gene_id',suffix=c('_MS','_ribo'))%>%
+# 	mutate_at(vars(matches('up|down')),as.logical)%>%
+# 	mutate(ribogroup = case_when(
+# 			up_ribo & down_ribo ~ 'Ribo-Both',
+# 			up_ribo ~ 'Ribo-Up',
+# 			down_ribo ~ 'Ribo-Down',
+# 			TRUE ~ 'Ribo-NoChange'
+# 		),msgroup = case_when(
+# 			up_MS & down_MS ~ 'MS-Both',
+# 			up_MS ~ 'MS-Up',
+# 			down_MS ~ 'MS-Down',
+# 			TRUE ~ 'MS-NoChange'
+# 		))%>%
+# 	group_by(ribogroup,msgroup)
+# ribontrajcatdf %>%	tally%>%
+# 	arrange(
+# 		desc(ribogroup%>%str_detect('Change')),desc(ribogroup%>%str_detect('Both')),desc(ribogroup%>%str_detect('Down')),
+# 		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
+# 	group_by(ribogroup)%>%mutate(Freq = round(n/sum(n),3))
+
+
+# tetrajcatdf = mschangedf%>%
+# 	left_join(techangedf,by='gene_id',suffix=c('_MS','_te'))%>%
+# 	mutate_at(vars(matches('up|down')),as.logical)%>%
+# 	mutate(tegroup = case_when(
+# 			up_te & down_te ~ 'te-Both',
+# 			up_te ~ 'te-Up',
+# 			down_te ~ 'te-Down',
+# 			TRUE ~ 'te-NoChange'
+# 		),msgroup = case_when(
+# 			up_MS & down_MS ~ 'MS-Both',
+# 			up_MS ~ 'MS-Up',
+# 			down_MS ~ 'MS-Down',
+# 			TRUE ~ 'MS-NoChange'
+# 		))%>%
+# 	group_by(tegroup,msgroup)
+# tetrajcatdf %>%	tally%>%
+# 	arrange(
+# 		desc(tegroup%>%str_detect('Change')),desc(tegroup%>%str_detect('Both')),desc(tegroup%>%str_detect('Down')),
+# 		desc(msgroup%>%str_detect('Change')),desc(msgroup%>%str_detect('Both')),desc(msgroup%>%str_detect('Down')))%>%
+# 	group_by(tegroup)%>%mutate(Freq = round(n/sum(n),3))
 
 
 #now all 3
 
-txnte_trajdf = mschangedf%>%
-	left_join(txnchangedf,by='gene_id',suffix=c('_MS','_txn'))%>%
-	left_join(techangedf,by='gene_id')%>%rename('up_te':=up,'down_te':=down)%>%
-	mutate_at(vars(matches('up|down')),as.logical)%>%
-	mutate(txngroup = case_when(
-			up_txn & down_txn ~ 'txn-Both',
-			up_txn ~ 'txn-Up',
-			down_txn ~ 'txn-Down',
-			TRUE ~ 'txn-NoChange'
-		),msgroup = case_when(
-			up_MS & down_MS ~ 'MS-Both',
-			up_MS ~ 'MS-Up',
-			down_MS ~ 'MS-Down',
-			TRUE ~ 'MS-NoChange'
-		),tegroup = case_when(
-			up_te & down_te ~ 'te-Both',
-			up_te ~ 'te-Up',
-			down_te ~ 'te-Down',
-			TRUE ~ 'te-NoChange'
-		))%>%
-	group_by(txngroup,msgroup,tegroup)
+# txnte_trajdf = mschangedf%>%
+# 	left_join(txnchangedf,by='gene_id',suffix=c('_MS','_txn'))%>%
+# 	left_join(techangedf,by='gene_id')%>%rename('up_te':=up,'down_te':=down)%>%
+# 	mutate_at(vars(matches('up|down')),as.logical)%>%
+# 	mutate(txngroup = case_when(
+# 			up_txn & down_txn ~ 'txn-Both',
+# 			up_txn ~ 'txn-Up',
+# 			down_txn ~ 'txn-Down',
+# 			TRUE ~ 'txn-NoChange'
+# 		),msgroup = case_when(
+# 			up_MS & down_MS ~ 'MS-Both',
+# 			up_MS ~ 'MS-Up',
+# 			down_MS ~ 'MS-Down',
+# 			TRUE ~ 'MS-NoChange'
+# 		),tegroup = case_when(
+# 			up_te & down_te ~ 'te-Both',
+# 			up_te ~ 'te-Up',
+# 			down_te ~ 'te-Down',
+# 			TRUE ~ 'te-NoChange'
+# 		))%>%
+# 	group_by(txngroup,msgroup,tegroup)
 

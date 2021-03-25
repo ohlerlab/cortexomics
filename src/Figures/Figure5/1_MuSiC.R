@@ -1,18 +1,11 @@
 ################################################################################
 ################################################################################
-# https://github.com/renozao/xbioc
+# devtools::install_git('https://github.com/renozao/xbioc')
+# devtools::install_git('https://xuranw.github.io/MuSiC/index.html')
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
   base::source("src/Figures/Figure0/0_load_annotation.R")
 }
-
-#
-telleycoregenes = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[1]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
-wteltcoregs = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[2]]),.[[1]])}%>%.[telleycoregenes]
-#
-telleycoregenesdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[3]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
-wteltcoregsdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[4]]),.[[3]])}%>%.[telleycoregenesdiff]
-telleycoregenesboth = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%{c(.[[1]],.[[3]])}%>%tail(-1)%>%intersect(rownames(sscountexprdata))
 
 # load
 library(xbioc)
@@ -48,6 +41,14 @@ if(!exists('tx_countdata'))tx_countdata <- readRDS(here('data/tx_countdata.rds')
 	)
 	sscountexprdata%>%saveRDS(here('data/telleyexprset.rds'))
 	}
+
+#
+telleycoregenes = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[1]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
+wteltcoregs = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[2]]),.[[1]])}%>%.[telleycoregenes]
+#
+telleycoregenesdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%.[[3]]%>%tail(-1)%>%intersect(rownames(sscountexprdata))
+wteltcoregsdiff = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%tail(-1)%>%{setNames(as.numeric(.[[4]]),.[[3]])}%>%.[telleycoregenesdiff]
+telleycoregenesboth = 'ext_data/telley_weights_comb.xlsx'%>%readxl::read_excel(.)%>%{c(.[[1]],.[[3]])}%>%tail(-1)%>%intersect(rownames(sscountexprdata))
 
 
 clusters.type = pData(sscountexprdata)$cellType%>%unique%>%setNames(.,.)
@@ -170,3 +171,36 @@ for(geneset in names(music_reslist)){
   dev.off()
   paste0('plots/Figure5/','telley_MuSiC_bulk_both_',geneset,'.pdf')%>%normalizePath%>%message
 }
+
+cosdistres%>%write_tsv('tables/musicdata.tsv')
+
+
+pred_expr_df <- music_reslist[[1]][[1]] %>% 
+  as.data.frame%>%
+  rownames_to_column('dset')%>%
+  gather(ftset,music_prop,-dset)%>%
+  left_join(sc_abund_long,by='ftset')%>%
+  group_by(dset,gene_name)%>%
+  summarise(pred_abundance = sum(sc_abundance * music_prop))%>%
+  left_join(bulkabund_long%>%select(dset,gene_name,bulk_abundance))
+
+#now plot
+dir.create('plots/Figures/FigureS6',showWarn=F,rec=TRUE)
+plotfile<- here(paste0('plots/Figures/FigureS6','musicplots','.pdf'))
+pdf(plotfile)
+# lm(data=pred_expr_df%>%filter(is.finite(log2(sc_abundance)),is.finite(log2(bulk_abundance))),log2(bulk_abundance)~log2(sc_abundance))%>%plot
+pred_expr_df%>%filter(is.finite(log2(pred_abundance)),is.finite(log2(bulk_abundance)))%>%
+  arrange(desc(techangegene))%>%
+  filter(bulk_abundance>32)%>%
+  filter(dset%>%str_detect('E13|E175'),dset%>%str_detect('_1'))%>%
+  ggplot(data=.,aes(x=log2(pred_abundance),y=log(bulk_abundance)))+
+  scale_x_continuous('predicted abundance (MuSic)')+
+  scale_y_continuous('Actual Bulk abundance')+
+  facet_wrap(dset~.)+
+  # geom_smooth(method='lm')+
+  geom_point(aes(color=techangegene),size=I(.2))+
+  # geom_point(aes(color=str_detect(gene_name,'^Rp[sl]')),size=I(.2))+
+  theme_bw()
+dev.off()
+normalizePath(plotfile)
+

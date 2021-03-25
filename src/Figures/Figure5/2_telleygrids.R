@@ -48,7 +48,7 @@ igenes = igene_grps[[grpname]]
 message(igenes%>%is_in(kngenes)%>%table%>%print%>%capture.output%>%paste0(collapse='\n'))
 igenes = intersect(kngenes,igenes)
 #now plot
-plotfile<- here(paste0('plots/','/telley_timediff_grids/',grpname,'.pdf'))
+plotfile<- here(paste0('plots/','/Figures/Figure5/telley_timediff_grids/',grpname,'.pdf'))
 # dir.create(dirname(plotfile))
 pdf(plotfile)
 plotKnnMap(knnMap,knnMap$M[igenes,])

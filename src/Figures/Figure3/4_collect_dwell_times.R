@@ -29,13 +29,14 @@ codons2scan <- c(CODOONSOFINTEREST,ctrlcodons)
 
 FLANKCODS<-15
 
-ribocovtrs = read_tsv('pipeline/scikitribotrs.txt',col_names=F)[[1]]
+ribocovtrs<-readRDS(here('data/ribocovtrs.rds'))
 
 cds2use <- cdsgrl[ribocovtrs]
 
 ref<-Rsamtools::FaFile(fafile)
 
 cdsseq <- cds2use%>%extractTranscriptSeqs(x=fafile)
+
 
 
 allcodons=getGeneticCode()

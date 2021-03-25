@@ -52,6 +52,7 @@ codons2scan <- c(CODOONSOFINTEREST,ctrlcodons)
 FLANKCODS<-15
 
 allbamtbls = Sys.glob('pipeline/deepshapebamdata/*.bam.reformat')
+stopifnot(length(allbamtbls)==10)
 names(allbamtbls) = allbamtbls%>%str_extract('[^/]*?(?=.bam.ref)')
 mainbamtbls <- allbamtbls%>%.[str_detect(.,'ribo_\\d+')]
 bamtbl=mainbamtbls[1]
@@ -96,7 +97,6 @@ cdsends = cdsgrl[highcountcovtrs]%>%sort_grl_st%>%resize_grl(1,'end')%>%unlist%>
 	{setNames(start(.),as.character(seqnames(.)))}
 trcds = GRanges(names(cdsstarts),IRanges(cdsstarts,cdsends))
 
-nonmainsamps = names(bindatamats)%>%setdiff(mainsamps)
 
 ################################################################################
 ########Collect transript level info for top transcripts
@@ -124,7 +124,6 @@ if(!file.exists(here('data/fpcovlist.rds'))){
 	stopifnot(all(ribocovtrs%in%names(fpcovlist[[1]][['29']])))
 	inclusiontable(ribocovtrs,names(fpcovlist[[1]][['29']]))
 }
-
 
 if(!file.exists(here('data/psitecovlist.rds'))){
 	psitecovlist = allbamtbls%>%mclapply(mc.cores=1,function(bamtbl){

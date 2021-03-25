@@ -1,11 +1,14 @@
 # # Setup
 
+dir.create('plots/Figures/Figure3/',showWarn=F,rec=T)
 #src/R/Figures/Figure2/codon_coverage.R
 {
 if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
 intersect <- BiocGenerics::intersect
-if(!exists('codonprofiles')) load(here('data/codon_coverage.Rdata'))
-if((!exists('allcodsigmean_isomerge'))|(!'availability'%in%colnames(allcodsigmean_isomerge))) base::source(here('src/Figures/Figure2/3_tRNA_array_analysis.R'))
+# if(!exists('codonprofiles')) load(here('data/codon_coverage.Rdata'))
+if((!exists('allcodsigmean_isomerge'))||(!'availability'%in%colnames(allcodsigmean_isomerge))){
+	base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
+} 
 library(rlang)
 stopifnot('availability' %in% colnames(allcodsigmean_isomerge))
 getwd()
@@ -16,7 +19,7 @@ stageconv <- names(stagecols) %>% setNames(c("E13", "E145", "E16", "E175", "P0")
 GENETIC_CODE<-Biostrings::GENETIC_CODE
 
 # +
-codonprofiles <- readRDS('data/codonprofiles.rds')
+codonprofiles <- readRDS(here('data/codonprofiles.rds'))
 
 codonprofiles$fraction = case_when(
 	codonprofiles$sample%>%str_detect('ribo') ~ 'total',
@@ -74,7 +77,7 @@ i=20
 ir=100
 options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	
-	cairo_pdf('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf',w=24,h=14)
+	pdf('plots/Figures/Figure3/codonprof_rlindiv.pdf',w=24,h=14)
 	codonprofiles%>%
 		# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
 		filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
@@ -96,10 +99,10 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 			# geom_rect(data=offsets,color=I('black'),alpha = I(0.1),aes(x=NULL,y=NULL,xmin= -8-offset, xmax = -offset, ymin = 0 ,ymax = Inf))+
 			theme_bw())}
 	dev.off()
-	normalizePath('plots/figures/figure2/trna_codons/codonprof_rlindiv.pdf')
+	normalizePath('plots/Figures/Figure3/codonprof_rlindiv.pdf')
 
 
-	pdf('plots/figures/figure2/trna_codons/offsetwindow_rlmerge_codprofs.pdf',w=24,h=14)
+	pdf('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf',w=24,h=14)
 	codonprofiles%>%
 		inner_join(offsets)%>%
 		mutate(position = position+offset)%>%
@@ -121,10 +124,10 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 			# geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
 			theme_bw())}
 	dev.off()
-	normalizePath('plots/figures/figure2/trna_codons/offsetwindow_rlmerge_codprofs.pdf')
+	normalizePath('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf')
 
 	#plot with the AAs as colors
-	pdf('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf',w=12,h=5)
+	pdf('plots/Figures/Figure3/stripplot_aa_codon.pdf',w=12,h=5)
 	codonoccs%>%
 		mutate(AA = GENETIC_CODE[codon])%>%
 		# filter(fraction=='Total')%>%
@@ -145,7 +148,7 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 		scale_y_continuous(name='Normalized Occupancy Over Codon A site')
 	}
 	dev.off()
-	normalizePath('plots/figures/figure2/trna_codons/stripplot_aa_codon.pdf')
+	normalizePath('plots/Figures/Figure3/stripplot_aa_codon.pdf')
 
 # # tRNA vs Occupancy Figures
 
@@ -178,7 +181,6 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
     tRNA_occ_df_en <- tRNA_occ_df%>%left_join(tRNAenrichdf)
 
     tRNA_occ_df_en%>%write_tsv('tables/tRNA_stat_df')
-    stop()
 
 	aatrna_occ_df<-tRNA_occ_df%>%
 		group_by(time,AA)%>%
@@ -206,14 +208,14 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	# 	# group_by(AA)%>%mutate(availability = availability - mean(availability))%>%
 	# 	group_by(AA)%>%mutate(mr = mr - mean(mr))
 
-	pdf('tmp.pdf')
-	aa_corrected_occ_av_df%>%
-		ggplot(data=.,aes(x=dwell_time_aacor,y=availability))+
-		geom_point(size=1)+
-		facet_grid(fraction ~ time)+
-		geom_text(show.legend=F,aes(label=codon,color=NULL),size=4)
-	dev.off()
-	normalizePath('tmp.pdf')
+	# pdf('tmp.pdf')
+	# aa_corrected_occ_av_df%>%
+	# 	ggplot(data=.,aes(x=dwell_time_aacor,y=availability))+
+	# 	geom_point(size=1)+
+	# 	facet_grid(fraction ~ time)+
+	# 	geom_text(show.legend=F,aes(label=codon,color=NULL),size=4)
+	# dev.off()
+	# normalizePath('tmp.pdf')
 
 
 
@@ -295,14 +297,13 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 		})
 		plots <- ggarrange(plotlist=plots%>%purrr::flatten(.),ncol=length(sigcols),nrow=length(sigcols))
 		plots <- plots+theme_bw()
-		plotfile = paste0('plots/figures/figure2/trna_codons/codon_stat_grid_',ifraction,'_',paste0(timeset,collapse='-'),'.pdf')
+		plotfile = paste0('plots/Figures/Figure3/codon_stat_grid_',ifraction,'_',paste0(timeset,collapse='-'),'.pdf')
 	    pdf(plotfile,h=20,w=20)
 	    print(plots)
 	    dev.off()
 		normalizePath(plotfile)%>%message
 		}
 	}
-	exportenv()
 
 
 	# dat%>%ungroup%>%filter(time=='E13')%>%mutate(highdt=dwell_time>median(dwell_time,na.rm=T))%>%{split(.$abundance,.$highdt)}%>%{t.test(.[[1]],.[[2]])}
@@ -639,7 +640,7 @@ profvarpca%>%group_by(readlen,position)%>%summarise(pca1=mean(pca1))%>%
 	mutate(pca13wind = pca1+lead(pca1)+lead(pca1,2))
 
 library(rlang)#
-plotfile<-'plots/figures/figure2/trna_codons/fppos_vs_codon_pcascore.pdf'
+plotfile<-'plots/Figures/Figure3/fppos_vs_codon_pcascore.pdf'
 offsets%<>%mutate(readlen=paste0('rl',length))
 pdf(plotfile,w=12,h=12)
 profvarpca%>%slice_by(sample,c(1,2,3,4,5,6))%>%
@@ -652,7 +653,7 @@ normalizePath(plotfile)
 
 
 library(rlang)#
-plotfile<-'plots/figures/figure2/trna_codons/fppos_vs_codon_pcascore_3wind.pdf'
+plotfile<-'plots/Figures/Figure3/fppos_vs_codon_pcascore_3wind.pdf'
 offsets%<>%mutate(readlen=paste0('rl',length))
 pdf(plotfile,w=12,h=12)
 profvarpca%>%
@@ -682,7 +683,7 @@ codonprofiles_pcawind = codonprofiles_pcawind%>%group_by(sample,codon,fraction)%
 quicktest(codonprofiles_pcawind$occ_nonorm,codonprofiles_pcawind$occupancy)
 
 offsets%<>%mutate(readlen=paste0('rl',length))
-pdf('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf',w=12,h=12)
+pdf('plots/Figures/Figure3/fppos_vs_codon_variance.pdf',w=12,h=12)
 #plotting variance amongst codons at each point.
 codonprofiles%>%
 	ungroup%>%
@@ -711,7 +712,7 @@ codonprofiles%>%
 		ggtitle("variance of 5' read occurance vs position")
 	}%>%print
 dev.off()
-normalizePath('plots/figures/figure2/trna_codons/fppos_vs_codon_variance.pdf')
+normalizePath('plots/Figures/Figure3/fppos_vs_codon_variance.pdf')
 
 
 
@@ -722,7 +723,7 @@ codreltests = rfreqdtdf%>%summarise(tidy(cor.test(rfreq,dwell_time)))
 codreltests = codreltests%>%mutate(acor_label=paste0('rho = ',round(estimate,3),'\n','pval = ',ifelse(p.value > 0.001,round(p.value,4),format(p.value,format='e',digits=4))))
 	
 #now plot
-plotfile<- here(paste0('plots/','rfreq_vs_dwell_time','.pdf'))
+plotfile<- here(paste0('plots/Figures/Figure3/','rfreq_vs_dwell_time','.pdf'))
 pdf(plotfile,w=5,h=5)
 rfreqdtdf%>%
 	ggplot(.,aes(x=rfreq,y=dwell_time))+

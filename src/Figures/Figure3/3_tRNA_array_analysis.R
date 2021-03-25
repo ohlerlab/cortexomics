@@ -1,3 +1,8 @@
+library(readxl)
+#which housekeepers to normalize with
+HKGENES2USE <- c("5S rRNA", "18S rRNA")
+
+
 ################################################################################
 ################################################################################
 if(!exists('safe_left_join'))base::source(here::here('src/R/Rprofile.R'))
@@ -18,7 +23,7 @@ stagecolsdisplay <- c(E12.5 = "#214098", E14 = "#2AA9DF", E15.5 = "#F17E22", E17
 stagecols <- stagecolsdisplay %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 stageconv <- names(stagecols) %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 
-codonfreqs <- mymemoise(oligonucleotideFrequency)(cdsseq, 3, step = 3)
+codonfreqs <- memoise(oligonucleotideFrequency)(cdsseq, 3, step = 3)
 rownames(codonfreqs) <- names(cdsseq)
 overallcodonfreqs <- codonfreqs %>% colSums()
 
@@ -74,12 +79,10 @@ weighted_codon_usage <- lapply(times, function(itime) {
 ######## Reading the tRNA data
 ################################################################################
 
-library(readxl)
-#which housekeepers to normalize with
-hkgenes2use <- c("5S rRNA", "18S rRNA")
+
 #which reports to take data from
 alltRNAreps <- Sys.glob(here("ext_data/tRNA_data/*Rep*/*")) %>%
-    str_subset("/[PT8][^/]+$")
+    str_subset("/(80S|Poly|Total)[^/]+xlsx$")
 stopifnot(alltRNAreps%>%length%>%`>`(3))
 # data is pulled from a combination of report and 'test/'ctrl' status
 datasources <- tibble(
@@ -97,7 +100,7 @@ datasources %<>% mutate(
 trnaexprdf <- map2(datasources$file, datasources$case, .f = function(file, case) {
     excel_sheets(file)
     hksheet <- readxl::read_xlsx(file, sheet = "Choose Housekeeping Genes")
-    hks2use_rows <- which(hksheet[[1]][1:4] %in% hkgenes2use)
+    hks2use_rows <- which(hksheet[[1]][1:4] %in% HKGENES2USE)
     casecol <- if (case == "Test") 4 else 27
     # hknormfacts <- list(
     #     rep1 = mean(as.numeric(hksheet[[casecol]][hks2use_rows])),
@@ -143,13 +146,15 @@ allqpcrsig %<>% mutate(iscodon = str_detect(decoder, "\\w+-\\w+$"))
 allqpcrsig %<>% mutate(iscodon = ifelse(str_detect(decoder, "Spike-In"),FALSE,iscodon))
 allqpcrsig %<>% mutate(time = sample %>% str_extract("(?<= ).*$"))
 allqpcrsig <- gather(allqpcrsig, rep, Ct, rep1:rep2)
+allqpcrsig %<>% mutate(fraction = str_extract(sample, "\\w+"))
 stopifnot(all(allqpcrsig$rep%in%c('rep1','rep2')))
 #normalize to hkgenes
-allqpcrsig %<>% mutate(Ct = replace_na(Ct,Inf))
+# allqpcrsig %<>% mutate(Ct = replace_na(Ct,Inf))
 allqpcrsig <- allqpcrsig%>% group_by(sample, rep) %>% mutate(Ct = Ct,
-    hk_expr = mean(Ct[decoder %in% hkgenes2use]),
+    hk_expr = mean(Ct[decoder %in% HKGENES2USE]),
     dCt = Ct - hk_expr
 )
+
 #function to add codons
 addcodon <- function(x) x %>%mutate(codon = ifelse(iscodon,str_extract(anticodon, "[^-]+$") %>% DNAStringSet() %>%
         reverseComplement() %>%
@@ -166,6 +171,15 @@ allcodonsig %<>% safe_left_join(overallcodonfreqs%>%enframe('codon','freq'))
 allcodonsig %<>% mutate(fraction = str_extract(sample, "\\w+"))
 allcodonsig%>%group_by(time,fraction,codon)%>%group_by()
 logSumExp2 <- function(x) logSumExp(log(2)*x)/log(2)
+
+decodtabledat <- allcodonsig%>%filter(sample%>%str_detect('Total'))%>%select(sample,decoder,well,Ct,dCt)%>%
+    mutate(sample=paste0(sample,'_',str_replace(rep,'rep','')))%>%
+    mutate(sample = str_replace(sample,' ','_'))%>%
+    ungroup%>%select(-rep)
+
+decodtabledat%>%select(-dCt)%>%spread(sample,Ct)%>%write_tsv('tables/tRNA_decoder_data.tsv')
+decodtabledat%>%select(-Ct)%>%spread(sample,dCt)%>%write_tsv('tables/tRNA_decoder_data_norm.tsv')
+
 allcodsig_isomerge <- allcodonsig %>%
     group_by(fraction, iscodon,time, sample, anticodon,rep,weightedusage) %>%
     # filter(anticodon=='Ala-CGC')%>%
@@ -194,9 +208,16 @@ allcodsigmean %<>% addcodon
 # allcodsigmean %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 allcodsigmean_isomerge %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 #
+allcodsigmean_isomerge%>%filter(sample%>%str_detect('Total'))%>%select(sample,codon,availability,Ct,abundance,availability)%>%
+    write_tsv('tables/tRNA_decoder_data.tsv')
+
+ allcodonsig%>%
+    filter(fraction=='Total')%>%
+    select(-hk_expr,-fraction,-weightedusage,-freq)%>%
+    write_tsv('tables/isodecoder_data.tsv')
 
 # get normfacts
-# normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(abundance[decoder%in%hkgenes2use]))
+# normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(abundance[decoder%in%HKGENES2USE]))
 # Now normalize
 test_that("HTqPCR agrees with me",{
 
@@ -227,7 +248,7 @@ test_that("HTqPCR agrees with me",{
     # ctobject <- readCtData(totdatfiles,column.info=list(flag=4, feature=1, type=5, position=2,Ct=3),header=F,n.features=192)
     # mygroups <- totdatfiles%>%names%>%str_replace('\\-\\d','')
 
-    # d.norm <- normalizeCtData(ctobject, norm = "deltaCt",deltaCt.genes = hkgenes2use)
+    # d.norm <- normalizeCtData(ctobject, norm = "deltaCt",deltaCt.genes = HKGENES2USE)
 
 
     # stopifnot(`<`(testvals$dCt[1]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][1:2]),0.001))
@@ -371,6 +392,7 @@ wus_tab_cors <- usage_v_abundance_df %>%
     mutate(
         cor = map_dbl(data, ~ cor(.$abundancechange, .$weightedusage)),
         pval = map_dbl(data, ~ cor.test(.$abundancechange, .$weightedusage)$p.value)
+    )
   
 ################################################################################
 ########Model differences between fractions

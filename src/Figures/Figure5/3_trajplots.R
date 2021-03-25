@@ -1,6 +1,3 @@
-#src/Figures/Figure0/2_proDA.R
-#src/Figures/Figure1/1_integrate_countdata.R
-
 {
 base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
@@ -13,14 +10,14 @@ rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
 
-gid2gnm<-load_hashmap('data/gid2gnm.hmp')
+gid2gnm<-load_hashmap('gid2gnm.hmp')
 
 
-sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
-allvoom <- readRDS(here('data/allvoom.rds'))
+sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 countpred_df<-readRDS('data/countpred_df.rds')
-
+tx_countdata<-readRDS('data/tx_countdata.rds')
+allvoom <- readRDS(here('data/allvoom.rds'))
 prediction_df = bind_rows(
   sel_prodpreds%>%
     mutate(assay='MS')%>%
@@ -59,8 +56,6 @@ exprdf = bind_rows(exprdf,teexprdf)
 
 gname='Satb2'
 
-
-
 {
 #now plot
 # dir.create(plotfile%>%dirname,rec=TRUE)
@@ -68,16 +63,7 @@ gname='Satb2'
 assaynames = c('total'='RNA-seq','ribo'='Ribo-seq','TE'='TE','MS'='Mass-Spec')
 stagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
 tpnames = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
-
-getp <- function(sym)get(sym,envir=parent.frame(2))
-make_trajplot <- function(gname,
-  myymin=NULL,
-  myymax=NULL,
-  exprdf=getp('exprdf'),
-  prediction_df=getp('prediction_df'),
-  tpnames=getp('tpnames'),
-  assaynames=getp('assaynames'),
-  assays2plot=c('total','MS','ribo')){
+make_trajplot = function(gname,assays2plot=c('total','MS','ribo')){
   stopifnot(exists('exprdf'))
   stopifnot(exists('prediction_df'))
   prediction_df%<>%mutate(passay=assaynames[assay])
@@ -106,8 +92,6 @@ drange = c(ggexpr$signal,ggpred$CI.R,ggpred$CI.L)%>%range
 drange = drange%>%divide_by(0.5)%>%floor%>%{.[2]=.[2]+1;.}%>%multiply_by(0.5)
 drange[1]%<>%min(.,-1)
 drange[2]%<>%max(.,1)
-if(!is.null(myymin))drange[1] = myymin
-if(!is.null(myymax))drange[2] = myymax
 #
 ggexpr%>%
     # filter(signal < -3)
@@ -118,43 +102,22 @@ ggexpr%>%
   # geom_line(alpha=I(.8),color=I("black"))+
   # scale_color_discrete(name='colorname',colorvals)+
   scale_x_continuous(paste0('Time'),labels = exprdf$time%>%unique%>%tpnames[.])+
-  scale_y_continuous(paste0('log2(CPM/iBAQ) relative to T0'))+
-  coord_cartesian(ylim=drange)+
+  scale_y_continuous(paste0('log2(CPM/iBAQ) relative to T0'),limits=drange)+
   ggtitle(str_interp('${gname} - Expression Trajectory'))+
   facet_wrap(~passay,ncol=4)+
   # geom_line(data=medggdf,aes(group=cat),color=I('black'))+
   theme_bw()
 }
-
-make_trajplots_arglist <- list(
-  make_trajplot=make_trajplot,
-  exprdf=exprdf,
-  prediction_df=prediction_df,
-  tpnames=tpnames,
-  assaynames=assaynames,
-  assays2plot=c('total','MS','ribo')
-)
-
-make_trajplots_arglist %>% saveRDS(here('data/make_trajplots_arglist.rds'))
-
-make_trajplots<-function(gnames,make_trajplot,...){
-  ngenes <- length(gnames)
-  ggarrange(plotlist=map(gnames,make_trajplot,...),nrow=ngenes)
-}
-make_trajplots <- do.call(what=partial,args=c(list(make_trajplots),make_trajplots_arglist))
-
 }
 
 {
-
-plotfile<- here('plots/figures/figure4/trajectory.pdf')
-dirname(plotfile)%>%dir.create(rec=T,showW=F)
+plotfile<- here('plots/Figures/Figures5/trajectory.pdf')
 pdf(plotfile,w=4*3,h=4*5)
-print(make_trajplots(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2')))
+print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot),nrow=5))
 dev.off()
 normalizePath(plotfile)
 
-plotfile<- here('plots/figures/figure4/trajectory_te.pdf')
+plotfile<- here('plots/Figures/Figures5/trajectory_te.pdf')
 pdf(plotfile,w=4,h=4*5)
 print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot,assays2plot='TE'),nrow=5))
 dev.off()
@@ -162,7 +125,7 @@ normalizePath(plotfile)
 }
 
 {
-plotfile<- here('plots/figures/figure4/pumsatoverlay.pdf')
+plotfile<- here('plots/Figures/Figures5/pumsatoverlay.pdf')
 pdf(plotfile,w=4,h=4*2)
 print(ggarrange(plotlist=list(make_trajplot(c('Satb2','Pum2'),assays2plot='MS'))),nrow=2)
 dev.off()
@@ -171,11 +134,15 @@ normalizePath(plotfile)
 
 
 
-
+make_trajplot_grid = function(igenes){
+  plist = map(igenes,make_trajplot,assays2plot=c('total','MS','ribo','TE'))
+  ggarrange(plotlist=plist,nrow=length(igenes))
+}
 {
+igenes <- c('Satb2','Nes')
 plotfile<- here('plots/trajapptest.pdf')
-pdf(plotfile,w=4,h=4*2)
-print(ggarrange(plotlist=map(c('Satb2','Nes'),make_trajplot,assays2plot=c('total','MS','ribo','TE')),nrow=5))
+pdf(plotfile,w=4*4,h=4*length(igenes))
+print(make_trajplot_grid(igenes))
 dev.off()
 normalizePath(plotfile)
 }

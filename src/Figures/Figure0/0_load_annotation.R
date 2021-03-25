@@ -60,38 +60,16 @@ if(!exists('ids_nrgname')){
 ################################################################################
 ########Make ID conversion hashmaps
 ################################################################################
-if(!file.exists('data/gnm2trid.hmp')){
-	#
-	trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
-		{safe_hashmap(.[[1]],.[[2]])}
-	gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-		{safe_hashmap(.[[2]],.[[1]])}
-	gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-		{safe_hashmap(.[[1]],.[[2]])}
-	trid2gnm = ids_nrgname%>%select(transcript_id,gene_name)%>%
-		{hashmap(.[[1]],.[[2]])}
-	gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%
-		{safe_hashmap(.[[1]],.[[2]])}
-	gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%
-		{safe_hashmap(.[[1]],.[[2]])}
-	#
-	allgids = trid2gid[[alltrs]]%>%unique
-	allgnms = trid2gnm[[alltrs]]%>%unique
-	#
-	trid2gid%>% save_hashmap(here('data/trid2gid.hmp'))
-	gid2gnm%>%save_hashmap(here('data/gid2gnm.hmp'))
-	gnm2gid%>%save_hashmap(here('data/gnm2gid.hmp'))
-	trid2gnm%>%save_hashmap(here('data/trid2gnm.hmp'))
-	gnm2gid%>%save_hashmap(here('data/gnm2gid.hmp'))
-	gnm2trid%>%save_hashmap(here('data/gnm2trid.hmp'))
-}else{
-	#
-	trid2gid<-load_hashmap(here('data/trid2gid.hmp'))
-	gid2gnm<-load_hashmap(here('data/gid2gnm.hmp'))
-	gnm2gid<-load_hashmap(here('data/gnm2gid.hmp'))
-	trid2gnm<-load_hashmap(here('data/trid2gnm.hmp'))
-	gnm2gid<-load_hashmap(here('data/gnm2gid.hmp'))
-	gnm2trid<-load_hashmap(here('data/gnm2trid.hmp'))
-
-}
+trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
+gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{safe_hashmap(.[[2]],.[[1]])}
+gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
+trid2gnm = ids_nrgname%>%select(transcript_id,gene_name)%>%
+	{hashmap(.[[1]],.[[2]])}
+gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
+gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
 genesofinterest=c('Nes','Tle4','Flna','Satb2','Bcl11b')

@@ -268,13 +268,12 @@ allvoom%>%saveRDS('data/allvoom.rds')
 {
 tps = allcountdesign$time%>%unique
 contrnames = allcountebayes$design%>%colnames%>%str_subset(neg=T,'I|rep')
-names(contrnames) = allcountebayes$design%>%
-	colnames%>%
-	str_subset(neg=T,'I|rep')%>%
-	str_replace('assayribo','TE')%>%
-	str_replace(':','_')%>%
-	str_replace('time','')%>%
-	str_replace('(?=^[^T])','all_')
+contrnamesassay = contrnames%>%str_detect('assayribo')%>%ifelse('TE','all')
+contrnamestime = contrnames%>%str_extract('(?<=time)\\w+')
+
+names(contrnames) = paste(sep='_',contrnamesassay,contrnamestime)
+names(contrnames)%<>%str_replace('_NA','')
+
 contr = contrnames[1]
 
 stopifnot(contr %in% colnames(allcountebayes$design))
@@ -284,6 +283,8 @@ countcontr_df<-	lapply(contrnames,function(contr){
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
 countcontr_df%<>%separate(contrast,c('assay','time'))
+
+countcontr_df%>%filter(time=='E145',gene_id=='ENSMUSG00000000794')
 
 
 ribocountebayes <- eBayes(lmFit(ribovoom))
@@ -300,6 +301,7 @@ ribocontr_df%<>%separate(contrast,c('assay','time'))
 countcontr_df <- bind_rows(countcontr_df,ribocontr_df)
 
 countcontr_df %>% saveRDS(here('data/countcontr_df.rds'))
+
 }
 
 ################################################################################
@@ -314,7 +316,7 @@ for(i in 2:length(tpcontrnames)){
 		desmat[haslatr,tpcontrnames[j]]<- 1
 	}
 }
-tpcontrnames = desmat%>%colnames%>%str_subset('^assayribo:time')
+tpcontrnames = desmat%>%colnames%>%str_subset('^assayribo:time|(time.*:assayribo)')
 for(i in 2:length(tpcontrnames)){
 	haslatr = desmat[,tpcontrnames[i]]==1
 	for(j in (i-1):1){
@@ -340,8 +342,7 @@ stepcountcontrdf<-	lapply(contrnames,function(contr){
 stepcountcontrdf%<>%separate(contrast,c('assay','time'))
 
 
-ribocountebayes <- eBayes(lmFit(allvoom[,11:20]))
-
+ribocountebayes <- eBayes(lmFit(ribovoom))
 ribocontr_names <- colnames(ribocountebayes$design)%>%
 	str_subset(neg=T,'Inter|rep|ribo')%>%
 	setNames(paste0('ribo_',tps[-1]))
@@ -355,10 +356,9 @@ stepcountcontrdf <- bind_rows(stepcountcontrdf,ribocontr_df)
 eBayes(lmFit(allvoom))
 
 stepcountcontrdf %>% saveRDS(here('data/stepcountcontrdf.rds'))
+
 }
 }
-countcontr_df%>%group_by(gene_id)%>%group_slice(1)
-stepcountcontrdf%>%group_by(gene_id)%>%group_slice(1)
 
 allvoom %>% saveRDS(here('data/allvoom.rds'))
 iso_tx_countdata %>% saveRDS(here('data/iso_tx_countdata.rds'))

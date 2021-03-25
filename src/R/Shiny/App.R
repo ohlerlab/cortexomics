@@ -1,7 +1,8 @@
 # install.packages(c('magrittr','stringr','ggpubr','data.table','assertthat','tidyverse','dplyr','here','conflicted','ggplot2'))
 #install.packages('tidyverse')
 
-suppressMessages(library(magrittr))
+suppressMessages(library(BiocManager))
+options(repos = BiocManager::repositories())
 suppressMessages(library(shiny))
 suppressMessages(library(stringr))
 suppressMessages(library(ggpubr))
@@ -10,17 +11,32 @@ suppressMessages(library(assertthat))
 suppressMessages(library(tidyverse))
 suppressMessages(library(dplyr))
 suppressMessages(library(here))
+suppressMessages(library(GenomicAlignments))
+suppressMessages(library(Gviz))
 library(ggplot2)
 library(rsconnect)
 
 #Note this function contains the expression data, and predictions needed
 #to plot the trajectory plots - so it's very much a closure, rather than
 #a function
+onserver = (getwd()%>%str_detect('/srv/connect/apps'))
 datafile <- 'make_trajplots_arglist.rds'
 
-if(!shiny::isRunning()) { datafile = here('data',datafile)}
+if(!onserver) {
+  datafile = here('data',datafile)
+}
+
+
+if(onserver){
+  message(datafile)
+  message(getwd())
+  message(paste0(list.files(full=T,rec=T),sep='\n'))
+}
 
 make_trajplots_arglist <- readRDS(datafile)
+
+
+tpcols <- c(E13='#214098',E145='#2AA9DF',E16='#F17E22',E175='#D14E28',P0='#ED3124')
 
 make_trajplots<-function(gnames,make_trajplot,...){
   ngenes <- length(gnames)
@@ -28,20 +44,28 @@ make_trajplots<-function(gnames,make_trajplot,...){
 }
 make_trajplots <- do.call(what=partial,args=c(list(make_trajplots),make_trajplots_arglist))
 
-if(!shiny::isRunning()) { 
+get_gviztracks <- function(igene,shinytrackfolder='data/Shiny_track_data'){
+  readRDS(file.path(shinytrackfolder,paste0(igene,'.rds')))
+}
+
+if(!onserver) { 
   #now plot
   plotfile<- here(paste0('plots/','tmp','.pdf'))
   pdf(plotfile)
   print(make_trajplots(c('Satb2','Flna'),myymin=-1,myymax=4))
   dev.off()
+  plotfile<- here(paste0('plots/','tmplocus','.pdf'))
+  pdf(plotfile)
+  gviztracks <- get_gviztracks('Satb2')
+  print(Gviz::plotTracks(gviztracks,col = tpcols))
+  dev.off()
   message(normalizePath(plotfile))
   if(TRUE){
   #https://www.shinyapps.io/admin/#/dashboard - see for auth
   appfolder <- here('src/R/Shiny/')
-  file.copy(datafile,appfolder)
-  shiny::runApp(appfolder)
+  # shiny::runApp(appfolder)
   rsconnect::deployApp(appfolder,
-      appFiles=c('App.R',datafile),
+      appFiles=c('App.R',basename(datafile),'data'),
       appTitle='Cortexomics Trajectories',
       appName='cortex_traj')
   }
@@ -56,7 +80,7 @@ genechoices <- c('Satb2','Flna')
 ui <- fluidPage(
 
   # App title ----
-  titlePanel("Behold Cortexomics!"),
+  titlePanel("Mouse Neocortical Translation Trajectories\nE12.5 - P0"),
 
   # Sidebar layout with input and output definitions ----
   sidebarLayout(
@@ -86,6 +110,7 @@ ui <- fluidPage(
 
 
 splitgenes <- .%>%str_split(' ')%>%unlist%>%setdiff(c('',' '))
+plotable_genes <- make_trajplots_arglist$exprdf$gene_name%>%unique
 # Define server logic required to draw a histogram ----
 server <- function(input, output) {
  
@@ -112,7 +137,18 @@ server <- function(input, output) {
         }else{
           print(suppressWarnings({make_trajplots(genes2plot,myymin=input$ExprYmin,myymax=input$ExprYmax)}))                   
         }
-      # browser()
+    })
+    output$locusplot <- renderPlot({
+      
+        genes2plot <- input$genes2plot
+        genes2plot %<>% splitgenes
+
+        if(! all(genes2plot %in% plotable_genes)){
+          print(qplot(1))
+        }else{
+          gviztracks <- get_gviztracks(genes2plot[1])
+          print(Gviz::plotTracks(gviztracks,col = tpcols))
+        }
     })
     message(names(input))
     message('......')
@@ -121,8 +157,8 @@ server <- function(input, output) {
     if(! all(splitgenes(input$genes2plot) %in% plotable_genes)) plotn=2
     message(splitgenes(input$genes2plot))
     tagList(
-      # plotOutput("trajplot", width = '100%', height = 300*plotn) ,## nn is my scaling factor,
-      plotOutput("trajplot", width = '100%', height = 200*plotn) ## nn is my scaling factor
+      plotOutput("trajplot", width = '100%', height = 200*plotn), ## nn is my scaling factor
+      plotOutput("locusplot", width = '100%', height = 200*1)
     )
 
   })

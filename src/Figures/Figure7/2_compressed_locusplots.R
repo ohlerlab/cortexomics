@@ -12,11 +12,11 @@ library(Rsamtools)
 library(GenomicAlignments)
 library(rtracklayer)
 
-peptidemsfile = '/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt'
+peptidemsfile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 
 mymem<-projmemoise(function(){rnorm(1)})
 
-if(!exists("cdsgrl")) {
+if(!exists("fafileob")) {
   base::source("src/Figures/Figure0/0_load_annotation.R")
 }
 
@@ -78,7 +78,7 @@ if(!exists('peptidemsdata')){
 		simplify2array
 	rownames(normpepmat) <- peptidemsdata$Sequence
 
-	extrseq = function(gr)GenomicFeatures::extractTranscriptSeqs(gr,x=fafile_ob)
+	extrseq = function(gr)GenomicFeatures::extractTranscriptSeqs(gr,x=fafileob)
 
 
 	libstg = c(ribobams,totbams)%>%dirname%>%basename%>%str_split_fixed('_',3)%>%.[,1]
@@ -89,7 +89,7 @@ if(!exists('peptidemsdata')){
 	offsets%<>%mutate(comp='nucl')
 
 	cdsgrl = cdsgrl[str_order_grl(cdsgrl)]
-	proteinsequences = GenomicFeatures::extractTranscriptSeqs(cdsgrl,x=fafile_ob)
+	proteinsequences = GenomicFeatures::extractTranscriptSeqs(cdsgrl,x=fafileob)
 	aaproteinsequences = translate(proteinsequences)
 	trlist = ids_nrgname%>%distinct(gene_name,transcript_id)%>%{split(.[[2]],.[[1]])}
 	iso_tx_countdata <- readRDS(here('data/iso_tx_countdata.rds'))
@@ -267,14 +267,10 @@ tps = names(tpcols)
 zhangetal_pum2clip = GRanges('chr1:56794013-56794101:-')
 pum1clip = GRanges('chr1:56796631-56796712')
 dir.create('plots/Figure7')
-{
+
 nametrack = function(x,tnm) x%>%{.@name=tnm;.}
-#now plot
-options(ucscChromosomeNames=FALSE)
-compressstr = if(COMPRESS) '' else '_NONcompressed_'
-plotfile<- here(paste0('plots/Figure7/locusplot_',compressstr,igene,'.pdf'))
-pdf(plotfile,w=24,h=12)
-plotTracks(list(
+
+gviztracks <- list(
 	get_cov_track(igeneanno,totbams)%>%nametrack('RNA-Seq (RPM)'),
 	get_cov_track(igeneanno,ribobams)%>%nametrack('Ribo-Seq (RPM)'),
 	get_peptide_track(igeneanno)%>%nametrack('log2(Normalized Intensity)'),
@@ -283,9 +279,24 @@ plotTracks(list(
  	getmotiftrack('TGTANATA',igeneanno)%>%nametrack('Pum2 Motifs'),
  	peaktrack(zhangetal_pum2clip,igeneanno)%>%nametrack('Zhang et al Clip'),
  	peaktrack(pum1clip,igeneanno)%>%nametrack('PUM1 Clip')
-),col = tpcols)
+)
+
+dir.create('data/Shiny_track_data/')
+if(COMPRESS) saveRDS(gviztracks,str_interp('data/Shiny_track_data/${igene}.rds'))
+
+{
+#now plot
+options(ucscChromosomeNames=FALSE)
+compressstr = if(COMPRESS) '' else '_NONcompressed_'
+plotfile<- here(paste0('plots/Figure7/locusplot_',compressstr,igene,'.pdf'))
+pdf(plotfile,w=24,h=12)
+plotTracks(gviztracks,col = tpcols)
 dev.off()
 message(normalizePath(plotfile))
 }
 }
 }
+
+gviztracklist = Sys.glob('data/Shiny_track_data/*.rds')%>%map(readRDS)
+
+
