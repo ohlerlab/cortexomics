@@ -67,6 +67,7 @@ salmontrs = allquantfiles[[1]]%>%fread%>%.$Name%>%str_extract('ENSMUST\\w+')
 inclusiontable(dptrs,salmontrs)
 trs = intersect(dptrs,salmontrs)
 tx2genetbl = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)
+
 tx_countdata = tximport(files=allquantfiles,
 	ignoreTxVersion=TRUE,
 	tx2gene=tx2genetbl,

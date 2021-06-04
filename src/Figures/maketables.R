@@ -2,6 +2,7 @@ library(tidyverse)
 library(data.table)
 library(magrittr)
 library(readxl)
+source('src/Figures/Figure0/0_load_annotation.R')
 add_descrip_lines <- function(musicres,descrips){
 	descriplines = map_df(descrips,function(descrip){
 		musicres%>%
@@ -12,12 +13,12 @@ add_descrip_lines <- function(musicres,descrips){
 	musicres %<>% rbind(descriplines)
 	musicres
 }
-
 #Table 1
 tpconv = function(x) x %>% str_replace_all('E13','E12.5')%>%
 	  str_replace_all('E145','E14')%>%
 	  str_replace_all('E16','E15.5')%>%
-	  str_replace_all('E175','E17')
+	  str_replace_all('E175','E17')%>%
+	  replace_na('all')
 dftpconv = function(x) x  %>% {colnames(.)%<>%tpconv;.}%>%
 	{
 		if('time'%in%colnames(.)).$time%<>%tpconv
@@ -25,7 +26,8 @@ dftpconv = function(x) x  %>% {colnames(.)%<>%tpconv;.}%>%
 		if('sample'%in%colnames(.)).$contrast%<>%tpconv
 		.
 	}
-
+gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
 message('S1 - writing count and MS raw data...')
 s1counts = readRDS('data/tx_countdata.rds')%>%
 	.$counts%>%
@@ -54,6 +56,7 @@ list(
 map(dftpconv)%>%
 openxlsx::write.xlsx( file = "tables/S1.xlsx")
 
+highcountgenes <- readxl::read_xlsx('tables/S1.xlsx','highcountgenes')%>%.$gene_id
 
 #S2
 message('S2 - writing fold changes...')
@@ -68,7 +71,7 @@ allxtail <- Sys.glob('pipeline/xtail/*')%>%
 		.})
 allxtail$gene_id = gnm2gid[[allxtail$gene_name]]
 
-list(
+S2=list(
 	xtail = allxtail,
 	startstop_eff_lfc = fread(here('tables/ribo_position_effect.tsv')),
 	limma_count_lfc = readRDS(here('data/countcontr_df.rds')),
@@ -76,18 +79,30 @@ list(
 	limma_count_stepwise_lfc = readRDS(here('data/stepcountcontrdf.rds')),
 	proDA_ms_stepwise_lfc = readRDS(here('data/stepcontrdf.rds'))
 )%>%
-map(dftpconv)%>%
+# map(dftpconv)%>%
 map(~filter(.,gene_id%in%highcountgenes))%>%
-openxlsx::write.xlsx( file = "tables/S2.xlsx")
+writexl::write_xlsx( path = "tables/S2.xlsx")
 
+#numbers of start up/down
+readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
+	mutate(st_sig = str_pvalue<0.05,st_up=str_lfc>0,st_down=str_lfc<0)%>%
+	filter(st_sig)%>%group_by(st_up,st_down)%>%tally
+readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
+	mutate(st_sig = str_pvalue>0.05,st_up=str_lfc>0,st_down=str_lfc<0)
+
+readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
+	mutate(end_sig = end_pvalue<0.05,end_up=end_lfc>0,end_down=end_lfc<0)%>%
+	filter(end_sig)%>%group_by(end_up,end_down)%>%tally
 
 #S3
-codonstats<-read_tsv('tables/tRNA_stat_df')
-codonstats%<>%filter(fraction=='total')%>%
-	select(-fraction,-common,-abundance_enrich,-availability_enrich)
+codonstats<-read_tsv('tables/tRNA_stat_df.tsv')
+codonstats%<>%filter(fraction=='total')
+codonstats$codon%>%n_distinct
+codonstats%<>%select(-fraction,-common,-abundance_enrich,-availability_enrich)
 list(
 	isodecoder_data = fread('tables/isodecoder_data.tsv'),
-	codon_level_data =  codonstats
+	codon_level_data =  codonstats,
+	psite_offsets = fread('ext_data/offsets_manual.tsv')
 )%>%
 map(dftpconv)%>%
 openxlsx::write.xlsx( file = "tables/S3.xlsx")

@@ -455,7 +455,6 @@ startrlcountdf%>%group_by(length,sample)%>%summarise(count=sum(count))%>%
 dev.off()
 message(normalizePath(plotfile))
 
-stop()
 
 
 
@@ -536,13 +535,6 @@ fpcovtrs = fpcovlist[[1]][[1]]%>%names
 
 ribocovtrs = ribocovtrs%>%intersect(fpcovtrs)
 
-################################################################################
-########AA content in the start up vs down genes?
-################################################################################
-poseffectdf<-read_tsv('tables/ribo_position_effect.tsv')
-AAnum = 10
-cdsstartseq = cdsgrl%>%sort_grl_st%>%resize_grl(3*AAnum,'start')%>%extractTranscriptSeqs(x=fafile)
-cdsstartaas = cdsstartseq%>%translate
 negcountdf = tibble(
 	tr_id=names(cdsstartaas),
 	negcount = cdsstartaas%>%as.character%>%str_count('R|K')
@@ -555,8 +547,8 @@ startgrpdf = poseffectdf%>%inner_join(negcountdf)%>%
 		TRUE ~ 'nochange'
 	))
 startgrpdf%<>%group_by(negcount,startgrp)%>%tally
-#
-#
+
+
 #now plot
 plotfile<- here(paste0('plots/','startgrp_vsnegnum','.pdf'))
 pdf(plotfile,w=14)
@@ -566,10 +558,9 @@ startgrpdf%>%
 	ggplot(.,aes(x=factor(negcount),fill=startgrp,y=n))+
 	stat_identity(geom='bar',position='dodge')+
 	scale_fill_discrete(name='Start Change Class')+
-	scale_x_discrete(paste0('R/K residues in first ',AAnum,' AAs'))+
+	scale_x_discrete(paste0('R/K/H residues in first ',AAnum,' AAs'))+
 	scale_y_continuous(paste0('Freq'))+
-	ggtitle(paste0('Start class vs acidic residues'))+
-	# facet_grid(.~factor(negcount),scale='free')+
+	ggtitle(paste0('Start class vs basic residues'))+
 	theme_bw()
 dev.off()
 message(normalizePath(plotfile))

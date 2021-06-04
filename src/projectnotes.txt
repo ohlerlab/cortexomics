@@ -1,6 +1,8 @@
 ###REMEMBER - 
 /Users/dharnet/Dropbox/projects/cortexomics/manuscript/populate.sh
 
+2021-06-04 09:39
+Looking at isoform specific motif content....
 
 
 

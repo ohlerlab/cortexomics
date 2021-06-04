@@ -109,14 +109,14 @@ make_cluster_goplots <- function(oclustgores,clusteringname,nterms=10)  {
         ungroup%>%
         mutate(Term = as_factor(Term))%>%
         mutate(cluster = as.factor(LETTERS[as.numeric(cluster)]))%>%
-    ggplot(.,aes(x=cluster,color=-log10(elimFisher),
-                    y=Term),
-         
-           )+
-    geom_point()+
-    theme_bw()+
-    facet_grid(cluster~.,scale='free_y')+
-    ggtitle(str_interp('Shared GO Term Plot - ${clusteringname}\n ${ont}'))
+        ggplot(.,aes(x=cluster,color=-log10(elimFisher),
+                        y=Term),
+             
+               )+
+        geom_point()+
+        theme_bw()+
+        facet_grid(cluster~.,scale='free_y')+
+        ggtitle(str_interp('Shared GO Term Plot - ${clusteringname}\n ${ont}'))
     #
     cairo_pdf(w=16,h=12,fname%T>%{normalizePath(.)%>%message})
     print(gplot)

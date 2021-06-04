@@ -26,6 +26,7 @@
    R -e 'BiocManager::install(c("topGO"))'
    BiocManager::install(c("GenomicFeatures","GenomicAlignments"))
    BiocManager::install(c("GenomicFeatures","GenomicAlignments"))
+   BiocManager::install(c("RiboDiPA"))
    devtools::install_github("renozao/xbioc");
    devtools::install_github('xuranw/MuSiC')
    devtools::install_github('xuranw/MuSiC')

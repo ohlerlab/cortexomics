@@ -11,10 +11,11 @@ library(magrittr)
 library(Rsamtools)
 library(GenomicAlignments)
 library(rtracklayer)
-
+library(here)
+shift<-GenomicRanges::shift
+annogtf = here('annotation/gencode.vM12.annotation.gtf')
 peptidemsfile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 
-mymem<-projmemoise(function(){rnorm(1)})
 
 if(!exists("fafileob")) {
   base::source("src/Figures/Figure0/0_load_annotation.R")
@@ -26,6 +27,34 @@ tpcols <- c(E13='#214098',E145='#2AA9DF',E16='#F17E22',E175='#D14E28',P0='#ED312
 
 options(ucscChromosomeNames=FALSE) 
 
+
+extendaug <- function(gviztracks){
+  tracknames = map_chr(gviztracks,~.@name)
+  trtrack = which(tracknames=='Transcripts')
+  trwidth = gviztracks[[trtrack]]@range%>%end%>%max
+  augtrack = which(tracknames=='AUG')
+  gviztracks[[augtrack]]@range%<>%resize(floor(trwidth/20))
+  gviztracks
+}
+
+reflecttracks <- function(gviztracks){
+  maxcoord = map(gviztracks,~.@range%>%end)%>%unlist%>%max
+  strands =  map(gviztracks,~.@range%>%strand%>%as.character)%>%unlist
+  majoritystrand=strands%>%.[.!='*']%>%table%>%sort%>%names%>%last
+  if(majoritystrand=='-'){
+  	for(i in seq_along(gviztracks)){
+  		# gviztracks[[i]]@range@range = IRanges(maxcoord - start(gviztracks[[i]]@range))
+  		newstart = maxcoord - end(gviztracks[[i]]@range)
+  		newend = maxcoord - start(gviztracks[[i]]@range)
+  		gviztracks[[i]]@range@ranges = IRanges(newstart,newend)
+  		gviztracks[[i]]@range = invertStrand(gviztracks[[i]]@range)
+  		# start(gviztracks[[i]]@range) = newstart
+  		# end(gviztracks[[i]]@range) = maxcoord - end(gviztracks[[i]]@range)
+
+  	}
+  }
+  gviztracks
+}
 
 #this is the function that shifts a bunch of ranges to minimize the space between them, down to a ceiling maxwidth
 maxwidth=1
@@ -98,46 +127,6 @@ if(!exists('peptidemsdata')){
 
 igene='Flna'
 
-COMPRESS=T
-# for(COMPRESS in c(TRUE,FALSE)){
-for(COMPRESS in c(TRUE)){
-for(igene in c('Satb2','Flna','Nes','Bcl11b','Tle4'))
-# for(igene in c('Kat6a','Arhgef12'))
-# for(igene in c('Slc31a2','Dlg2','Dock9','Msra','Sbno2'))
-# for(igene in c('Tuba1a','Tuba1b',))
-# for(igene in c('Satb2','Bcl11b'))
-{
-{
-
-types = c('UTR','CDS')
-if(!COMPRESS) types = c(types,'gene')
-
-
-igeneanno <- fread(str_interp('grep -ie ${igene} ${gtf}'))%>%
-	as.matrix%>%apply(1,paste0,collapse='\t')%>%paste0(collapse='\n')%>%import(text=.,format='gtf')%>%
-	subset(gene_name==igene)%>%
-	subset(type%in%types)
-stopifnot(length(igeneanno)>0)
-if(COMPRESS){
-	igeneanno$toshift <- get_comp_shift(igeneanno,maxwidth=10)
-}else{
-	igeneanno$toshift <- 0
-}
-igeneanno$transcript_id%<>%trimids
-
-
-exontrack =
-  igeneanno%>%
-  shift(.,-.$toshift)%>%
-  # {.$transcript_id %<>% str_replace('\\.[0-9]+$','');.}%>%
-  subset(type%in%setdiff(types,'gene'))%>%
-  .[,c('type','transcript_id')]%>%
-  {.$feature<-as.character(.$type);.}%>%
-  {.$transcript<-as.character(.$transcript_id);.}%>%
-  Gviz::GeneRegionTrack(.,thinBoxFeature=c("UTR"))
-  
-library(Gviz)
-}
 
 
 get_cov_track <- function(igeneanno,bams=ribobams,offsets_=offsets){
@@ -201,7 +190,6 @@ get_gene_pepgr = function(igene,peptidemsdata_=peptidemsdata,cdsgrl_=cdsgrl,aapr
 	gpeptidegr
 }
 # get_gene_pepgr('Satb2')
-
 get_peptide_track<-function(igeneanno){
 	igeneanno%<>%subset(type!='gene')
 	igene = igeneanno$gene_name[1]
@@ -222,9 +210,7 @@ get_peptide_track<-function(igeneanno){
 	DataTrack(pepgr[,tps],cols = tpcols,groups=tps)	
 	# pepgr
 }
-
 motifpattern='TGTANATA'
-
 getmotiftrack = function(motifpattern,igeneanno){
 	igeneanno%<>%subset(type!='gene')
 	spligeneanno = igeneanno%>%split(.,.$transcript_id)
@@ -246,8 +232,6 @@ getmotiftrack = function(motifpattern,igeneanno){
 	motifgr = unique(motifgr)
 	AnnotationTrack(motifgr)
 }
-
-
 peaktrack = function(gr,igeneanno){		
 	ov = findOverlaps(gr,igeneanno,select='first')
 	if(is.na(ov)) return(AnnotationTrack(NULL))
@@ -261,6 +245,49 @@ getstart_track = function(igeneanno){
 	spligeneanno %<>% GenomicRanges::shift(-spligeneanno$toshift)
 	AnnotationTrack(spligeneanno,background.panel = "grey")
 }
+nametrack = function(x,tnm) x%>%{.@name=tnm;.}
+
+COMPRESS=T
+# for(COMPRESS in c(TRUE,FALSE)){
+for(COMPRESS in c(TRUE)){
+# for(igene in c('Satb2','Flna','Nes','Bcl11b','Tle4'))
+for(igene in c('Satb2'))
+# for(igene in c('Kat6a','Arhgef12'))
+# for(igene in c('Slc31a2','Dlg2','Dock9','Msra','Sbno2'))
+# for(igene in c('Tuba1a','Tuba1b',))
+# for(igene in c('Satb2','Bcl11b'))
+{
+{
+
+types = c('UTR','CDS')
+if(!COMPRESS) types = c(types,'gene')
+
+igeneanno <- fread(str_interp('grep -ie ${igene} ${annogtf}'))%>%
+	as.matrix%>%apply(1,paste0,collapse='\t')%>%paste0(collapse='\n')%>%import(text=.,format='gtf')%>%
+	subset(gene_name==igene)%>%
+	subset(type%in%types)
+stopifnot(length(igeneanno)>0)
+if(COMPRESS){
+	igeneanno$toshift <- get_comp_shift(igeneanno,maxwidth=10)
+}else{
+	igeneanno$toshift <- 0
+}
+igeneanno$transcript_id%<>%trimids
+
+
+exontrack =
+  igeneanno%>%
+  shift(.,-.$toshift)%>%
+  # {.$transcript_id %<>% str_replace('\\.[0-9]+$','');.}%>%
+  subset(type%in%setdiff(types,'gene'))%>%
+  .[,c('type','transcript_id')]%>%
+  {.$feature<-as.character(.$type);.}%>%
+  {.$transcript<-as.character(.$transcript_id);.}%>%
+  Gviz::GeneRegionTrack(.,thinBoxFeature=c("UTR"))
+  
+library(Gviz)
+}
+
 
 tps = names(tpcols)
 
@@ -268,19 +295,19 @@ zhangetal_pum2clip = GRanges('chr1:56794013-56794101:-')
 pum1clip = GRanges('chr1:56796631-56796712')
 dir.create('plots/Figure7')
 
-nametrack = function(x,tnm) x%>%{.@name=tnm;.}
 
 gviztracks <- list(
 	get_cov_track(igeneanno,totbams)%>%nametrack('RNA-Seq (RPM)'),
 	get_cov_track(igeneanno,ribobams)%>%nametrack('Ribo-Seq (RPM)'),
 	get_peptide_track(igeneanno)%>%nametrack('log2(Normalized Intensity)'),
  	exontrack%>%nametrack('Transcripts'),
- 	getstart_track(igeneanno)%>%nametrack('AUG'),
+ 	# getstart_track(igeneanno)%>%nametrack('AUG'),
  	getmotiftrack('TGTANATA',igeneanno)%>%nametrack('Pum2 Motifs'),
  	peaktrack(zhangetal_pum2clip,igeneanno)%>%nametrack('Zhang et al Clip'),
  	peaktrack(pum1clip,igeneanno)%>%nametrack('PUM1 Clip')
 )
-
+# gviztracks%<>%extendaug
+gviztracks%<>%reflecttracks
 dir.create('data/Shiny_track_data/')
 if(COMPRESS) saveRDS(gviztracks,str_interp('data/Shiny_track_data/${igene}.rds'))
 
@@ -297,6 +324,6 @@ message(normalizePath(plotfile))
 }
 }
 
-gviztracklist = Sys.glob('data/Shiny_track_data/*.rds')%>%map(readRDS)
+# gviztracklist = Sys.glob('data/Shiny_track_data/*.rds')%>%map(readRDS)
 
 

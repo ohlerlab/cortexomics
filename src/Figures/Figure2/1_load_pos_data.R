@@ -172,9 +172,10 @@ ext_cov <- function(cov,fputrext,tputrext){
 	stopifnot(identical(seqnms,names(tputrext)))
 	stopifnot(identical(seqnms,names(cov)))
 	seqlengths(gr)[seqnms]%<>%add(fputrext+tputrext)
-	gr %<>% shift(fputrext)
+	gr %<>% shift(fputrext[as.character(seqnames(gr))])
 	coverage(gr,weight='score')
 }
+
 {
 #filter for only long enough ones, if we're doing windows
 trspacecds = pmapToTranscripts(cdsgrl[ribocovtrs],exonsgrl[ribocovtrs])

@@ -1,10 +1,10 @@
 {
-
+dir.create('plots/Figures/FigureS3/',showWarn=F,rec=T)
 ################################################################################
 ######## Now plot it
 ################################################################################
 # how each decoder
-plotfile <- "plots/figures/figure2/trna_codons/trna_sig_total_alldecod.pdf"
+plotfile <- "plots/Figures/FigureS3/trna_sig_total_alldecod.pdf"
 pdf(plotfile, w = 9, h = 16)
 allcodonsig %>%
     group_by(decoder) %>%
@@ -28,7 +28,7 @@ dev.off()
 normalizePath(plotfile)
 #
 # how each decoder
-plotfile <- "plots/figures/figure2/trna_codons/trna_sig_poly_alldecod.pdf"
+plotfile <- "plots/Figures/FigureS3/trna_sig_poly_alldecod.pdf"
 pdf(plotfile, w = 9, h = 16)
 allcodonsig %>%
     group_by(decoder) %>%
@@ -50,7 +50,7 @@ dev.off()
 normalizePath(plotfile)
 
 
-plotfile <- "plots/figures/figure2/trna_codons/trna_sig_allfrac_mergedecod.pdf"
+plotfile <- "plots/Figures/FigureS3/trna_sig_allfrac_mergedecod.pdf"
 pdf(plotfile, w = 9*2, h = 16)
 allcodsigmean_isomerge %>%
     # filter(sample %>% str_detect("Total")) %>%
@@ -74,7 +74,7 @@ dev.off()
 normalizePath(plotfile)
 
 #
-plotfile <- "plots/figures/figure2/trna_codons/trna_sig_poly_mergedecod.pdf"
+plotfile <- "plots/Figures/FigureS3/trna_sig_poly_mergedecod.pdf"
 pdf(plotfile, w = 9, h = 16)
 allcodsigmean_isomerge %>%
     filter(sample %>% str_detect("Poly")) %>%
@@ -95,7 +95,7 @@ normalizePath(plotfile)
 
 
 # group them on same row
-plotfile <- "plots/figures/figure2/trna_codons/isomerge_tRNA_sig_strip_poly.pdf"
+plotfile <- "plots/Figures/FigureS3/isomerge_tRNA_sig_strip_poly.pdf"
 pdf(plotfile, w = 9, h = 16)
 allcodsigmean_isomerge %>%
     filter(sample %>% str_detect("Total")) %>%

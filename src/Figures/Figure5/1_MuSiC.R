@@ -25,10 +25,11 @@ techangegenes = techangedf%>%filter(up==1|down==1)%>%.$gene_name
 dtegenes = techangegenes
 
 if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*tsv.gz')))
-
+ss_emat <- ss_emat[ss_emat[[1]]%in%allxtail$gene_name,]
 if(!exists('tx_countdata'))tx_countdata <- readRDS(here('data/tx_countdata.rds'))
 
 {
+
 	featuredata = tibble(gene_name=ss_emat[[1]],gene_id=gnm2gid[[ss_emat[[1]]]])%>%set_rownames(.,.$gene_name)
 	sscoldata <- ss_emat[,-1]%>%colnames%>%str_split('[\\.\\_]')%>%simplify2array%>%t%>%
 	      .[,1:2]%>%set_colnames(c('fttime','ftdiff'))%>%as.data.frame
@@ -203,4 +204,138 @@ pred_expr_df%>%filter(is.finite(log2(pred_abundance)),is.finite(log2(bulk_abunda
   theme_bw()
 dev.off()
 normalizePath(plotfile)
+
+
+
+################################################################################
+########dTE vs 
+################################################################################
+xtailte = readxl::read_xlsx('tables/S2.xlsx',sheet='xtail')
+limmafc = readxl::read_xlsx('tables/S2.xlsx','limma_count_lfc',col_types='text')
+absTEs = limmafc%>%filter(assay=='TE')%>%select(time,gene_id,logFC)%>%spread(time,logFC)
+colnames(absTEs)%<>%str_replace('<NA>','E12.5')
+for(tp2 in colnames(absTEs)%>%setdiff(c('E12.5','gene_id'))) absTEs[[tp2]] = as.numeric(absTEs[[tp2]])+as.numeric(absTEs[['E12.5']] )
+absTEs%<>%gather(time,TE,-gene_id)
+absTEs%<>%inner_join(xtailte%>%distinct(gene_name,gene_id))
+absTEs$TE%<>%as.numeric
+
+#now plot
+plotfile<- here(paste0('plots/','telleyweight_vs_TE','.pdf'))
+pdf(plotfile,w=16,h=4)
+ggdf = wteltcoregsdiff%>%enframe('gene_name','telley_weight_diff')%>%
+  inner_join(absTEs%>%
+  select(time,gene_name,TE))
+sigtests = ggdf%>%group_by(time)%>%
+  split(.,.$time)%>%
+  # lapply(.%>%{split(.$TE,.$telley_weight_diff>0)}%>%
+  # {wilcox.test(.[[1]],.[[2]])})%>%
+  lapply(.%>%{cor.test(.$TE,.$telley_weight_diff)})%>%
+  map_df(.id='time',tidy)
+sigtests$label = sigtests$p.value%>%round(3)%>%as.character%>%{paste0('Wilcox Test\np=',.)}
+ggdf %>% ggplot(.,aes(x=telley_weight_diff>0,y=TE))+
+  geom_boxplot()+
+  facet_wrap(~time,ncol=4)+
+  scale_x_discrete(paste0('Neuron Associated'))+
+  scale_y_continuous(paste0('TE'))+
+  coord_cartesian(ylim=c(-2,2))+
+  ggtitle(paste0('Change in TE vs Telley Weights'))+
+  geom_text(show.legend=F,data=sigtests,hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=label))+
+  theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+#
+#
+#now plot
+plotfile<- here(paste0('plots/','telleyweight_Time_vs_TE','.pdf'))
+pdf(plotfile,w=16,h=4)
+ggdf = wteltcoregs%>%enframe('gene_name','telley_weight_time')%>%
+  inner_join(absTEs%>%
+  select(time,gene_name,TE))
+sigtests = ggdf%>%group_by(time)%>%
+  split(.,.$time)%>%
+  lapply(.%>%{split(.$TE,.$telley_weight_time>0)}%>%
+  {wilcox.test(.[[1]],.[[2]])})%>%
+  map_df(.id='time',tidy)
+sigtests$label = sigtests$p.value%>%round(3)%>%as.character%>%{paste0('Wilcox Test\nP=',.)}
+ggdf%>%
+  ggplot(.,aes(x=telley_weight_time>0,y=TE))+
+  # geom_point()+
+  geom_boxplot()+
+  # geom_smooth(method='lm')+
+  facet_wrap(~time,ncol=4)+
+  scale_x_discrete(paste0('Late Stage Associated'))+
+  scale_y_continuous(paste0('TE'))+
+  coord_cartesian(ylim=c(-2,2))+
+  ggtitle(paste0('Change in TE vs Telley Weights'))+
+  geom_text(show.legend=F,data=sigtests,hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=label))+
+  theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+
+
+
+
+
+
+#now plot
+plotfile<- here(paste0('plots/','telleyweight_vs_dTE','.pdf'))
+pdf(plotfile,w=16,h=4)
+ggdf = wteltcoregsdiff%>%enframe('gene_name','telley_weight_diff')%>%
+  inner_join(limmafc%>%
+  select(time,gene_name,log2fc))
+sigtests = ggdf%>%group_by(time)%>%
+  split(.,.$time)%>%
+  lapply(.%>%{split(.$log2fc,.$telley_weight_diff>0)}%>%
+  {wilcox.test(.[[1]],.[[2]])})%>%
+  map_df(.id='time',tidy)
+sigtests$label = sigtests$p.value%>%round(3)%>%as.character%>%{paste0('Wilcox Test\np=',.)}
+ggdf %>% ggplot(.,aes(x=telley_weight_diff>0,y=log2fc))+
+  geom_boxplot()+
+  facet_wrap(~time,ncol=4)+
+  scale_x_discrete(paste0('Neuron Associated'))+
+  scale_y_continuous(paste0('log2(delta TE)'))+
+  coord_cartesian(ylim=c(-2,2))+
+  ggtitle(paste0('Change in TE vs Telley Weights'))+
+  geom_text(show.legend=F,data=sigtests,hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=label))+
+  theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+#
+#
+#now plot
+plotfile<- here(paste0('plots/','telleyweight_Time_vs_dTE','.pdf'))
+pdf(plotfile,w=16,h=4)
+ggdf = wteltcoregs%>%enframe('gene_name','telley_weight_time')%>%
+  inner_join(limmafc%>%
+  select(time,gene_name,log2fc))
+sigtests = ggdf%>%group_by(time)%>%
+  split(.,.$time)%>%
+  lapply(.%>%{split(.$log2fc,.$telley_weight_time>0)}%>%
+  {wilcox.test(.[[1]],.[[2]])})%>%
+  map_df(.id='time',tidy)
+sigtests$label = sigtests$p.value%>%round(3)%>%as.character%>%{paste0('Wilcox Test\nP=',.)}
+ggdf%>%
+  ggplot(.,aes(x=telley_weight_time>0,y=log2fc))+
+  # geom_point()+
+  geom_boxplot()+
+  # geom_smooth(method='lm')+
+  facet_wrap(~time,ncol=4)+
+  scale_x_discrete(paste0('Late Stage Associated'))+
+  scale_y_continuous(paste0('log2(delta TE)'))+
+  coord_cartesian(ylim=c(-2,2))+
+  ggtitle(paste0('Change in TE vs Telley Weights'))+
+  geom_text(show.legend=F,data=sigtests,hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=label))+
+  theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+
+
+
+
+
+
+
 

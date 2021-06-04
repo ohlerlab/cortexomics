@@ -2,6 +2,7 @@
 
 dir.create('plots/Figures/Figure3/',showWarn=F,rec=T)
 #src/R/Figures/Figure2/codon_coverage.R
+FLANKCODS<-15
 {
 if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
 intersect <- BiocGenerics::intersect
@@ -14,6 +15,7 @@ stopifnot('availability' %in% colnames(allcodsigmean_isomerge))
 getwd()
 
 stagecolsdisplay <- c(E12.5 = "#214098", E14 = "#2AA9DF", E15.5 = "#F17E22", E17 = "#D14E28", P0 = "#ED3124")
+displaystageconv <- names(stagecolsdisplay)%>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 stagecols <- stagecolsdisplay %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 stageconv <- names(stagecols) %>% setNames(c("E13", "E145", "E16", "E175", "P0"))
 GENETIC_CODE<-Biostrings::GENETIC_CODE
@@ -79,14 +81,16 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	
 	pdf('plots/Figures/Figure3/codonprof_rlindiv.pdf',w=24,h=14)
 	codonprofiles%>%
+		# mutate(time=stageconv[time])%>%
 		# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
+		mutate(stage=displaystageconv[samplestage[sample]])%>%
 		filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
 		ungroup%>%
 		mutate(codon = as_factor(codon))%>%
 		# filter(sample%>%str_detect(c('ribo')))%>%
 		{print(ggplot(.,aes(position,occupancy,group=sample,
-			color=samplestage[sample]))+
-			scale_color_manual(values=displaystagecols)+
+			color=stage))+
+			scale_color_manual(values=stagecolsdisplay)+
 			scale_x_continuous(minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
 			scale_y_continuous(limits=c(0,6))+
 			facet_grid(codon~readlen)+
@@ -100,31 +104,142 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 			theme_bw())}
 	dev.off()
 	normalizePath('plots/Figures/Figure3/codonprof_rlindiv.pdf')
+	stop()
 
-
-	pdf('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf',w=24,h=14)
+	pdf('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf',w=14,h=7)
 	codonprofiles%>%
 		inner_join(offsets)%>%
-		mutate(position = position+offset)%>%
 		group_by(sample,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
 			filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
 		# filter(codon%>%str_detect(c('GTC|AAC|ATG')))%>%
 		# filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
 		# filter(sample%>%str_detect(c('ribo')))%>%
 		{print(ggplot(.,aes(position,occupancy,group=sample,
-			color=samplestage[sample]))+
-			geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
-			scale_color_manual(values=displaystagecols)+
-			scale_x_continuous(minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+			color=displaystageconv[samplestage[sample]]))+
+			# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+			scale_color_manual(values=stagecolsdisplay)+
+			scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+				minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
 			facet_grid(codon~.)+
 			geom_line(aes())+
-			geom_vline(xintercept=0,linetype=2)+
+			# geom_vline(xintercept=0,linetype=2)+
 			# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
-			coord_cartesian(xlim=c(-39,12))+
+			# coord_cartesian(xlim=c(-39,12))+
+			coord_cartesian(xlim=c(-36,6))+
 			# geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
 			theme_bw())}
 	dev.off()
 	normalizePath('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf')
+
+	pdf('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf',w=12,h=7)
+	codonprofiles%>%
+		inner_join(offsets)%>%
+		mutate(time=samplestage[sample])%>%
+		# mutate(position = position+offset)%>%
+		filter(readlen=='rl29')%>%
+		mutate(read_length=readlen%>%str_extract('\\d+'))%>%
+		group_by(sample,read_length,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
+		filter(codon%>%str_detect(c('Glu-TTC|GTC|Val-CAC|AAC|ATG')))%>%
+		# filter(occupancy%>%{.<quantile(.,0.1) | .>quantile(.,0.9)})%>%
+		# filter(sample%in%c('E13_ribo_1','P0_ribo_2'))%>%
+		mutate(stage = displaystageconv[samplestage[sample]])%>%
+		filter(!is.na(stage))%>%
+		{print(ggplot(.,aes(x=as.numeric(position),y=occupancy,
+			color=stage,group=sample))+
+			# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+			# scale_color_manual(values=codonspeed[codon])+
+			scale_color_manual(values=stagecolsdisplay)+
+			scale_y_continuous("Normalized RPF-5'-edge Density ",limits=c(0,5))+
+			# scale_color_gradient(name='Dwell Time',low='blue',high='red')+
+			scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+				minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+			facet_grid(codon~read_length)+
+			geom_line()+
+			# geom_vline(xintercept=0,linetype=2)+
+			# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+			# coord_cartesian(xlim=c(-21,21))+
+			coord_cartesian(xlim=c(-36,6))+
+			geom_vline(data=offsets%>%filter(length=='29'),aes(xintercept= -offset-3),color=I('blue'),linetype=2)+
+			# geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
+			theme_bw())}
+	dev.off()
+	normalizePath('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf')
+
+	topbottomcods = codonoccs%>%filter(fraction=='total')%>%select(stage=time,codon,sumocc=occupancy)%>%
+	group_by(codon)%>%summarise(sumocc=mean(sumocc))%>%
+	mutate(dtrank=rank(sumocc))%>%
+	filter(dtrank %in% c(1,2,3,61,60,59))%>%.$codon
+
+	pdf('plots/Figures/Figure3/metametacodon_supp.pdf',w=12,h=7)
+	codonprofiles%>%
+		inner_join(offsets)%>%
+		mutate(stage=samplestage[sample])%>%
+		# mutate(position = position+offset)%>%
+		filter(readlen=='rl29')%>%
+		mutate(read_length=readlen%>%str_extract('\\d+'))%>%
+		group_by(sample,stage,read_length,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
+		left_join(codonoccs%>%filter(fraction=='total')%>%select(stage=time,codon,sumocc=occupancy),by=c('stage','codon'))%>%
+		# .$sumocc%>%unique%>%rank%>%sort
+		filter(sample%in%c('E13_ribo_1','P0_ribo_2'))%>%
+		filter(codon %in% topbottomcods)%>%
+		# .$codon%>%n_distinct
+		# group_by(codon,sample)%>%group_slice(1)
+		{print(ggplot(.,aes(x=position,y=occupancy,
+			color=codon,group=codon))+
+			# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+			# scale_color_manual(values=codonspeed[codon])+
+			scale_y_continuous("Normalized RPF-5'-edge Density ")+
+			# scale_color_gradient(name='Dwell Time',low='blue',high='red')+
+			scale_color_discrete(name='codon')+
+			scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+				minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+			facet_grid(sample~read_length)+
+			geom_line()+
+			# geom_vline(xintercept=,linetype=2)+
+			# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+			# coord_cartesian(xlim=c(-21,21))+
+			coord_cartesian(xlim=c(-36,6))+
+			geom_vline(data=offsets%>%filter(length=='29'),aes(xintercept= -offset-3),color=I('blue'),linetype=2)+
+			theme_bw())}
+	dev.off()
+	normalizePath('plots/Figures/Figure3/metametacodon_supp.pdf')
+
+
+	pdf('plots/Figures/Figure3/metametacodon_supp_grad.pdf',w=12,h=7)
+	codonprofiles%>%
+		inner_join(offsets)%>%
+		mutate(stage=samplestage[sample])%>%
+		# mutate(position = position+offset)%>%
+		filter(readlen=='rl29')%>%
+		mutate(read_length=readlen%>%str_extract('\\d+'))%>%
+		group_by(sample,stage,read_length,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
+		left_join(codonoccs%>%filter(fraction=='total')%>%select(stage=time,codon,sumocc=occupancy),by=c('stage','codon'))%>%
+		# .$sumocc%>%unique%>%rank%>%sort
+		filter(sample%in%c('E13_ribo_1','P0_ribo_2'))%>%
+		# filter(codon %in% topbottomcods)%>%
+		# .$codon%>%n_distinct
+		# group_by(codon,sample)%>%group_slice(1)
+		{print(ggplot(.,aes(x=position,y=occupancy,
+			color=sumocc,group=codon))+
+			# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+			# scale_color_manual(values=codonspeed[codon])+
+			scale_y_continuous("Normalized RPF-5'-edge Density ")+
+			scale_color_gradient(name='Dwell Time',low='blue',high='red')+
+			# scale_color_discrete(name='codon')+
+			scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+				minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+			facet_grid(sample~read_length)+
+			geom_line(alpha=I(0.5))+
+			# geom_vline(xintercept=,linetype=2)+
+			# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+			# coord_cartesian(xlim=c(-21,21))+
+			coord_cartesian(xlim=c(-36,6))+
+			geom_vline(data=offsets%>%filter(length=='29'),aes(xintercept= -offset-3),color=I('blue'),linetype=2)+
+			theme_bw())}
+	dev.off()
+	normalizePath('plots/Figures/Figure3/metametacodon_supp_grad.pdf')
+
+
 
 	#plot with the AAs as colors
 	pdf('plots/Figures/Figure3/stripplot_aa_codon.pdf',w=12,h=5)
@@ -162,25 +277,35 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	#Now merge with the tRNA data
 	tRNA_occ_df<-trna_ab_df%>%
 		left_join(codonoccs)
-
 	##Get the amino acid for each one
 	tRNA_occ_df%<>%mutate(AA = GENETIC_CODE[codon]%>%qs('S+'))
-
-
 	#
 	tRNA_occ_df%<>%	left_join(codonfreqs%>%colSums%>%enframe('codon','freq'))%>%
 		ungroup%>%
 		mutate(common = freq>median(freq))
-
-
+	# tRNA_occ_df%>%ungroup%>%filter(!is.na(abundance))	
+	# tRNA_occ_df%<>%filter(fraction=='total')%>%group_by(codon)%>%filter(!all(is.na(abundance)))
     #also add tAI
     tRNA_occ_df%<>%group_by(AA)%>%mutate(tAI = freq/max(freq))%>%ungroup
+    tRNA_occ_df%>%filter(time=='P0',fraction=='total')%>%mutate(isna=is.na(abundance))%>%lm(data=.,dwell_time~isna)%>%tidy%>%mutate(p.value<0.05)
+    tRNA_occ_df%>%filter(time=='E13',fraction=='total')%>%mutate(isna=is.na(abundance))%>%lm(data=.,dwell_time~isna)%>%tidy%>%mutate(p.value<0.05)
+    tRNA_occ_df%>%filter(time=='E13',fraction=='total')%>%ungroup%>%mutate(abundance=replace_na(abundance,min(abundance,na.rm=T)-1))%>%lm(data=.,dwell_time~AA+abundance)%>%tidy%>%
+    	filter(term=='abundance')
+
+    tRNA_occ_df%>%filter(time=='E13',fraction=='total')%>%ungroup%>%mutate(availability=replace_na(availability,min(availability,na.rm=T)-1))%>%lm(data=.,dwell_time~AA+availability)%>%tidy%>%
+    	filter(term=='availability')
+    tRNA_occ_df%>%filter(time=='P0',fraction=='total')%>%ungroup%>%mutate(abundance=replace_na(abundance,min(abundance,na.rm=T)-1))%>%lm(data=.,dwell_time~AA+abundance)%>%tidy%>%
+    	filter(term=='abundance')
+	tRNA_occ_df%>%filter(time=='P0',fraction=='total')%>%ungroup%>%mutate(abundance=replace_na(abundance,min(abundance,na.rm=T)-1))%>%lm(data=.,dwell_time~AA+abundance)%>%tidy%>%
+    	filter(term=='abundance')
+    tRNA_occ_df%>%filter(time=='P0',fraction=='total')%>%ungroup%>%mutate(abundance=replace_na(abundance,min(abundance,na.rm=T)-1))%>%lm(data=.,dwell_time~AA+abundance)%>%tidy%>%
+    	filter(term=='abundance')
 
 	tRNA_occ_df%<>%filter(is.finite(abundance))
-
+	tRNA_occ_df$codon%>%n_distinct
     tRNA_occ_df_en <- tRNA_occ_df%>%left_join(tRNAenrichdf)
 
-    tRNA_occ_df_en%>%write_tsv('tables/tRNA_stat_df')
+    tRNA_occ_df_en%>%write_tsv('tables/tRNA_stat_df.tsv')
 
 	aatrna_occ_df<-tRNA_occ_df%>%
 		group_by(time,AA)%>%
@@ -257,7 +382,7 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
  #    sigcols <- syms(sigcols)%>%setNames(sigcols)
  #    sigcol=sigcols[1]
  #    fractioni='poly'
-
+	tps=names(stagecols)
 	makecorlabel = function(x) paste0('rho = ',round(x$estimate,3),'\n','pval = ',ifelse(x$p.value > 0.001,round(x$p.value,4),format(x$p.value,format='e',digits=4)))
 	#make the grid of plots for the different codons
 	# for(ifraction in c('poly','total')){
@@ -558,7 +683,6 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	dev.off()
 	normalizePath(plotfile)
 
-	stop()
 
 	trna_occ_df_samp%>%filter(fraction=='total')
 
@@ -731,15 +855,62 @@ rfreqdtdf%>%
 	scale_x_continuous(paste0('Optimality'))+
 	scale_y_continuous(paste0('Dwell Time'))+
 	ggtitle(paste0('Codon optimality vs dwell time'))+
-	scale_color_manual(values=displaystagecols)+
+	scale_color_manual(values=stagecolsdisplay)+
 	geom_text(data=codreltests,aes(label=acor_label,x=Inf,y=Inf),color=I('black'),vjust=1,hjust=1)+
 	# facet_grid(.~time)+
 	theme_bw()
 dev.off()
 message(normalizePath(plotfile))
+
 # we can show that the dominant effect on dwell time is the amino acid coded for, in line with Riba et al. We can also show that those AA effects change significantly over time. We can show that within each amino acid coded for, there are codon-specific differences in dwell time which are consistent between time points. We can also show that there exists a relatively weak relationship between tRNA abundance and dwell time, and that if we control for the above, this becomes  controlling for these (and only if we control for them), a relationship between tRNA abundance and dwell time, with slower codons apparently protecting 
+################################################################################
+########GC content of codons
+################################################################################
+tRNA_occ_df%>%filter(fraction=='total',time=='E13')
+codontable = 'tables/S3.xlsx'%>%readxl::read_xlsx(2)
+codontable%>%.$codon%>%n_distinct
+
+# codontable=tRNA_occ_df_en
+codontable%<>%mutate(gcnum = str_count(codon,'G|C'))
+codontable%<>%mutate(gc1 = str_count(codon,'(G|C)..'))
+codontable%<>%mutate(gc2 = str_count(codon,'.(G|C).'))
+codontable%<>%mutate(gc3 = str_count(codon,'..(G|C)'))
+
+#now plot
+codontable%>%filter(time==first(time))%>%lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
 
 
+codontable%>%group_by(time,AA,codon,gcnum)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ gcnum)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gcnum)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ AA+gcnum)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gcnum,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
+codontable%>%group_by(time,AA,codon,gcnum,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time))%>%lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))
+
+
+codontable%>%group_by(time)%>%nest()%>%mutate(lmres=map(data,~lm(data=.,dwell_time ~AA+ gcnum)%>%tidy%>%filter(term%>%str_detect('gc'))))%>%unnest(lmres)%>%
+	select(-data)
+codontable%>%group_by(time)%>%nest()%>%mutate(lmres=map(data,~lm(data=.,dwell_time ~ AA+gc1+gc2+gc3)%>%tidy%>%filter(term%>%str_detect('gc'))))%>%unnest(lmres)%>%
+	select(-data)
+
+
+plotfile<- here(paste0('plots/','codon_gc_dt_boxplots','.pdf'))
+pdf(plotfile,w=16,h=8)
+codontable%>%
+	# filter(time=='E12.5')%>%
+	# group_by(AA,codon,gcnum,gc1,gc2,gc3)%>%summarise(dwell_time=mean(dwell_time,na.rm=T))%>%
+	ggplot(.,aes(x=as.factor(gcnum),y=dwell_time))+
+	geom_boxplot()+
+	geom_jitter()+
+	# scale_color_discrete(name='colorname',colorvals)+
+	facet_grid(.~time)+
+	scale_x_discrete(paste0('G/C nucleotides'))+
+	scale_y_continuous(paste0('average(dwell_time)'))+
+	ggtitle(paste0('gc_content'))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
 
 save.image('data/fig2_codon_occ_2.Rdata')
 load('data/fig2_codon_occ_2.Rdata')

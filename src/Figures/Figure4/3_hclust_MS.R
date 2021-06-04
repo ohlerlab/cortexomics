@@ -28,10 +28,17 @@ techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
     up = as.numeric(any(sig & (log2fc > 0))),
     down = as.numeric(any(sig & (log2fc < 0)))
   )
- techangedf%>%write_tsv('tables/xtailTEchange.tsv') 
+techangedf%>%write_tsv('tables/xtailTEchange.tsv') 
 techangegenes = techangedf%>%filter(up==1|down==1)%>%.$gene_name
 teupgenes = techangedf%>%filter(up==1)%>%.$gene_name
 tedowngenes = techangedf%>%filter(down==1)%>%.$gene_name
+
+allxtail%>%group_by(gene_id,gene_name)%>%
+  mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
+  summarise(
+    up = as.numeric(any(sig & (log2fc > 0))),
+    down = as.numeric(any(sig & (log2fc < 0)))
+  )%>%{list(sum(na.omit(.$up)),sum(na.omit(.$down)),sum(na.omit(.$up+.$down)==2))}
 
 cordist <- function(X){
   
