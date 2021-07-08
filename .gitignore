@@ -39,6 +39,7 @@ archived_res
 pipeline/
 .DS_Store
 .DS_Store
+Shiny_track
 
 ext_data
 
@@ -73,3 +74,4 @@ Reports
 *telleybams*
 !______
  src/!_______max_cortexomics
+*.svg

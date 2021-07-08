@@ -1328,3 +1328,36 @@ sep_element_in<-function(colonlist,ridssplit,sep=';'){
     .$match
 
 }
+
+make_quantcompplot <- function(compdf, col1, col2, fname){
+  require(LSD)
+  base::source(here('Applications/LSD/R/LSD.heatscatter.R'))
+  require(broom)
+  col1<-enquo(col1)
+  col2<-enquo(col2)
+  corlabel = compdf%>%filter(is.finite(!!col1),is.finite(!!col2))%>%
+    summarise(tidy(cor.test(!!col1, !!col2)))
+  corlabel = corlabel%>%
+    mutate(
+      pformat=format(p.value,format='e',digits=4),
+      pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
+      labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
+  #
+  nlabel=tibble(labl=paste0('N=',nrow(compdf)))
+  pdf(fname)
+  gplot = heatscatter(ggplot=TRUE,
+      compdf[[quo_name(col1)]],compdf[[quo_name(col2)]])+
+    scale_x_continuous(quo_name(col1))+
+    scale_y_continuous(quo_name(col2))+
+    ggtitle(basename(fname))+
+    geom_text(show.legend=F,data=corlabel,
+      hjust=1,vjust=1,x= Inf,y=Inf,aes(label=labl))+
+    geom_text(show.legend=F,data=nlabel,
+      hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))
+  dev.off()
+  pdf(fname)
+  gplot
+  print(gplot)
+  dev.off()
+  message(normalizePath(fname))
+}

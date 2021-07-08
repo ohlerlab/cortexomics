@@ -212,10 +212,13 @@ allcodsigmean_isomerge%>%filter(sample%>%str_detect('Total'))%>%select(sample,co
     write_tsv('tables/tRNA_decoder_data.tsv')
 
  allcodonsig%>%
+    filter(position> -numreadlen+6,position < -6)%>%
     filter(fraction=='Total')%>%
     select(-hk_expr,-fraction,-weightedusage,-freq)%>%
     write_tsv('tables/isodecoder_data.tsv')
 
+if(FALSE){
+    
 # get normfacts
 # normfacts <- allcodonsig%>%group_by(sample,rep)%>%summarise(normfact = mean(abundance[decoder%in%HKGENES2USE]))
 # Now normalize
@@ -305,6 +308,7 @@ test_that("These values look right, abundance correlates with usage on log scale
 
 })
 
+}
 # https://github.com/dbgoodman/ecre_cds_analysis/blob/master/codonR/tAI.R
 #
 

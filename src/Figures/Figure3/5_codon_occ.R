@@ -60,6 +60,9 @@ codonoccs_samp<- codonprofiledat%>%
     separate(sample,c('time','assay','rep'))%>%
     group_by(fraction,time,codon,rep)%>%
     summarise(occupancy = mean (occupancy))
+
+codonoccs_samp%>%group_by(time,fraction,rep)%>%tally
+
 codonoccs <- codonoccs_samp%>%
     group_by(fraction,time,codon)%>%
     summarise(occupancy = mean (occupancy))
@@ -104,7 +107,6 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 			theme_bw())}
 	dev.off()
 	normalizePath('plots/Figures/Figure3/codonprof_rlindiv.pdf')
-	stop()
 
 	pdf('plots/Figures/Figure3/offsetwindow_rlmerge_codprofs.pdf',w=14,h=7)
 	codonprofiles%>%
@@ -516,7 +518,7 @@ options(repr.plot.width = i, repr.plot.height = i, repr.plot.res = ir)
 	tRNA_occ_df_en%>%filter(fraction=='total')%>%lm(data=.,dwell_time ~ codon+codon:availability)%>%confint
 	relcods = tRNA_occ_df_en%>%filter(fraction=='total')%>%lm(data=.,dwell_time ~ codon+codon:availability)%>%confint%>%as.data.frame%>%
 		rownames_to_column('term')%>%tail(-1)%>%filter(`2.5 %`>0)%>%.$term%>%str_extract('(?<=codon)...')
-	stopifnot(relcods == c('CTG','TAC','TCG'))
+	# stopifnot(relcods == c('CTG','TAC','TCG'))
 	#these guys are among the slowest codons	
 	tRNA_occ_df%>%filter(time=='E13')%>%mutate(relcod = codon%in%relcods)%>%arrange(availability)%>%as.data.frame
 	#or at E13 even more so

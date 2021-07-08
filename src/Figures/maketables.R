@@ -89,16 +89,16 @@ readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
 	filter(st_sig)%>%group_by(st_up,st_down)%>%tally
 readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
 	mutate(st_sig = str_pvalue>0.05,st_up=str_lfc>0,st_down=str_lfc<0)
-
 readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
 	mutate(end_sig = end_pvalue<0.05,end_up=end_lfc>0,end_down=end_lfc<0)%>%
 	filter(end_sig)%>%group_by(end_up,end_down)%>%tally
 
 #S3
 codonstats<-read_tsv('tables/tRNA_stat_df.tsv')
-codonstats%<>%filter(fraction=='total')
-codonstats$codon%>%n_distinct
-codonstats%<>%select(-fraction,-common,-abundance_enrich,-availability_enrich)
+codonoccs <- read_tsv('tables/codonoccs_orig.tsv')
+codonstats <- codonoccs%>%filter(fraction=='total')%>%select(time,codon,dwell_time=occupancy)%>%
+	left_join(codonstats%>%select(-dwell_time))
+codonstats%<>%select(-common,-abundance_enrich,-availability_enrich)
 list(
 	isodecoder_data = fread('tables/isodecoder_data.tsv'),
 	codon_level_data =  codonstats,

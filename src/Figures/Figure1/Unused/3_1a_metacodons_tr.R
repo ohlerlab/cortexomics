@@ -5,8 +5,10 @@
 ################################################################################
 STARTBUFF=60
 ENDBUFF=60
+ribocovtrs <- readRDS(here('data/ribocovtrs.rds'))
 exonseq = exonsgrl[ribocovtrs]%>%extractTranscriptSeqs(x=fafile)
-
+allcodons=getGeneticCode()
+shift<-GenomicRanges::shift
 i=1
 #get allcodlist granges object descxribing codon positions in the transcripts
 if(!file.exists(here('data/allcodlist.rds'))){
@@ -60,13 +62,14 @@ if(!file.exists(here('data/fpprofilelist.rds'))){
 
 codonprofiledat = fpprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
 codonprofiledat%<>%mutate(position = position - 1 - (FLANKCODS*3))
+codonprofiledat%<>%mutate(occ_nonorm=count)
 codonprofiledat%<>%group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
 codonprofiledat%<>%filter(!codon %in% c('TAG','TAA','TGA'))
 
 
 
 if(!file.exists(here('data/fprustprofilelist.rds'))){
-	fprustprofilelist <-imap(fpcovlist[mainsamps],function(sampfpcov,sampname){
+	fprustprofilelist <-imap(fpcovlist[mainsamps[1]],function(sampfpcov,sampname){
 		trsums = sampfpcov%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
 		sampfpcov%>%lapply(function(rlfpcov){
 			rlfpcov = rlfpcov > mean(rlfpcov)
@@ -82,10 +85,11 @@ if(!file.exists(here('data/fprustprofilelist.rds'))){
 	fprustprofilelist<-readRDS(here('data/fprustprofilelist.rds'))
 }
 
-rustprofiledat = fprustprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
-rustprofiledat%<>%mutate(position = position - 1 - (FLANKCODS*3))
-rustprofiledat%<>%group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
-rustprofiledat%<>%filter(!codon %in% c('TAG','TAA','TGA'))
+rustprofiledat <- fprustprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
+rustprofiledat %<>% mutate(position = position - 1 - (FLANKCODS*3))
+rustprofiledat %<>% mutate(occ_nonorm=count)
+rustprofiledat %<>% group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
+rustprofiledat %<>% filter(!codon %in% c('TAG','TAA','TGA'))
 
 
 ################################################################################

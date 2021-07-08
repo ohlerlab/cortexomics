@@ -6,8 +6,6 @@ library(GenomicFeatures)
 mspeptidefile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 msgenefile = here('ext_data/MS_Data_New/Ages_Brain_PG_summ.txt')
 
-
-
 gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
 	{safe_hashmap(.[[2]],.[[1]])}
 peptidemsdata = fread(mspeptidefile)%>%
@@ -35,6 +33,8 @@ if(!file.exists(here('data/pepmatch.rds'))){
 }else{
 	pepmatch<-readRDS(here('data/pepmatch.rds'))
 }
+
+
 
 gnamecompdf <- data.frame(name=1:nrow(peptidemsdata),
 	msgname = peptidemsdata$gene_name)%>%

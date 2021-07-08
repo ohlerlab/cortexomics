@@ -1,7 +1,7 @@
 ################################################################################
 ########Metagene plots and positions specific analysis
 ################################################################################
-	
+{	
 
 {
 library(abind)
@@ -96,7 +96,7 @@ cdsends = cdsgrl[highcountcovtrs]%>%sort_grl_st%>%resize_grl(1,'end')%>%unlist%>
 	pmapToTranscripts(exonsgrl[names(.)]%>%sort_grl_st)%>%
 	{setNames(start(.),as.character(seqnames(.)))}
 trcds = GRanges(names(cdsstarts),IRanges(cdsstarts,cdsends))
-
+}
 
 ################################################################################
 ########Collect transript level info for top transcripts

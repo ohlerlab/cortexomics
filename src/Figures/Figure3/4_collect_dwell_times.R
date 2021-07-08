@@ -176,3 +176,153 @@ codonprofiles%<>%group_by(readlen,codon,sample)%>%
 codonprofiles%<>%select(-signal)
 stopifnot(codonprofiles$occupancy%>%is.finite%>%all)
 codonprofiles %>%saveRDS('data/codonprofiles.rds')
+codonprofiles <- readRDS('data/codonprofiles.rds')
+
+
+
+trna_ab_df_samp = allcodsigmean_isomerge[c("fraction", "time", "sample", "anticodon", "abundance", "codon",
+"weightedusage", "availability","rep")]
+
+codon_data <- trna_ab_df_samp%>%
+	filter(fraction=='Total')%>%select(-fraction,-sample)%>%
+    select(time,rep,codon,abundance,availability)%>%
+    group_by(time,codon)%>%
+    summarise_at(vars(one_of(c('abundance','availability'))),list(mean))
+
+
+lexp = 3+3 #include positions for positions corresponding to bigger offsets
+rexp = 3#include positions for positions corresponding to smaller offsets
+# codonprofiles%>%
+codondata <- codonprofiledat%>%
+# codondata <- rustprofiledat%>%
+	group_by(sample)%>%
+	mutate(readlen=paste0('rl',readlen))%>%
+	safe_left_join(offsets%>%select(readlen,offset))%>%
+    # filter(position== -offset-3)%>%
+    # mutate(-offset-3,-offset)%>%head%>%as.data.frame
+	# group_by(sample,readlen,codon)%>%group_slice(1)%>%
+    filter(position <= -(offset-rexp))%>%
+    filter(position >= -(offset+lexp))%>%
+    separate(sample,c('time','assay','rep'))%>%
+    group_by(time,codon,rep)%>%
+    summarise(dwell_time = sum(occ_nonorm))%>%
+    left_join(codon_data)
+	
+#now plot
+plotfile<- here(paste0('plots/','stage_dtdist','.pdf'))
+pdf(plotfile)
+codondata%>%
+	ggplot(.,aes(fill=time,x=dwell_time))+
+	geom_density(alpha=I(0.5))+
+	scale_fill_manual(name='stage',values=stagecols)+
+	scale_x_continuous(paste0('Broad Dwell Time'))+
+	# scale_y_continuous(paste0(''))+
+	ggtitle(paste0('Dwell Time Dist'))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+	
+#now plot
+repsumcodondata<-codondata%>%
+	group_by(time,codon)%>%summarise_at(vars(abundance,availability,dwell_time),mean)
+plotfile<- here(paste0('plots/','bDT_ab_vs_dt','.pdf'))
+pdf(h=15,w=5,plotfile)
+col1=sym('dwell_time')
+col2=sym('abundance')
+corlabel = repsumcodondata%>%filter(is.finite(!!col1),is.finite(!!col2))%>%
+		group_by(time)%>%
+		summarise(tidy(cor.test(!!col1, !!col2)))
+corlabel = corlabel%>%
+	mutate(
+		pformat=format(p.value,format='e',digits=4),
+		pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
+		labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
+nlabel=repsumcodondata%>%group_by(time)%>%summarise(labl=paste0('N=',n()))
+repsumcodondata%>%
+	group_by(time,codon)%>%summarise_at(vars(abundance,availability,dwell_time),mean)%>%
+	ggplot(.,aes(y=abundance,x=dwell_time))+
+	geom_point(alpha=I(0.5))+
+	geom_smooth(method='lm')+
+	facet_grid(time~.)+
+	scale_fill_manual(name='stage',values=stagecols)+
+	scale_x_continuous(paste0('Broad Dwell Time'))+
+		geom_text(show.legend=F,data=corlabel,
+			hjust=1,vjust=1,x= Inf,y=Inf,aes(color=NULL,label=labl))+
+	geom_text(show.legend=F,data=nlabel,
+			hjust=0,vjust=1,x= -Inf,y=Inf,aes(color=NULL,label=labl))
+	# scale_y_continuous(paste0(''))+
+	ggtitle(paste0('Dwell Time Dist'))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))	
+
+#now plot
+repsumcodondata<-codondata%>%
+	group_by(time,codon)%>%summarise_at(vars(abundance,availability,dwell_time),mean)
+plotfile<- here(paste0('plots/','bDT_av_vs_dt','.pdf'))
+pdf(h=15,w=5,plotfile)
+col1=sym('dwell_time')
+col2=sym('availability')
+corlabel = repsumcodondata%>%filter(is.finite(!!col1),is.finite(!!col2))%>%
+		group_by(time)%>%
+		summarise(tidy(cor.test(!!col1, !!col2)))
+corlabel = corlabel%>%
+	mutate(
+		pformat=format(p.value,format='e',digits=4),
+		pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
+		labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
+nlabel=repsumcodondata%>%group_by(time)%>%summarise(labl=paste0('N=',n()))
+repsumcodondata%>%
+	ggplot(.,aes(y=availability,x=dwell_time))+
+	geom_point(alpha=I(0.5))+
+	geom_smooth(method='lm')+
+	facet_grid(time~.)+
+	scale_fill_manual(name='stage',values=stagecols)+
+	scale_x_continuous(paste0('Broad Dwell Time'))+
+		geom_text(show.legend=F,data=corlabel,
+			hjust=1,vjust=1,x= Inf,y=Inf,aes(color=NULL,label=labl))+
+	geom_text(show.legend=F,data=nlabel,
+			hjust=0,vjust=1,x= -Inf,y=Inf,aes(color=NULL,label=labl))
+	# scale_y_continuous(paste0(''))+
+	ggtitle(paste0('Dwell Time Dist'))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+
+#now plot
+
+repsumcodondata<-codondata%>%
+	group_by(time,codon)%>%summarise_at(vars(abundance,availability,dwell_time,aacor_dwell_time),mean)
+plotfile<- here(paste0('plots/','bDT_av_vs_dt','.pdf'))
+pdf(h=15,w=5,plotfile)
+col1=sym('aacor_dwell_time')
+col2=sym('availability')
+corlabel = repsumcodondata%>%filter(is.finite(!!col1),is.finite(!!col2))%>%
+		group_by(time)%>%
+		summarise(tidy(cor.test(!!col1, !!col2)))
+corlabel = corlabel%>%
+	mutate(
+		pformat=format(p.value,format='e',digits=4),
+		pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
+		labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
+nlabel=repsumcodondata%>%group_by(time)%>%summarise(labl=paste0('N=',n()))
+repsumcodondata%>%
+	ggplot(.,aes(y=availability,x=aacor_dwell_time))+
+	geom_point(alpha=I(0.5))+
+	geom_smooth(method='lm')+
+	facet_grid(time~.)+
+	scale_fill_manual(name='stage',values=stagecols)+
+	scale_x_continuous(paste0('Broad Dwell Time'))+
+		geom_text(show.legend=F,data=corlabel,
+			hjust=1,vjust=1,x= Inf,y=Inf,aes(color=NULL,label=labl))+
+	geom_text(show.legend=F,data=nlabel,
+			hjust=0,vjust=1,x= -Inf,y=Inf,aes(color=NULL,label=labl))
+	# scale_y_continuous(paste0(''))+
+	ggtitle(paste0('Dwell Time Dist'))+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+
