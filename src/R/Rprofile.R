@@ -1143,6 +1143,7 @@ resize_grl_startfix<-function(grl,width){
   
 }
 
+
 str_order_grl<-function(grl){order( start(grl)*(((strand(grl)!='-')+1)*2 -3) )}
 sort_grl_st <- function(grl)grl[str_order_grl(grl),]
 resize_grl_endfix <- function(grl,width){
@@ -1361,3 +1362,31 @@ make_quantcompplot <- function(compdf, col1, col2, fname){
   dev.off()
   message(normalizePath(fname))
 }
+
+get_cds_bin_counts <- function(
+    cov,
+    trspacecds,
+    STOPWINDSIZE,
+    STARTWINDSIZE
+  ){
+    ltrspacecds = trspacecds
+    longcdstrs = names(ltrspacecds)[ltrspacecds%>%width%>%`>`(MINCDSSIZE)]
+    ltrspacecds = ltrspacecds[longcdstrs]
+
+    eltrspacecds <- ltrspacecds[longcdstrs]
+    seqlengths(eltrspacecds)[longcdstrs] %<>% add(fputrext+tputrext)
+    eltrspacecds %<>% shift(fputrext)
+    eltrspacecds%<>%resize(width(.)+FPEXT,'end')%>%resize(width(.)+TPUTREXT,'start')
+
+    midwind = eltrspacecds%>%
+      resize(width(.)-(STOPWINDSIZE),'end')%>%
+      resize(width(.)-(STARTWINDSIZE),'start')
+    midmat = cov[midwind]%>%
+      sum%>%#compress these variable length Rles down to 1 value per gene
+      matrix#make a 1 column matrix
+    stwind = eltrspacecds%>%resize(STARTWINDSIZE,ignore.strand=TRUE)
+    startmat = cov[stwind]%>%as.matrix
+    endwind = eltrspacecds%>%resize(STOPWINDSIZE,fix='end',ignore.strand=TRUE)
+    endmat = cov[endwind]%>%as.matrix
+    out = cbind(startmat,midmat,endmat)
+  }

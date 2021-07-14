@@ -3,21 +3,24 @@ base::source(here::here('src/R/Rprofile.R'))
 gtf <- here('pipeline/my_gencode.vM12.annotation.gtf')
 fafile <- here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa')
 stopifnot(file.exists(fafile))
-salmonfile <- Sys.glob('pipeline/salmon/data/*total*/quant.sf')[1]
+salmonfiles <- Sys.glob(here('pipeline/salmon/data/*total*/quant.sf'))
+salmonfiles%T>%{stopifnot(file.exists(.))}
+salmonfile <- salmonfiles[1]
 stopifnot(length(salmonfile)>0)
 salmontrs <- here(salmonfile)%>%fread%>%.[[1]]%>%str_extract('ENSMUST\\w+')
 stopifnot(!is.na(salmontrs))
 dpprimefiles <- Sys.glob(here('pipeline/deepshapeprime/*ribo*/run*'))
+mainsamps <- dpprimefiles%>%str_subset('ribo')%>%dirname%>%basename%>%setNames(.,.)
+mainsamps <- salmonfile%>%str_subset('ribo')%>%dirname%>%basename%>%setNames(.,.)
 stopifnot(length(dpprimefiles)>0)
 dptrs <- dpprimefiles%>%head(1)%>%fread%>%.[[1]]%>%str_extract('ENSMUST\\w+')
-
-
+#
 stopifnot(dptrs%>%setdiff(salmontrs)%>%length%>%`==`(273))
 stopifnot(salmontrs%>%setdiff(dptrs)%>%length%>%`==`(0L))
 alltrs = salmontrs
-
 #parse out the gtf
 fafileob = Rsamtools::FaFile(fafile)
+
 if(!file.exists(paste0(fafile,'.fai')))Rsamtools::indexFa(fafile)
 if(!exists('gtf_gr')) gtf_gr<-rtracklayer::import(con=gtf,format='gtf')%>%
 	subset(transcript_id%in%alltrs)

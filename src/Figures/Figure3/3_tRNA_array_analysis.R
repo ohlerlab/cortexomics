@@ -54,6 +54,7 @@ cdsexprdf <- cdsexprvals%>%
     spread(time, abundance) %>%
     arrange(match(transcript_id, rownames(codonfreqs)))
 #
+
 times=colnames(cdsexprdf)[-c(1:2)]%>%setNames(.,.)
 itime=times[1]
 weighted_codon_usage <- lapply(times, function(itime) {
@@ -65,9 +66,17 @@ weighted_codon_usage <- lapply(times, function(itime) {
         } %>%
         enframe("codon", "weightedusage")
 }) %>% bind_rows(.id = "time")
+weighted_codon_usage%<>%mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")])
+weighted_codon_usage%<>%group_by(time,AA)%>%mutate(w_cAI = weightedusage/sum(weightedusage))%>%ungroup
 
-
-
+codon_usage <-  (codonfreqs[cdsexprdf$transcript_id, ] * 1) %>%
+        colSums() %>%
+        {
+            .
+        } %>%
+        enframe("codon", "freq")
+codon_usage%<>%mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")])
+codon_usage%<>%group_by(AA)%>%mutate(cAI = freq/sum(freq))%>%ungroup
 # test_that('freq and weighted usage are very similiar',{
 #     txtplot(codonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage)
 #     expect_true(cor(codonfreqs%>%colSums,weighted_codon_usage%>%filter(time=='P0')%>%.$weightedusage) > .95)
@@ -134,6 +143,7 @@ trnaexprdf <- map2(datasources$file, datasources$case, .f = function(file, case)
     })
     exprdf
 })
+
 allqpcrsig <- trnaexprdf %>%
     setNames(datasources$sample) %>%
     bind_rows(.id = "sample")
@@ -155,24 +165,28 @@ allqpcrsig <- allqpcrsig%>% group_by(sample, rep) %>% mutate(Ct = Ct,
     dCt = Ct - hk_expr
 )
 
+
+
 #function to add codons
-addcodon <- function(x) x %>%mutate(codon = ifelse(iscodon,str_extract(anticodon, "[^-]+$") %>% DNAStringSet() %>%
+addcodon <- function(x) x %>%
+        mutate(codon = ifelse(iscodon,str_extract(anticodon, "[^-]+$") %>% DNAStringSet() %>%
         reverseComplement() %>%
         as.character() %>% qs("S+")))
 #remove mitochondrial ones, and spike ins, norm genes etc.
-allcodonsig <- allqpcrsig%>%filter(iscodon)%>%filter(!anticodon%>%str_detect('^mt'))
-allcodonsig <- allcodonsig %>% filter(!anticodon %>% str_detect("iMet"))
-allcodonsig%<>%addcodon
+all_deco_sig <- allqpcrsig%>%filter(iscodon)%>%filter(!anticodon%>%str_detect('^mt'))
+all_deco_sig <- all_deco_sig %>% filter(!anticodon %>% str_detect("iMet"))
+all_deco_sig%<>%addcodon
 #now add weighted codon usage
-allcodonsig%<>%select(-matches('weightedusage'))
-allcodonsig %<>% safe_left_join(allow_dup=F,weighted_codon_usage,by=c('codon','time')) 
+all_deco_sig%<>%select(-matches('weightedusage'))
+all_deco_sig %<>% safe_left_join(allow_dup=F,weighted_codon_usage,by=c('codon','time')) 
 #join up with freqs as well
-allcodonsig %<>% safe_left_join(overallcodonfreqs%>%enframe('codon','freq'))
-allcodonsig %<>% mutate(fraction = str_extract(sample, "\\w+"))
-allcodonsig%>%group_by(time,fraction,codon)%>%group_by()
+all_deco_sig %<>% safe_left_join(overallcodonfreqs%>%enframe('codon','freq'))
+all_deco_sig %<>% mutate(fraction = str_extract(sample, "\\w+"))
+all_deco_sig%>%group_by(time,fraction,codon)%>%group_by()
 logSumExp2 <- function(x) logSumExp(log(2)*x)/log(2)
-
-decodtabledat <- allcodonsig%>%filter(sample%>%str_detect('Total'))%>%select(sample,decoder,well,Ct,dCt)%>%
+ 
+decodtabledat <- all_deco_sig%>%
+    filter(sample%>%str_detect('Total'))%>%select(sample,decoder,well,Ct,dCt)%>%
     mutate(sample=paste0(sample,'_',str_replace(rep,'rep','')))%>%
     mutate(sample = str_replace(sample,' ','_'))%>%
     ungroup%>%select(-rep)
@@ -180,7 +194,8 @@ decodtabledat <- allcodonsig%>%filter(sample%>%str_detect('Total'))%>%select(sam
 decodtabledat%>%select(-dCt)%>%spread(sample,Ct)%>%write_tsv('tables/tRNA_decoder_data.tsv')
 decodtabledat%>%select(-Ct)%>%spread(sample,dCt)%>%write_tsv('tables/tRNA_decoder_data_norm.tsv')
 
-allcodsig_isomerge <- allcodonsig %>%
+
+allcodsig_isomerge <- all_deco_sig %>%
     group_by(fraction, iscodon,time, sample, anticodon,rep,weightedusage) %>%
     # filter(anticodon=='Ala-CGC')%>%
     #note here we flip the dCt so the infinities don't effect the summation
@@ -198,7 +213,7 @@ allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
 allcodsigmean_isomerge <- allcodsig_isomerge %>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
     summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
-allcodsigmean <- allcodonsig%>%
+allcodsigmean <- all_deco_sig%>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
     summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
 # add codon info
@@ -211,11 +226,13 @@ allcodsigmean_isomerge %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+
 allcodsigmean_isomerge%>%filter(sample%>%str_detect('Total'))%>%select(sample,codon,availability,Ct,abundance,availability)%>%
     write_tsv('tables/tRNA_decoder_data.tsv')
 
- allcodonsig%>%
-    filter(position> -numreadlen+6,position < -6)%>%
+ all_deco_sig%>%
     filter(fraction=='Total')%>%
     select(-hk_expr,-fraction,-weightedusage,-freq)%>%
     write_tsv('tables/isodecoder_data.tsv')
+
+allcodsigmean_isomerge%>%group_by(fraction,time)%>%group_slice(1)%>%filter(!is.na(Ct))%>%select(AA,codon,abundance)%>%arrange(desc(abundance))
+allcodsigmean_isomerge%>%group_by(fraction,time)%>%group_slice(1)%>%filter(!is.na(Ct))%>%select(AA,codon,abundance)%>%arrange(abundance)
 
 if(FALSE){
     
@@ -224,7 +241,7 @@ if(FALSE){
 # Now normalize
 test_that("HTqPCR agrees with me",{
 
-    testvals<-allcodonsig%>%group_by(decoder)%>%group_slice(1)%>%
+    testvals<-all_deco_sig%>%group_by(decoder)%>%group_slice(1)%>%
         filter(sample=='Total E16'|sample=='Total E13')%>%as.data.frame%>%
         select(decoder,sample,dCt,Ct,rep)%>%group_by(sample)%>%summarise(dCt = mean(dCt))
     testvals%>%    {print(.);.}%>%
@@ -236,7 +253,9 @@ test_that("HTqPCR agrees with me",{
     qpcrsamples <- readLines('ext_data/tRNA_data/Raw data/alldata.csv',2)%>%tail(1)%>%str_split(';')%>%.[[1]]%>%tail(-2)
     qpcrdata <- fread('ext_data/tRNA_data/Raw data/alldata.csv',skip=2)%>%set_colnames(c(colnames(.)[1:2],qpcrsamples))
 
-    ctdatfiles<-qpcrdata%>%gather(sample,Ct,-`Transcript name`,-Well)%>%mutate(flag=NA,type=NA)%>%
+    ctdatfiles<-qpcrdata%>%
+        gather(sample,Ct,-`Transcript name`,-Well)%>%
+        mutate(flag=NA,type=NA)%>%
         mutate(Ct = str_replace(Ct,',','.'))%>%
         mutate(Ct = as.numeric(Ct))%>%
         mutate(Ct = replace_na(Ct,NA))%>%
@@ -264,9 +283,9 @@ test_that("These values look right, abundance correlates with usage on log scale
     expect_true(allqpcrsig%>%filter(!iscodon)%>%.$decoder%>%unique%>%identical(c("U6", "5S rRNA", "18S rRNA", "Spike-In", "PPC", "GDC", "Blank")))
     expect_true(overallcodonfreqs%>%enframe('codon','freq')%>%safe_left_join(weighted_codon_usage%>%filter(time=='P0'))%>%{cor(.$freq,.$weightedusage)}%>%between(0.95,0.99))
 
-    allcodonsig%<>%mutate(isMT = str_detect(anticodon,'^mt'))
+    ctdatfiles%<>%mutate(isMT = str_detect(anticodon,'^mt'))
 
-    ct_usage_correlation <- allcodonsig %>% 
+    ct_usage_correlation <- ctdatfiles %>% 
         mutate(isMT = str_detect(anticodon,'^mt'))%>%
         filter(iscodon,!isMT)%>%    
         filter(sample=='Poly E13')%>% mutate(codon = ifelse(iscodon,str_extract(anticodon, "[^-]+$") %>% DNAStringSet() %>%

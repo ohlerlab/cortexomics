@@ -1,6 +1,7 @@
 ################################################################################
 ########Metagene plots and positions specific analysis
 ################################################################################
+
 {	
 
 {
@@ -20,9 +21,7 @@ FPEXT = 36
 STARTWINDSIZE = STARTCDSSIZE+FPEXT
 TPUTREXT = 36
 STOPWINDSIZE = STOPCDSSIZE+TPUTREXT
-
 MINCDSSIZE = STARTCDSSIZE+STOPCDSSIZE+1
-
 TOTBINS = (STARTWINDSIZE)+(STOPWINDSIZE)+1
 }
 
@@ -32,8 +31,8 @@ TOTBINS = (STARTWINDSIZE)+(STOPWINDSIZE)+1
 {
 library(GenomicFeatures)
 base::source(here::here('src/R/Rprofile.R'))
-if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
+if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
 # base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
 trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 
@@ -52,7 +51,7 @@ codons2scan <- c(CODOONSOFINTEREST,ctrlcodons)
 FLANKCODS<-15
 
 allbamtbls = Sys.glob('pipeline/deepshapebamdata/*.bam.reformat')
-stopifnot(length(allbamtbls)==10)
+stopifnot(length(allbamtbls)==22)
 names(allbamtbls) = allbamtbls%>%str_extract('[^/]*?(?=.bam.ref)')
 mainbamtbls <- allbamtbls%>%.[str_detect(.,'ribo_\\d+')]
 bamtbl=mainbamtbls[1]
@@ -103,14 +102,14 @@ trcds = GRanges(names(cdsstarts),IRanges(cdsstarts,cdsends))
 ################################################################################
 	
 if(!file.exists(here('data/fpcovlist.rds'))){
-	fpcovlist = allbamtbls%>%mclapply(mc.cores=4,function(bamtbl){
+	fpcovlist = allbamtbls%>%mclapply(mc.cores=8,function(bamtbl){
 		bamtbl%>%
 			str_interp('grep -e $')%>%
 			fread(select=c(2,6,7))%>%
 			set_colnames(c('transcript_id','start','readlen'))%>%
 			mutate(transcript_id=trimids(transcript_id))%>%
 			filter(transcript_id%in%highcountcovtrs)%>%
-			filter(between(readlen,25,31))%>%
+			filter(between(readlen,19,31))%>%
 			{GRanges(.$transcript_id,IRanges(.$start,w=1),readlen=.$readlen)}%>%
 			{seqlevels(.) = highcountcovtrs ;.}%>%
 			{seqlengths(.) = trlens[highcountcovtrs] ;.}%>%
@@ -155,7 +154,7 @@ if(!file.exists(here('data/psitecovnorm.rds'))){
 }
 
 get_utr_exts <- function(cov,trspacecds,FPEXT,TPUTREXT){
-	trlens = cov%>%runLength%>%sum
+	trlens <- seqlengths(trspacecds)
 	seqnms = names(trlens)
 	fputrlens = start(trspacecds[seqnms])-1
 	fputrext = pmax(0,FPEXT - fputrlens)%>%setNames(seqnms)
@@ -177,6 +176,7 @@ ext_cov <- function(cov,fputrext,tputrext){
 }
 
 {
+
 #filter for only long enough ones, if we're doing windows
 trspacecds = pmapToTranscripts(cdsgrl[ribocovtrs],exonsgrl[ribocovtrs])
 trspacecds%<>%unlist
@@ -220,28 +220,8 @@ cov = epsitecovlist[[1]]
 }
 # file.remove(here('data/bindatamats.rds'))
 if(!file.exists(here('data/bindatamats.rds'))){
-	bindatamats = lapply(epsitecovlist,function(cov){
-		midwind = eltrspacecds%>%
-			resize(width(.)-(STOPWINDSIZE),'end')%>%
-			resize(width(.)-(STARTWINDSIZE),'start')
-		midmat = cov[midwind]%>%
-			sum%>%#compress these variable length Rles down to 1 value per gene
-			matrix#make a 1 column matrix
-		# midmat = midmat%>%mean
-		stwind = eltrspacecds%>%resize(STARTWINDSIZE,ignore.strand=TRUE)
-		startmat = cov[stwind]%>%as.matrix
-	#	%>%colMeans(na.rm=T)
-		endwind = eltrspacecds%>%resize(STOPWINDSIZE,fix='end',ignore.strand=TRUE)
-		endmat = cov[endwind]%>%as.matrix
-		#%>%colMeans(na.rm=T)
-		#sum codons
-		# startmat%<>%matrix(nrow=3)%>%colSums
-		# endmat%<>%matrix(nrow=3)%>%colSums
-		message('.')
-		#output as a data frame
-		out = cbind(startmat,midmat,endmat)
-		# c(startmat,midmat,endmat)%>%enframe('start','signal')%>%mutate(section=c(rep('AUG',150/3),'middle',rep('end',150/3)))
-	})
+	
+	bindatamats <- get_cds_bin_counts(epsitecovlist,trsp,STOPWINDSIZE,STARTWINDSIZE)
 	saveRDS(bindatamats,here('data/bindatamats.rds'))
 }else{
 	bindatamats<-readRDS(here('data/bindatamats.rds'))
@@ -249,7 +229,7 @@ if(!file.exists(here('data/bindatamats.rds'))){
 
 names(bindatamats)
 #functions for norm
-rownorm <-function(x) x %>%sweep(.,MARGIN=1,F='/',STAT=rowSums(.)%>%{pmax(.,min(.[.>0])/10)})
+rownorm <-function(x) x %>%sweep(.,MARGIN=1,F='/',STAT=rowSums(.)%>%{pmax(.,min(.[.>0])/10I)})
 
 #matrix <- matrix(1,6,24)
 codmerge <- function(matrix,size=3) {

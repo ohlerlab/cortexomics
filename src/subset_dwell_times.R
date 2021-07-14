@@ -67,13 +67,15 @@ if(!file.exists(here('data/allcodlist.rds'))){
 	stopifnot(allcodlist@seqinfo@seqlengths%>%setequal(sum(width(exonsgrl[ribocovtrs]))))
 }
 
+fpcovlist<-readRDS(here('data/fpcovlist.rds'))
+
 
 fpcovlist <- fpcovlist[names(allbamtbls)]
 if(!file.exists(here('data/subfpprofilelist.rds'))){
 	subfpprofilelist <-mclapply(mc.cores=8,dtselgenelist,function(seltrs){
-			imap(fpcovlist[mainsamps[c(1,8)]],function(sampfpcov,sampname){
+			imap(fpcovlist[mainsamps[c(1)]],function(sampfpcov,sampname){
 				trsums = sampfpcov%>%map(sum)%>%map(~.[seltrs])%>%purrr::reduce(.,`+`)#sum over counts for that transcript
-				sampfpcov%>%lapply(function(rlfpcov){
+				sampfpcov['29']%>%lapply(function(rlfpcov){
 					rlfpcov = rlfpcov[seltrs]
 					rlfpcov = rlfpcov/(trsums)
 					# rlfpcov = rlfpcov > mean(rlfpcov)
@@ -94,7 +96,7 @@ if(!file.exists(here('data/subfpprofilelist.rds'))){
 if(!file.exists(here('data/subfprustprofilelist.rds'))){
 	subfprustprofilelist <-
 		mclapply(mc.cores=8,dtselgenelist,function(seltrs){
-			imap(fpcovlist[mainsamps[TRUE]],function(sampfpcov,sampname){
+			imap(fpcovlist[mainsamps[1]],function(sampfpcov,sampname){
 				trsums = sampfpcov%>%map(~.[trspacecds[seltrs]])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
 				sampfpcov%>%lapply(function(rlfpcov){
 					rlfpcov = rlfpcov[seltrs]
@@ -113,11 +115,13 @@ if(!file.exists(here('data/subfprustprofilelist.rds'))){
 	subfprustprofilelist<-readRDS(here('data/subfprustprofilelist.rds'))
 }
 
-rustprofiledat <- subfprustprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
-# rustprofiledat <- subfpprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
-rustprofiledat %<>% mutate(position = position - 1 - (FLANKCODS*3))
-rustprofiledat %<>% group_by(subgroup,sample,readlen,codon)%>%mutate(count= count / median(count))
-rustprofiledat %<>% filter(!codon %in% c('TAG','TAA','TGA'))
+# rustprofiledat <- subfprustprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
+# codonprofiledat <- subfpprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
+codonprofiledat <- fpprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
+codonprofiledat %<>% mutate(position = position - 1 - (FLANKCODS*3))
+# codonprofiledat %<>% group_by(subgroup,sample,readlen,codon)%>%mutate(count= count / median(count))
+codonprofiledat %<>% group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
+codonprofiledat %<>% filter(!codon %in% c('TAG','TAA','TGA'))
 
 rustcodon_dts = rustprofiledat%>%
 	mutate(length=as.numeric(readlen))%>%
