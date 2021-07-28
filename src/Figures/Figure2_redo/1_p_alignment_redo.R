@@ -60,7 +60,7 @@ width1grs <- function(gr){
 			rep(seqnames(broad),width(broad)),
 			IRanges(narrowstarts,w=1)
 		)}
-	mcols(narrow) <- mcols(broad)[rep(seq_along(broad),width(broad)),]
+	mcols(narrow) <- mcols(broad)[rep(seq_along(broad),width(broad)),,drop=F]
 	sort(c(gr[isw1],narrow))
 }
 add_flank_bases <- function(reads,exonsgrl,fafileob,nbp=2){
@@ -160,6 +160,8 @@ if(!file.exists(here('data/inbams.rds'))){
 #read objects
 readlens=(25:31)%>%setNames(.,.)
 
+rln=29
+cdsstarts_=cdsstarts
 
 if(!file.exists(here('data/samp_rl_reads.rds'))){
 		
@@ -181,6 +183,7 @@ if(!file.exists(here('data/samp_rl_reads.rds'))){
 			frame_stat_df=ireads%>%
 					subset(cor_offset<(rln-6))%>%
 					subset(cor_offset>5)%>%
+					{names(.)<-NULL;.}%>%
 					as.data.frame%>%
 					# mutate_at(vars(score),replace_na,0)%>%
 					left_join(allpos,.)%>%
@@ -216,10 +219,23 @@ if(!file.exists(here('data/samp_rl_reads.rds'))){
 rm(inbams)
 gc()
 
-offsetstatdf = samp_rl_reads%>%map_depth(2,2)
-offsetstatdf%<>% map_df(.id='sample',~bind_rows(.id='length',.))
-samp_rl_reads <- samp_rl_reads%>%map_depth(2,1)
 
+if(!file.exists(here('data/offsetstatdf.rds'))){
+	offsetstatdf = samp_rl_reads%>%map_depth(2,2)
+	offsetstatdf%<>% map_df(.id='sample',~bind_rows(.id='length',.))
+	saveRDS(offsetstatdf,here('data/offsetstatdf.rds'))
+}else{
+	offsetstatdf<-readRDS(here('data/offsetstatdf.rds'))
+
+}
+
+lphaseoffsetdf <- offsetstatdf%>%
+	# filter(sample=='E13_ribo_1',length==29)%>%
+	group_by(sample,length)%>%
+	dplyr::slice(((which.max(twind)-1):(which.max(twind)+1)))
+
+
+samp_rl_reads <- samp_rl_reads%>%map_depth(2,1)
 
 #a ten gigabyte object.... sub optimal.
 if(!file.exists(here('data/seqshiftmodels.rds'))){
@@ -264,6 +280,7 @@ prob=0.5
 library(ranger)
 
 get_probforrest_preds <- function(ireads,seqshiftmodel,prob=0.5){
+	require(ranger)
 	ureads <- unique(ireads)
 	testrfdf <- ureads[,c('phase')]%>%
 		add_flank_bases(exonsgrl,fafileob)%>%
@@ -283,16 +300,16 @@ get_probforrest_preds <- function(ireads,seqshiftmodel,prob=0.5){
 	predictions <- predictions[match(ireads,ureads)]
 	predictions
 }
+
 }
 
 # toptrs
 toptrs <- ribocovtrs
 # top_samp_rl_reads <- samp_rl_reads%>%map_depth(2,~subset(.,seqnames %in% toptrs))
 top_samp_rl_reads <- samp_rl_reads
-stop()
 if(!file.exists(here('data/top_sample_rl_reads.rds'))){
-	seqshifts <- mclapply(mc.cores=20,names(top_samp_rl_reads)%>%setNames(.,.),function(isample){
-		lapply(names(samp_rl_reads[[isample]])%>%setNames(.,.),function(rl){
+	seqshifts <- mclapply(mc.cores=20,names(top_samp_rl_reads)[1]%>%setNames(.,.),function(isample){
+		lapply(names(samp_rl_reads[[isample]]['29'])%>%setNames(.,.),function(rl){
 		# for(rl in '28'){
 			seqshift<-get_probforrest_preds(
 				top_samp_rl_reads[[isample]][[rl]],
@@ -303,9 +320,8 @@ if(!file.exists(here('data/top_sample_rl_reads.rds'))){
 		})
 	})
 
-	for(isample in names(top_samp_rl_reads)){
-		for(rl in names(top_samp_rl_reads[[isample]])){
-		# for(rl in '28'){
+	for(isample in names(seqshifts)){
+		for(rl in names(seqshifts[[isample]])){
 			cat('.')
 			top_samp_rl_reads[[isample]][[rl]]$seqshift <- seqshifts[[isample]][[rl]]
 		}
@@ -316,6 +332,7 @@ if(!file.exists(here('data/top_sample_rl_reads.rds'))){
  	top_sample_rl_reads<-readRDS(here('data/top_sample_rl_reads.rds'))
  }
 
+top_samp_rl_reads <- top_samp_rl_reads[1]%>%map(~.['29'])
 
 
 # top_samp_rl_reads<-readRDS(here('data/top_samp_rl_reads.rds'))
@@ -572,7 +589,9 @@ normalizePath(plotfile)%>%message
 library(rlang)
 plotfile<-'plots/psite_redo/poly_test.pdf'%T>%pdf(h=6,w=12)
 print(rwplot)
-dev.off()
+dev.off(
+
+)
 normalizePath(plotfile)%>%message
 }
 

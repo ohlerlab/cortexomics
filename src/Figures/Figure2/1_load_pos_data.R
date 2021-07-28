@@ -154,6 +154,7 @@ if(!file.exists(here('data/psitecovnorm.rds'))){
 }
 
 get_utr_exts <- function(cov,trspacecds,FPEXT,TPUTREXT){
+	trspacecds%<>%keepSeqlevels(unique(seqnames(trspacecds)))
 	trlens <- seqlengths(trspacecds)
 	seqnms = names(trlens)
 	fputrlens = start(trspacecds[seqnms])-1
@@ -192,6 +193,7 @@ message(length(ltrspacecds))
 cov = psitecovlist[[1]][longcdstrs]
 
 c(fputrext,tputrext) %<-% (psitecovlist[[1]][longcdstrs]%>%get_utr_exts(ltrspacecds,FPEXT,TPUTREXT))
+
 stopifnot(all(names(fputrext)==longcdstrs))
 stopifnot(all(names(tputrext)==longcdstrs))
 
@@ -229,7 +231,7 @@ if(!file.exists(here('data/bindatamats.rds'))){
 
 names(bindatamats)
 #functions for norm
-rownorm <-function(x) x %>%sweep(.,MARGIN=1,F='/',STAT=rowSums(.)%>%{pmax(.,min(.[.>0])/10I)})
+rownorm <-function(x) x %>%sweep(.,MARGIN=1,F='/',STAT=rowSums(.)%>%{pmax(.,min(.[.>0])/10)})
 
 #matrix <- matrix(1,6,24)
 codmerge <- function(matrix,size=3) {

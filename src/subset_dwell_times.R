@@ -1,3 +1,10 @@
+{
+base::source(here::here('src/R/Rprofile.R'))
+if(!exists("cdsgrl")) {
+	base::source(here("src/Figures/Figure0/0_load_annotation.R"))
+}
+if(!exists('fpcovlist')) base::source('src/Figures/Figure2/1_load_pos_data.R')
+#
 limmadf = readxl::read_xlsx("tables/S2.xlsx",3,col_types=c(time='text'))
 txnchangegenes = limmadf%>%filter(assay=='all')%>%filter(adj.P.Val<0.05)%>%.$gene_id%>%unique
 nochangegenes = limmadf%>%filter(!gene_id %in%txnchangegenes)%>%.$gene_id%>%unique
@@ -5,18 +12,14 @@ higexprgenes = limmadf%>%filter(as.numeric(AveExpr) > quantile(as.numeric(AveExp
 nochange_highexpr = intersect(nochangegenes,higexprgenes)
 gid2trid = ids_nrgname%>%distinct(gene_id,transcript_id)%>%{setNames(.$transcript_id,.$gene_id)}
 tr_nochange_highexpr =gid2trid[nochange_highexpr]%>%intersect(ribocovtrs)
-
+#
 dte_df = readxl::read_xlsx("tables/S2.xlsx",1,col_types=c(time='text'))
 dte_df%<>%filter(time=='3')
 dte_df$time='E175'
 teupgenes = dte_df%>%filter(adj_p_value<0.05,log2fc>0)%>%.$gene_id
 tedowngenes = dte_df%>%filter(adj_p_value<0.05,log2fc<0)%>%.$gene_id
 dtegenes = c(teupgenes,tedowngenes)
-
-
-gcodwide<-gcodwide%>%left_join(dte_df%>%select(time,g_id=gene_id,log2fc))
-
-
+#
 #definite chrom and ribo genes.
 GTOGO <- 'data/GTOGO.rds'%>%readRDS%>%select(gene_name,go_id,g_id=ensembl_gene_id)
 goid_ribo = 'GO:0003735'
@@ -24,17 +27,69 @@ goid_chrom = 'GO:0003682'
 ribogenes = GTOGO%>%filter(go_id==goid_ribo)%>%.$g_id
 chromgenes = GTOGO%>%filter(go_id==goid_chrom)%>%.$g_id
 ribchrgenes<-c(ribogenes,chromgenes)
+#
+STARTBUFF=60
+ENDBUFF=60
+ribocovtrs <- readRDS(here('data/ribocovtrs.rds'))
+exonseq = exonsgrl[ribocovtrs]%>%extractTranscriptSeqs(x=fafile)
+allcodons=getGeneticCode()
+shift<-GenomicRanges::shift
+i=1
+innercds = trspacecds%>%
+	subset(width>(3+STARTBUFF+ENDBUFF))%>%
+	resize(width(.)-STARTBUFF,'end')%>%
+	resize(width(.)-ENDBUFF,'start')
+FLANKCODS=15
+# telleygenegrps = 
+# zappgngrps = 
+# dtselgenelist = list(
+# 	up = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(teupgenes)],
+# 	down = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(tedowngenes)],
+# 	nochangehighe = tr_nochange_highexpr%>%intersect(names(innercds)),
+# 	all = names(innercds)
+# )
+#telley 2019 waves
+}
 
+{
+gid2trid = ids_nrgname%>%filter(transcript_id%in%ribocovtrs)%>%{setNames(.$transcript_id,.$gene_id)}
+gnm2trid = ids_nrgname%>%filter(transcript_id%in%ribocovtrs)%>%{setNames(.$transcript_id,.$gene_name)}
+telley_ap_early_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E14|E15'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(1,2))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+telley_n4_early_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E14|E15'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(5,6))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+#telley 2019 waves
+telley_ap_late_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E12|E13'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(1,2))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+telley_n4_late_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E12|E13'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(5,6))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+neurites <- here('ext_data/neurites_zappulo_etal_2017.csv')
+neurites%<>%fread(skip=2)
+neurite_trids = neurites%>%filter(RiboSeq_padj_Neurite_Soma<0.05)%>%
+	filter(RiboSeq_log2FC_Neurite_Soma>.32)%>%
+	.$gene_id%>%gid2trid[.]%>%.[!is.na(.)]
+soma_trids = neurites%>%filter(RiboSeq_padj_Neurite_Soma<0.05)%>%
+	filter(RiboSeq_log2FC_Neurite_Soma<.32)%>%
+	.$gene_id%>%gid2trid[.]%>%.[!is.na(.)]
 dtselgenelist = list(
-	up = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(teupgenes)],
-	down = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(tedowngenes)],
-	nochangehighe = tr_nochange_highexpr
-	# all = ribocovtrs
+	all = names(innercds),
+	telley_ap_early_genes=telley_ap_early_genes,
+	telley_n4_early_genes=telley_n4_early_genes,
+	telley_ap_late_genes=telley_ap_late_genes,
+	telley_n4_late_genes=telley_n4_late_genes,
+	neurite_trids=neurite_trids,
+	soma_trids=soma_trids
 )
+FLANKCODS=15
+}
 
-seltrs=dtselgenelist[[1]]
+seltrs=dtselgenelist[[4]]
 sampfpcov=fpcovlist[[mainsamps[1]]]
-rlfpcov=sampfpcov[[1]]
+rlfpcov=sampfpcov[['29']]
 i=1
 #get allcodlist granges object descxribing codon positions in the transcripts
 if(!file.exists(here('data/allcodlist.rds'))){
@@ -67,19 +122,19 @@ if(!file.exists(here('data/allcodlist.rds'))){
 	stopifnot(allcodlist@seqinfo@seqlengths%>%setequal(sum(width(exonsgrl[ribocovtrs]))))
 }
 
-fpcovlist<-readRDS(here('data/fpcovlist.rds'))
-
-
+if(!exists('fpcovlist')) fpcovlist<-readRDS(here('data/fpcovlist.rds'))
+#	
 fpcovlist <- fpcovlist[names(allbamtbls)]
+
 if(!file.exists(here('data/subfpprofilelist.rds'))){
 	subfpprofilelist <-mclapply(mc.cores=8,dtselgenelist,function(seltrs){
-			imap(fpcovlist[mainsamps[c(1)]],function(sampfpcov,sampname){
-				trsums = sampfpcov%>%map(sum)%>%map(~.[seltrs])%>%purrr::reduce(.,`+`)#sum over counts for that transcript
+			imap(fpcovlist,function(sampfpcov,sampname){
+				trsums = sampfpcov%>%head(1)%>%map(~.[seltrs])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
 				sampfpcov['29']%>%lapply(function(rlfpcov){
 					rlfpcov = rlfpcov[seltrs]
 					rlfpcov = rlfpcov/(trsums)
 					# rlfpcov = rlfpcov > mean(rlfpcov)
-					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums!=0])
+					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums>=32])
 					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
 					('.')
 					out = rlfpcov[allcodlistnz]%>%split(cods)%>%lapply(as.matrix)%>%map(colMeans)
@@ -92,36 +147,53 @@ if(!file.exists(here('data/subfpprofilelist.rds'))){
 	subfpprofilelist<-readRDS(here('data/subfpprofilelist.rds'))
 }
 
+# #RUST
+# if(!file.exists(here('data/subfprustprofilelist.rds'))){
+# 	subfprustprofilelist <-
+# 		mclapply(mc.cores=1,dtselgenelist,function(seltrs){
+# 			imap(fpcovlist[mainsamps[1]],function(sampfpcov,sampname){
+# 				trsums = sampfpcov['29']%>%map(~.[innercds[seltrs]])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
+# 				sampfpcov%>%lapply(function(rlfpcov){
+# 					rlfpcov = rlfpcov[seltrs]
+# 					rlfpcov = rlfpcov > mean(rlfpcov)
+# 					# rlfpcov = rlfpcov > mean(rlfpcov)
+# 					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums!=0])
+# 					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
+# 					('.')
+# 					out = rlfpcov[allcodlistnz]%>%split(cods)%>%lapply(as.matrix)%>%map(colMeans)
+# 					out
+# 				})
+# 			})
+# 		})
+# 	saveRDS(subfprustprofilelist,here('data/subfprustprofilelist.rds'))
+# }else{
+# 	subfprustprofilelist<-readRDS(here('data/subfprustprofilelist.rds'))
+# }
+# fprustprofilelist<-readRDS(here('data/fprustprofilelist.rds'))
 
-if(!file.exists(here('data/subfprustprofilelist.rds'))){
-	subfprustprofilelist <-
-		mclapply(mc.cores=8,dtselgenelist,function(seltrs){
-			imap(fpcovlist[mainsamps[1]],function(sampfpcov,sampname){
-				trsums = sampfpcov%>%map(~.[trspacecds[seltrs]])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
-				sampfpcov%>%lapply(function(rlfpcov){
-					rlfpcov = rlfpcov[seltrs]
-					rlfpcov = rlfpcov > mean(rlfpcov)
-					# rlfpcov = rlfpcov > mean(rlfpcov)
-					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums!=0])
-					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
-					('.')
-					out = rlfpcov[allcodlistnz]%>%split(cods)%>%lapply(as.matrix)%>%map(colMeans)
-					out
-				})
-			})
-		})
-	saveRDS(subfprustprofilelist,here('data/subfprustprofilelist.rds'))
-}else{
-	subfprustprofilelist<-readRDS(here('data/subfprustprofilelist.rds'))
-}
-
+# fprustprofilelist%>%saveRDS('data/fprustprofilelist_good.rds')
 # rustprofiledat <- subfprustprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
 # codonprofiledat <- subfpprofilelist%>%map_df(.id='subgroup',.%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon'))))
-codonprofiledat <- fpprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
+# fprustprofilelist <- subfpprofilelist[[1]]
+codonprofiledat <- fprustprofilelist%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
+# codonprofiledat <- codonprofiles%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
 codonprofiledat %<>% mutate(position = position - 1 - (FLANKCODS*3))
 # codonprofiledat %<>% group_by(subgroup,sample,readlen,codon)%>%mutate(count= count / median(count))
-codonprofiledat %<>% group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
+codonprofiledat %<>% group_by(sample,readlen,codon)%>%
+	# mutate(count= count / median(count))
+	identity
 codonprofiledat %<>% filter(!codon %in% c('TAG','TAA','TGA'))
+codonprofiledat$readlen%<>%str_replace('^(\\d)','rl\\1')
+
+# subfpprofilelist[[1]][[1]][['29']]%>%map_dbl(~.[45+1-11])%>%enframe('codon','directdt')%>%left_join(codondata%>%filter(time=='E13',rep=='1'))%>%
+# 	{quicktest(.$directdt,.$dwell_time)}
+subfpprofilelist[[1]][[1]][['29']]%>%map_dbl(~.[45+1-11])%>%enframe('codon','directdt')%>%left_join(codondata%>%filter(time=='E13',rep=='1'))%>%
+	{quicktest(.$directdt,.$availability)}
+
+# subfpprofilelist[[1]][[1]][['29']]%>%unlist%>%is_in(codondata$dwell_time)
+# subfpprofilelist[[1]][[1]][['29']]%>%unlist%>%is_in(codonprofiledat$count)
+# subfpprofilelist[[1]][[1]][['29']]%>%unlist%>%is_in(codonprofiledat$count)
+
 
 rustcodon_dts = rustprofiledat%>%
 	mutate(length=as.numeric(readlen))%>%

@@ -2001,8 +2001,13 @@ rule createmappability_bedgraph:
  #perl -lanpe 's/\|.*$//' gencode.vM12.pc_transcripts.fa   > gencode.vM12.pc_transcripts_ntrim.fa 
 dpGTF='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.annotation.gtf'
 # TRFASTA='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts_filter.fa'
-TRFASTA='/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/gencode.vM12.pc_transcripts.fa'
+TRFASTA='../ext_data/gencode.vM12.pc_transcripts.fa'
+ALLTRFASTA='../ext_data/gencode.vM12.transcripts.fa'
 
+
+maintotalsamples = [s for s in totalsamples if '_total_' in s]
+rule alltr_salmon:
+  input: expand('salmon_alltrs/data/{sample}/.done',sample=maintotalsamples)
 
 # cdstrimfasta = 'gencode.vM12.trimtrs.fa'
 ribofilter_fa = 'gencode.vM12.trimtrs.fa'
@@ -2014,30 +2019,33 @@ rule trim_cds_forsalmon:
 
 rule make_salmon_index:
   threads: 8
-  input: TRFASTA
-  output: salmonindex = touch('salmonindex/.done')
+  input:  lambda wc: ALLTRFASTA if wc['seqs'] == '_alltrs' else TRFASTA
+  output: salmonindex =  touch('salmonindex{seqs}/.done')
   run:
-    shell(""" salmon index -p {threads} --perfectHash -k 21 -t {input} -i salmonindex""")
+    shell(""" salmon index -p {threads}  -k 21 -t {input} -i $(dirname {output[0]})""")
 
 rule salmon:
-  input:fastqs='processed_reads/{sample}/.done',salmonindex='salmonindex/.done'
+  input:
+    fastqs='processed_reads/{sample}/.done',
+    salmonindex= lambda wc: 'salmonindex_alltrs/.done' if wc['seqs'] == '_alltrs' else  'salmonindex/.done'
   params:
     salmonindex = lambda wc,input: 'salmonindexribo' if wc['sample'] in ribosamples else input.salmonindex.replace('.done',''),
-    lib = lambda wc,input: 'SF' if wc['sample'] in ribosamples else 'SR'
+    lib = lambda wc,input: 'SF' if wc['sample'] in ribosamples else 'SR',
+    outdir = lambda wc,input: 'salmon'+wc['seqs']
   output:
-      done = touch('salmon/data/{sample}/.done')
+      done = touch('salmon{seqs}/data/{sample}/.done')
   threads: 4
   shell:r"""
       set -ex
-      mkdir -p salmon/reports/{wildcards.sample}
-      mkdir -p salmon/data/{wildcards.sample}
+      mkdir -p {params.outdir}/reports/{wildcards.sample}
+      mkdir -p {params.outdir}/data/{wildcards.sample}
       salmon quant \
       -p {threads} \
       -l {params.lib} \
       --seqBias \
       -i {params.salmonindex} \
       -r <(zcat processed_reads/{wildcards.sample}/*.fastq.gz ) \
-      --output salmon/data/{wildcards.sample} \
+      --output {params.outdir}/data/{wildcards.sample} \
       --validateMappings
 """
 
@@ -2146,3 +2154,127 @@ rule asite_ip:
   conda: '../envs/biopython2.7'
   shell:r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_run.py -i $(dirname {input[0]})/output/ -j $(dirname {input[0]})/output/Multiple_mapped_gene_read_counts_20_35.tab -m 20 -x 35 -o $(dirname {output[0]})"""
 
+
+
+
+
+################################################################################
+########Peptide calling
+################################################################################
+#eet the raw files from the pride ftp
+import pandas as pd
+msfiles = (pd.read_csv('../src/ms_raw_files.txt',sep='\t')['file'])
+msfiles = dict(msfiles)
+mssamples = list(msfiles.keys())
+mssamplegrp = dict([(s,'_'.join(s.split('_')[0:2])) for s in mssamples])
+mssamplegrps = list(set(mssamplegrp.values()))
+msgroupsample = dict([(g,[s for s in mssamples if mssamplegrp[s]==g] ) for
+  g in mssamplegrps])
+
+
+#R snippet to make a peptide db from florians orfquant fasta
+#Sys.glob('../../florian/mouse_neocortex_data/*.fasta')%>%readAAStringSet%>%unique%>%{names(.)<-str_extract(names(.),'[^|]+');.}%>%{x=.;c(x,stri_reverse(x)%>%setNames(paste0('rev_',names(x))))}%>%writeXStringSet('foq.peptidedb.fasta')
+
+
+# peptidefastas=[]
+# peptidedb = [f+'.peptidedb.fa' for f in peptidefastas]
+peptidedb = {'fOQdb':'foq.peptidedb.fasta'}
+
+# python makedecoys.py  -i test.fasta -o decoys.fasta
+
+
+# rule allmsfragger:
+  # input: expand('msfragger/{msgroup}/{msgroup}',msgroup=mssamplegrps[1])
+
+rule allphilosopher:
+  input: expand('philosopher/{msgroup}__{seq}/{msgroup}',seq='fOQdb',msgroup=mssamplegrps)
+
+rule allionquant:
+  input: expand('ionquant/{msgroup}/{msgroup}',msgroup='P0_MS')
+
+rule convert_raw:
+  input: rawfile = lambda wc: msfiles[wc['sample']]
+  output: mzMLfile = 'mzML/{sample}/{sample}.mzML'
+  shell: r"""
+  mkdir -p $(dirname {output[0]})
+  mono ../Applications/ThermoRawFileParser/bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
+  mv $(dirname {output[0]})/* {output.mzMLfile}
+  """
+
+rule msfragger:
+  input:
+    mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
+    fasta = lambda wc: peptidedb[wc['seq']]
+    # fasta = '/fast/AG_Ohler/dharnet/cortexomics/peptidedb.fasta'
+  params:
+    msfraggerpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/MSFragger-3.2.jar",
+    fraggerparamspath = '/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/closed_fragger.params',
+    inputfiles = lambda wc, input: ['../../'+ i for i in input.mzML],
+    outputfiles = lambda wc,input: ['../../'+i.replace('.mzML','.pepXML') for i in input.mzML]
+  output: touch('msfragger/{group}__{seq}/{group}'),'msfragger/{group}__{seq}/{group}_1.pepXML','msfragger/{group}__{seq}/{group}_2.pepXML','msfragger/{group}__{seq}/{group}_3.pepXML'
+  shell: r'''
+    mkdir -p $(dirname {output})
+    cd $(dirname {output})
+    echo $(readlink -f {input.mzML})
+    cp ../../{input.fasta} ./test.fasta
+    for i in {input.mzML} ; do ln -sf ../../$i . ; done
+    java -Xmx64G -jar {params.msfraggerpath} {params.fraggerparamspath} ./*mzML
+    '''
+
+# rule create_decoy_fasta:
+#   input: 
+
+philosopherpath='/fast/AG_Ohler/dharnet/cortexomics/Applications/philosopher'
+
+rule philosopher:
+  input: 
+    # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+    fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+    mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
+    fasta = lambda wc: peptidedb[wc['seq']]
+  params:
+    decoyprefix='rev_'
+  output: touch('philosopher/{group}__{seq}/{group}')
+  shell:r'''
+  set -x
+  cd $(dirname {output})
+  cp ../../{input.fasta} ./test.fasta
+  for i in {input.fragger} ; do ln -sf ../../$i . ; done
+  for i in {input.mzML} ; do ln -sf ../../$i . ; done
+  # Run PeptideProphet, ProteinProphet, and FDR filtering with Philosopher
+  {philosopherpath} workspace --clean
+  {philosopherpath} workspace --init
+  {philosopherpath} database --annotate ./test.fasta --prefix {params.decoyprefix}
+  # Pick one from the following three commands and comment the other two.
+  {philosopherpath} peptideprophet --nonparam --expectscore --decoyprobs --ppm --accmass --decoy {params.decoyprefix} --database {input.fasta}  ./*.pepXML # Closed search
+  {philosopherpath} proteinprophet --maxppmdiff 2000000 --output combined ./interact*.pep.xml
+  {philosopherpath} filter --sequential --razor --mapmods --tag {params.decoyprefix} --pepxml ./interact*.pep.xml --protxml ./combined.prot.xml # closed or non-specific closed search
+
+  # Make reports.
+  {philosopherpath} report
+  {philosopherpath} workspace --clean
+  '''
+
+ionquantpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/IonQuant-1.5.5.jar"
+
+rule ionquant:
+  input:
+        # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+      fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+  output:
+      touch('ionquant/{group}__{seq}/{group}'),'ionquant/{group}__{seq}/peptides.tsv'
+  shell: r''' 
+  set -x
+  cd $(dirname {output})
+  mkdir -p ./specdir
+  for i in {input.fragger} ; do ln -sf ../../$i ./specdir ; done
+  java -Xmx64G -jar {ionquantpath} --specdir specdir {input.fragger}'''
+
+# rule convert_raw:
+#   input: lambda wc: msfiles[wc['sample']]
+#   output: expand('mzML/{sample}/{sample}.mzML')
+#   shell: r"""
+#   mkdir -p $(dirname {output[0]})
+#   mono ./bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
+#   mv $(dirname {output[0]})/* $(dirname {output.mzMLfile})
+#   """

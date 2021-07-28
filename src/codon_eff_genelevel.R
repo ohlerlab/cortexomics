@@ -64,12 +64,36 @@ dtegenes = c(teupgenes,tedowngenes)
 #telley 2016 genes
 N_allage=read_tsv('ext_data/telley_2016_neuronallages.tsv',col_names='gnm')%>%inner_join(gnm_gid)%>%.$g_id
 P_allage=read_tsv('ext_data/telley_2016_progenallages.tsv',col_names='gnm')%>%inner_join(gnm_gid)%>%.$g_id
+# allglists = c(list(tbr2=tbr2_ipc_gids),deconglist,telleygnmsplit,
+# 	list(dTEup=teupgenes,dTEdown=tedowngenes),
+# 	list(N_allage=N_allage,P_allage=P_allage)
+# )
+#telley 2019 waves
+ribocovtrs <- readRDS(here('data/ribocovtrs.rds'))
+gid2trid = ids_nrgname%>%filter(transcript_id%in%ribocovtrs)%>%{setNames(.$transcript_id,.$gene_id)}
+gnm2trid = ids_nrgname%>%filter(transcript_id%in%ribocovtrs)%>%{setNames(.$transcript_id,.$gene_name)}
+gnm2trid = ids_nrgname%>%filter(transcript_id%in%ribocovtrs)%>%{setNames(.$gene_id,.$gene_name)}
+telley_ap_early_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E14|E15'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(1,2))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+telley_n4_early_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E14|E15'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(5,6))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+#telley 2019 waves
+telley_ap_late_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E12|E13'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(1,2))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
+telley_n4_late_genes <- readxl::read_xlsx('ext_data/aav2522_Data-S2.xlsx')%>%select(-matches('E12|E13'))%>%
+	filter_at(vars(matches('wave')),~.%in%c(5,6))%>%
+	.[['Gene symbol']]%>%gnm2trid[.]%>%.[!is.na(.)]
 allglists = c(list(tbr2=tbr2_ipc_gids),deconglist,telleygnmsplit,
 	list(dTEup=teupgenes,dTEdown=tedowngenes),
-	list(N_allage=N_allage,P_allage=P_allage)
+	list(N_allage=N_allage,P_allage=P_allage),
+	list(telley_ap_early=telley_ap_early_genes,telley_n4_early=telley_n4_early_genes)
 )
 
-isoformab <- iso_tx_countdata$abundance%>%
+
+isoformab_all <- iso_tx_countdata$abundance%>%
 	as.data.frame%>%
 	rownames_to_column('tr_id')%>%
 	pivot_longer(-tr_id,names_to='sample',values_to='TPM')%>%
@@ -77,8 +101,9 @@ isoformab <- iso_tx_countdata$abundance%>%
 	separate(sample,into=c('time','assay','rep'))%>%
 	group_by(time,assay,tr_id)%>%
 	summarise(TPM=mean(TPM))
-isoformab %<>% left_join(trgiddf,by='tr_id')
-isoformab %<>% filter(assay=='total')
+isoformab_all %<>% left_join(trgiddf,by='tr_id')
+isoformab_ribo <- isoformab_all%>% filter(assay=='ribo')
+isoformab <- isoformab_all%>% filter(assay=='total')
 
 trcodusage <- codonfreqs%>%
 	as.data.frame%>%
@@ -96,40 +121,59 @@ if(!file.exists(here('data/gcodusagedf.rds'))){
 }else{
 	gcodusagedf<-readRDS(here('data/gcodusagedf.rds'))
 }
+if(!file.exists(here('data/ribogcodusagedf.rds'))){
+	ribogcodusagedf <- isoformab_ribo%>%
+		left_join(trcodusage)%>%
+		group_by(g_id,time,codon)%>%
+		summarise(usage=sum(count*TPM))%>%
+		group_by(g_id,time)%>%
+		mutate(usage = usage/sum(usage))
+	saveRDS(ribogcodusagedf,here('data/ribogcodusagedf.rds'))
+}else{
+	ribogcodusagedf<-readRDS(here('data/ribogcodusagedf.rds'))
+}
+
+longtrgcodusagedf <- trcodusage%>%
+		filter(tr_id%in%ribocovtrs)%>%
+		mutate(g_id =trid2gid[[tr_id]])%>%
+		mutate(usage = count/sum(count))
+
+
 
 gset = telleygnmsplit[[set1nm]]
 get_set_pref<-function(gcodusagedf,gset){
-	codusage <- gcodusagedf%>%filter(g_id%in%gset)%>%
+	codusage <- longtrgcodusagedf%>%filter(g_id%in%gset)%>%
 		group_by(time,codon)%>%summarise_at(vars(usage),mean,na.rm=T)
 	codusage$AA <- GENETIC_CODE[codusage$codon]
 	codpref = codusage%>%group_by(time,AA)%>%mutate(pref = usage/sum(usage))
 	codpref
 }
-
-
+allglists%>%names
 set1nm<-"dTEdown"
 set2nm<-"dTEup"
-set1nm<-"P_allage"
-set2nm<-"N_allage"
+set1nm<-"telley_ap_late"
+set2nm<-"telley_n4_late"
 set1 <- allglists[[set1nm]]
+set1 <- telley_ap_early_genes
 set2 <- allglists[[set2nm]]
+set2 <- telley_n4_early_genes
 set1usage <- get_set_pref(gcodusagedf,set1)
 set2usage <- get_set_pref(gcodusagedf,set2)
 setratiodf = left_join(set1usage,set2usage,by=c('time','codon','AA'))%>%
 	mutate(prefratio=log2(pref.y/pref.x))%>%
 	mutate(usageratio=log2(usage.y/usage.x))
-codonoccs <- read_tsv('tables/codonoccs_orig.tsv')%>%filter(fraction=='total')%>%select(-fraction)%>%
-	dplyr::rename(dwell_time=occupancy)
+repsumcodondata <- readRDS(here('data/repsumcodondata.rds'))%>%
+	mutate(AA=GENETIC_CODE[codon])
 rat_dt_df <- setratiodf%>%
+	mutate(AA=GENETIC_CODE[codon])%>%
 	filter(!AA=='*')%>%
-	safe_left_join(codonoccs,by=c('time','codon'))%>%
-		select(time,codon,AA,prefratio,usageratio,dwell_time,pref.x,pref.y)
-rat_dt_df%<>%group_by(time,AA)%>%mutate(AAcorDT=ifelse(n()==1,NA,mean(dwell_time)))
-
+	safe_left_join(repsumcodondata,by=c('time','codon','AA'))%>%
+		select(time,codon,AA,prefratio,usageratio,p_site_occ,pref.x,pref.y)
+# rat_dt_df%<>%group_by(time,AA)%>%mutate(AAcorDT=ifelse(n()==1,NA,mean(p_site_occ)))
 #now plot
 plotfile<- here(paste0('plots/',set1nm,'_',set2nm,'codon_pref_vs_dt','.pdf'))
 pdf(plotfile,w=15,h=3)
-col1=sym('dwell_time')
+col1=sym('p_site_occ')
 col2=sym('prefratio')
 corlabel = rat_dt_df%>%filter(is.finite(!!col1),is.finite(!!col2))%>%
 		group_by(time)%>%
@@ -141,7 +185,7 @@ corlabel = corlabel%>%
 		labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
 nlabel=rat_dt_df%>%group_by(time)%>%summarise(labl=paste0('N=',n()))
 rat_dt_df%>%
-	ggplot(.,aes(x=usageratio	,y=dwell_time,color=AA))+
+	ggplot(.,aes(x=!!col2	,y=!!col1,color=AA))+
 	# ggplot(.,aes(x=prefratio	,y=AAcorDT,color=AA))+
 	# ggplot(.,aes(x=prefratio,y=dwell_time,color=AA))+
 	geom_point()+
@@ -279,10 +323,48 @@ message(normalizePath(plotfile))
 # 	group_by(cat,codon)%>%
 # 	summarise(usage = mean(usage))%>%
 # 	spread(cat,usage)
+################################################################################
+########Model abs TE
+################################################################################
+	
 
+gcodwide = gcodusagedf%>%
+	# filter(g_id%in%dtegenes)%>%
+	filter(g_id%in%highcountgenes)%>%
+	group_by(g_id,codon)%>%summarise(usage=mean(usage,na.rm=T))%>%
+	pivot_wider(names_from=codon,values_from=usage)
+gcodwide%<>%filter(is.finite(AAA))
+gcodwide%<>%mutate(is_neurite = g_id %in% )
+s2ctypes=c(assay = "text", time = "text", gene_id = "text", logFC = "numeric",
+CI.L = "numeric", CI.R = "numeric", AveExpr = "numeric", t = "numeric",
+P.Value = "numeric", adj.P.Val = "numeric", B = "numeric")
+tedf <- 'tables/S2.xlsx'%>%read_xlsx(3,col_types=s2ctypes)
+#now add E13 to the other TE terms, since the others are changes
+tedf <- tedf%>%filter(assay=='TE')%>%group_by(gene_id)%>%mutate_at(vars(logFC,CI.L,CI.R),list(function(x){c(x[1],x[2:5]+x[1])}))%>%
+	mutate_at(vars(time),replace_na,'E13')
 
-gcodwide<-gcodwide%>%left_join(dte_df%>%select(time,g_id=gene_id,log2fc))
+gcodwide$TE<-NULL
 
+gcodwide <- gcodwide%>%left_join(tedf%>%filter(time=='E13')%>%select(TE=logFC,g_id=gene_id))
+
+codons4occ <- colnames(codonfreqs)
+codformula = as.formula(paste0('TE ~ ',paste0(collapse='+',codons4occ)))
+
+codfit <- glm(codformula,data=gcodwide)
+codfit%>%tidy%>%filter(term!='(Intercept)')%>%.$estimate%>%na.omit%>%sd
+codfit%>%aov%>%tidy%>%as.data.frame%>%summarise(last(sumsq)/sum(sumsq))
+
+repsumcodondata <- readRDS(here('data/repsumcodondata.rds'))
+
+codfit%>%tidy%>%filter(term!='(Intercept)')%>%
+	rename(codon=term)%>%
+	left_join(repsumcodondata)%>%
+	{quicktest(.$a_site_occ,.$estimate)}
+
+################################################################################
+########Model change in TE
+################################################################################
+	
 #load info on go terms
 #definite chrom and ribo genes.
 GTOGO <- 'data/GTOGO.rds'%>%readRDS%>%select(gene_name,go_id,g_id=ensembl_gene_id)
@@ -295,12 +377,9 @@ chromgenes = GTOGO%>%filter(go_id==goid_chrom)%>%.$g_id
 mphasegenes = GTOGO%>%filter(go_id==mphase_goid)%>%.$g_id
 patterngenes = GTOGO%>%filter(go_id==pattern_goid)%>%.$g_id
 ribchrgenes<-c(ribogenes,chromgenes)
-
 #load info on AP/NN genes
-
-
 gcodwide = gcodusagedf%>%
-	filter(g_id%in%dtegenes)%>%
+	# filter(g_id%in%dtegenes)%>%
 	filter(g_id%in%highcountgenes)%>%
 	group_by(g_id,codon)%>%summarise(usage=mean(usage,na.rm=T))%>%
 	pivot_wider(names_from=codon,values_from=usage)
@@ -309,9 +388,15 @@ codpca = princomp(gcodwide%>%ungroup%>%select(AAA:TTT))
 gcodwide%<>%mutate(ischrom=g_id%in%chromgenes)
 gcodwide%<>%mutate(isteup=g_id%in%teupgenes)
 
-#gcodwide%>%ungroup%>%mutate(pca1=codpca$scores[,5])%>%mutate(ischrom=g_id%in%chromgenes)%>%
-#	{split(.$pca1,.$ischrom)}%>%{t.test(.[[1]],.[[2]])}
+#add the TE log fold changes
+gcodwide<-gcodwide%>%left_join(dte_df%>%select(time,g_id=gene_id,log2fc))
+gcodwide$log2fc%<>%as.numeric
 
+codons4occ <- colnames(codonfreqs)
+codformula = as.formula(paste0('log2fc ~ ',paste0(collapse='+',codons4occ)))
+codfit <- glm(codformula,data=gcodwide)
+codfit%>%tidy%>%filter(term!='(Intercept)')%>%.$estimate%>%na.omit%>%sd
+codfit%>%aov%>%tidy%>%as.data.frame%>%summarise(last(sumsq)/sum(sumsq))
 codons4occ <- colnames(codonfreqs)
 codformula = as.formula(paste0('isteup ~ ',paste0(collapse='+',codons4occ)))
 glm(codformula,data=gcodwide,family='binomial')%>%summary

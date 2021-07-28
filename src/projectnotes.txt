@@ -1,5 +1,31 @@
 ###REMEMBER - 
+
+
+
+2021-07-19 10:45
+urgh. So been generating profiles in subset_dwell_times(has some bug)
+Then checking in broad dwell times script. Should generate them to eliminate time point differences, then 
+
 /Users/dharnet/Dropbox/projects/cortexomics/manuscript/populate.sh
+
+2021-07-09 12:26 paydirt
+currently I don't understand why phase based offsets can be failing the way they are
+They work better, but, the phase should be 0 aftera pplying the offset!
+Before doing things phase wise we are going to... check if the 29bp occupancy works
+Start codon alignment
+	okay so indeed it's inconsistent wiht our data as far as PPG is concerned. But I think we need to
+	do things phase-wise, better.
+#okay it looks like my psite alignment is working right, the shifts do what I think they should
+#so now, let's fucking get this done.
+#Can we improve on it with sequence info
+Check if the poly DTs agree
+
+
+Comparison of poly data to normal
+Breakdown of the location of the effects
+Paper modeling biochemistry of this.
+
+
 
 2021-06-04 09:39
 Looking at isoform specific motif content....

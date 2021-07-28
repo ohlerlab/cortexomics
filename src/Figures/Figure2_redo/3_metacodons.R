@@ -8,7 +8,6 @@ if(!exists('psitecov')) base::source('src/Figures/Figure2_redo/3_metacodons.R')
 	
 STARTBUFF=60
 ENDBUFF=60
-
 ribocovtrs <- readRDS(here('data/ribocovtrs.rds'))
 exonseq = exonsgrl[ribocovtrs]%>%extractTranscriptSeqs(x=fafile)
 allcodons=getGeneticCode()
