@@ -3,14 +3,15 @@
 base::source(here::here('src/R/Rprofile.R'))
 library(rstan)
 
-base::source('src/R/Functions/rstan_functions.R')
+base::source('src/Archive/R/Functions/rstan_functions.R')
 
 if(!exists("tx_countdata")) {
 	# base::source("src/Figures/Figure0/0_load_annotation.R")
 	load('data/1_integrate_countdata.R')
 }
 
-
+#actually raw data doesn't really show differences in mean IBAQ much
+# rawprotdata = readRDS('data/proteinmsdata.rds')
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 
 sel_prodpreds%<>%mutate(se = ifelse(is.na(se),(CI.R-CI.L)/3.92,se))
@@ -20,20 +21,33 @@ countpred_df<-readRDS('data/countpred_df.rds')
 countpred_df%<>%mutate(se = (CI.R-CI.L)/3.92)
 # tx_countdata<-readRDS('data/tx_countdata.rds')
 
-
 #Things we want ot sim - production slow half life, production high half life, 
-bmodel <- rstan::stan_model('src/Stan/becker_proda.stan')
-bmodel_stationary <- rstan::stan_model('src/Stan/becker_proda_stationary.stan')
-bmodel_degonly <- rstan::stan_model('src/Stan/bmodel_degonly.stan')
-bmodel_linear <- rstan::stan_model('src/Stan/becker_proda_linear.stan')
-bmodel_accumulation <- rstan::stan_model('src/Stan/becker_proda_accumulation.stan')
-allTEchangedf<-read_tsv('tables/manuscript/go_all_highcount_updown.tsv')
+bmodel <- rstan::stan_model('src/Archive/Stan/becker_proda.stan')
+# bmodel_ribooffset <- rstan::stan_model('src/Archive/Stan/becker_proda_ribooff.stan')
+bmodel_msdev <- rstan::stan_model('src/Archive/Stan/becker_proda_msdev.stan')
+bmodel_stationary <- rstan::stan_model('src/Archive/Stan/becker_proda_stationary.stan')
+bmodel_degonly <- rstan::stan_model('src/Archive/Stan/bmodel_degonly.stan')
+bmodel_linear <- rstan::stan_model('src/Archive/Stan/becker_proda_linear.stan')
+bmodel_accumulation <- rstan::stan_model('src/Archive/Stan/becker_proda_accumulation.stan')
+models = list(
+	production = bmodel,
+	# production_offset = bmodel_ribooffset,
+	stationary = bmodel_stationary,
+	degredation = bmodel_degonly,
+	# accumulation = bmodel_accumulation,
+	linear = bmodel_linear
+	# msdev = bmodel_msdev
+	
+)
+
+
+allTEchangedf<-'tables/xtailTEchange.tsv'%>%read_tsv
 
 
 downtegenes = allTEchangedf%>%filter(down==1)%>%.$gene_name
 uptegenes = allTEchangedf%>%filter(up==1)%>%.$gene_name
-# bmodel_stationary = fix_param(bmodel,vars2fix = c('l_st','l_pihalf'))%>%{f='src/Stan/bmodel_stationary.stan';cat(.,file=f);f}%>%stan_model
-#bmodel_degonly = fix_param(bmodel,vars2fix = c('l_st'))%>%{f='src/Stan/bmodel_degonly.stan';cat(.,file=f);f}%>%stan_model
+# bmodel_stationary = fix_param(bmodel,vars2fix = c('l_st','l_pihalf'))%>%{f='src/Archive/Stan/bmodel_stationary.stan';cat(.,file=f);f}%>%stan_model
+#bmodel_degonly = fix_param(bmodel,vars2fix = c('l_st'))%>%{f='src/Archive/Stan/bmodel_degonly.stan';cat(.,file=f);f}%>%stan_model
 
 gid2gnm = mcols(cds)%>%as.data.frame%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[1]],.[[2]])}
 gnm2gid = mcols(cds)%>%as.data.frame%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]])}
@@ -86,6 +100,7 @@ make_standata <- function(g,prot_ests,c_ests,prot_ses,c_ses){
 	sampdata$lSeqmu = c_ests[g,,drop=FALSE]/l2e #- median(log(ribo))
 	sampdata$lMSsigma = prot_ses[g,,drop=FALSE]/l2e
 	sampdata$lSeqsigma = c_ses[g,,drop=FALSE]/l2e
+	sampdata$ribooffset = c(0, -0.1169, -0.4907, -0.5889, -0.7206)
 	sampdata
 }
 make_ribodata = function(g)make_standata(g,prot_ests,count_ests[,ribocols],prot_ses,count_ses[,ribocols])
@@ -93,13 +108,6 @@ make_rnadata = function(g)make_standata(g,prot_ests,count_ests[,rnacols],prot_se
 
 contrdf<-readRDS('data/contrdf.rds')
 
-models = list(
-	production = bmodel,
-	stationary = bmodel_stationary,
-	degredation = bmodel_degonly,
-	# accumulation = bmodel_accumulation,
-	linear = bmodel_linear
-)
 siggenes = rownames(count_ests)%>%intersect(rownames(prot_ests))
 siggenes = rownames(count_ests)%>%intersect(rownames(prot_ests))#%>%intersect(contrdf%>%filter(adj_pval<0.05)%>%.$gene_name)
 
@@ -107,10 +115,14 @@ siggenes = rownames(count_ests)%>%intersect(rownames(prot_ests))#%>%intersect(co
 
 testgrpsize = if(!getwd()%>%str_detect('Users/dharnet/')) Inf else 50
 
-dec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%intersect(siggenes)%>%intersect(c(downtegenes,uptegenes))%>%head(testgrpsize)
-incr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%intersect(siggenes)%>%intersect(c(downtegenes,uptegenes))%>%tail(testgrpsize)
-notedec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%head(testgrpsize)
-noteincr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%tail(testgrpsize)
+dec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
+	intersect(siggenes)%>%intersect(c(downtegenes,uptegenes))%>%head(testgrpsize)
+incr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
+	intersect(siggenes)%>%intersect(c(downtegenes,uptegenes))%>%tail(testgrpsize)
+notedec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
+	intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%head(testgrpsize)
+noteincr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
+	intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%tail(testgrpsize)
 
 
 testgenes = c(dec_genes,incr_genes,notedec_genes,noteincr_genes)%>%unique
@@ -125,10 +137,23 @@ gdatas = lapply(datafuns,function(datafun){
 	})
 })
 
-#file.remove('data/bmodelopts.rds')
-if(!file.exists(here('data/bmodelopts.rds'))){
 
-	bmodelopts <- lapply(testgenes%>%setNames(.,.),function(gene){
+# model=models$msdev
+model=models$production
+datafun='riboseq'
+gene=filteredgenes[1]
+simdata  = gdatas[[datafun]][[gene]]
+
+# safely(rstan::optimizing)(models$msdev,data=simdata,init=initvals,as_vector=F,hessian=TRUE)$result$par$prot
+# safely(rstan::optimizing)(models$production,data=simdata,init=initvals,as_vector=F,hessian=TRUE)$result$par$prot
+# reopt <- safely(rstan::optimizing)(model,data=simdata,init=initvals,as_vector=F,hessian=TRUE)
+
+#file.remove('data/bmodelopts.rds')
+# if(!file.exists(here('data/bmodelopts.rds'))){
+
+	bmodelopts <- mclapply(mc.cores=10,
+		# testgenes%>%setNames(.,.)%10.[filteredgenes],function(gene){
+		testgenes%>%setNames(.,.)%>%.[TRUE],function(gene){
 		cat('.')
 		lapply(names(datafuns)%>%setNames(.,.),function(datafun){
 			simdata  = gdatas[[datafun]][[gene]]
@@ -139,34 +164,43 @@ if(!file.exists(here('data/bmodelopts.rds'))){
 						initvals$lribo = array(simdata$lSeqmu,c(1,length(simdata$lSeqmu)))
 						initvals$l_st = array(simdata$lMSmu[[1]]-simdata$lSeqmu,1)
 						initvals$lprot0 = array(simdata$lMSmu[[1]],1)
+						initvals$msdev = array(0,c(1,5))
 						reopt <- safely(rstan::optimizing)(model,data=simdata,init=initvals,as_vector=F,hessian=TRUE)
 						reopt
 						if(!is.null(reopt$result)) break
 					}
-					reopt$result
+					opt = reopt$result
+					opt
 				})
 		})
 	})
+
 	# bmodelopts
 	# bmodelopts = bmodelopts[unique(names(bmodelopts))]
 	saveRDS(bmodelopts,here('data/bmodelopts.rds'))
-}else{
-	bmodelopts<-readRDS(here('data/bmodelopts.rds'))
-}
+
+# }else{
+# 	bmodelopts<-readRDS(here('data/bmodelopts.rds'))
+# }
 
 
 modname=names(models)[1]
 gene=names(bmodel)
 #pre-compute the number of dfs in the model (note that the gene and datasource don't effect this, hence
 #the two magic numbers)
+modname = names(models)
 n_dflist = lapply(names(models)%>%setNames(.,.),function(modname){
 	 bmodelopts[[1]][[1]][[modname]]$par[get_stanpars(models[[modname]])]%>%unlist%>%length
 })
 
-if(!file.exists(here('data/modeltestdf.rds'))){
+# stopifnot('msdev' %in% names(bmodelopts[[1]][[1]]))
+# opt = bmodelopts[[gene]][[datafun]][['msdev']]
+# if(!file.exists(here('data/modeltestdf.rds'))){
+
 	#now let's do a chi squared test
 	# model_tests = mclapply(mc.cores=20,names(bmodelopts)%>%setNames(.,.),safely(function(gene){
-	modeltestdf = map_df(.id='gene',names(bmodelopts)%>%setNames(.,.),possibly(NULL,.f=function(gene){
+	modeltestdf = mclapply(mc.cores=10,names(bmodelopts)%>%setNames(.,.),possibly(NULL,.f=function(gene){
+	# modeltestdf = mclapply(mc.cores=1,names(bmodelopts)%>%setNames(.,.),identity(function(gene){
 	# modeltestdf = map_df(.id='gene',names(bmodelopts)%>%setNames(.,.),function(gene){
 		cat('.')
 		map_df(.id='data',names(gdatas)%>%setNames(.,.),function(datafun){
@@ -180,41 +214,102 @@ if(!file.exists(here('data/modeltestdf.rds'))){
 				w_rperrors = rerrors/gdata$lSeqsigma
 				n_df = n_dflist[[modname]]
 				errorsum = sum(c(w_perrors,w_rperrors)^2)
-				BIC = -2*opt$value+(log(n_df))*n_df
+				BIC = -2*opt$value+log(5)*n_df
 				pval = 1 - pchisq(errorsum,n_df)
-				c(BIC=BIC,pval=pval,residuals = w_perrors)
+				sumstats = c(BIC=BIC,pval=pval,residuals = w_perrors,errorsum=errorsum)
+				# sumstats -> tmpsumstatsp
+				# tmpsumstatsp
+				# browser()
+				sumstats
 			})
 		})
-	}))
+	}))%>%bind_rows(.id='gene')
+
 	modeltestdf <-modeltestdf%>%
 		mutate(passtest = ! (pval < 0.05))%>%
 		group_by(gene,data)%>%
 		mutate(best=BIC==min(BIC))
+
+	modeltestdf%<>%rowwise%>%mutate(sumresid = sum(residuals1^2+residuals2^2+residuals3^2+residuals4^2+residuals5^2))%>%
+		group_by(gene,data)
 	# modeltestdf%<>%distinct(gene,data,model,.keep_all=TRUE)
-	saveRDS(modeltestdf,here('data/modeltestdf.rds'))
-}else{
-	modeltestdf<-readRDS(here('data/modeltestdf.rds'))
-}
+	# saveRDS(modeltestdf,here('data/modeltestdf.rds'))
+# }else{
+# 	modeltestdf<-readRDS(here('data/modeltestdf.rds'))
+# }
+
+modeltestdf <-modeltestdf%>%
+	# filter(!model=='production_offset')%>%
+	# filter(!model=='msdev')%>%
+	# filter(!model=='production')%>%
+	# mutate(model = ifelse(model=='production_offset','production',model))%>%
+	mutate(passtest = ! (pval < 0.05))%>%
+	group_by(gene,data)%>%
+	mutate(best=BIC==min(BIC))
+
+modeltestdf%>%filter(gene==filteredgenes[1])%>%filter(data=='riboseq')%>%filter(model=='production')%>%t
+modeltestdf%>%filter(gene==filteredgenes[1])%>%filter(data=='riboseq')%>%filter(model=='msdev')%>%t
+modeltestdf%>%filter(data=='riboseq')%>%filter(best)%>%filter(passtest)%>%.$model%>%table
+modeltestdf%>%filter(passtest)%>%group_by(gene)%>%slice(which.min(BIC))%>%.$data%>%table
+
+modeltestdf%>%filter(gene%in%filteredgenesold)%>%filter(data=='riboseq')%>%filter(best)%>%filter(passtest)%>%.$model%>%table
+modeltestdf%>%filter(gene%in%filteredgenes)%>%filter(data=='riboseq')%>%filter(best)%>%filter(passtest)%>%.$model%>%table
 
 
+diffgenes = filteredgenes%>%setdiff(filteredgenesold)
+diffgenes[1]
 
-filteredgenes = modeltestdf%>%filter(data=='riboseq')%>%filter(passtest[model=='production'],
-	!passtest[model=='degredation'],
-	!passtest[model=='linear'],
+
+modeltestdf%>%filter(gene%in%'Myl6b')%>%filter(data=='riboseq')%>%as.data.frame
+
+# filteredgenesold <- filteredgenes
+modfilteredgenes = modeltestdf%>%
+	filter(data=='riboseq')%>%
+	filter(
+		passtest[model=='production'],
+		!passtest[model=='degredation'],
+		!passtest[model=='linear'],
+		!passtest[model=='stationary'],
 	# !passtest[model=='accumulation'],
-	best[model=='production'])%>%
-lowfiltergenes = modeltestdf%>%filter(data=='riboseq')%>%filter(passtest[model=='production'],best[model=='production'])%>%.$gene%>%unique
+		best[model=='production'])%>%
+	.$gene%>%unique
 
+modfilteredgenes%>%length
+'Myl6b'%in% modfilteredgenes
 
-estimate = bmodelopts%>%map_df(.id='gene',possibly(NULL,.f=.%>%.[['riboseq']]%>%.[['production']]%>%.$par%>%unlist))
+deggenes = modeltestdf%>%
+	filter(data=='riboseq')%>%
+	filter(model=='degredation')%>%
+	filter(passtest[model=='degredation'])%>%
+	filter(best)%>%.$gene
+
+# lowfiltergenes = modeltestdf%>%
+# 	filter(data=='riboseq')%>%
+# 	filter(passtest[model=='production'],best[model=='production'])%>%
+# 	.$gene%>%
+# 	unique
+
+allfailgenes = modeltestdf%>%group_by(gene)%>%filter(all(!passtest))
+
+estimate = bmodelopts[modfilteredgenes]%>%map_df(.id='gene',possibly(NULL,.f=.%>%.[['riboseq']]%>%.[['production']]%>%.$par%>%unlist))
 estimate$l_pihalf%>%txtdensity
+estimate$l_st%>%txtdensity
 
+txtplot(estimate$l_pihalf,estimate$l_st)
+estimate%>%filter(l_pihalf<5)%>%{txtplot(.$l_pihalf,.$l_st)}
+estimate%>%filter(gene=='Myl6b')%>%as.data.frame
 
-highpigenes = estimate%>%filter(gene%in%filteredgenes)%>%filter(l_pihalf%>%`>`(5))%>%.$gene
-low_stgenes = estimate%>%filter(gene%in%filteredgenes)%>%filter(l_st%>%`<`(-5))%>%.$gene
-filteredgenes = setdiff(filteredgenes,highpigenes)%>%setdiff(low_stgenes)
+# highpigenes = estimate%>%filter(gene%in%modfilteredgenes)%>%filter(l_pihalf%>%`>`(5))%>%.$gene
+# low_stgenes = estimate%>%filter(gene%in%modfilteredgenes)%>%filter(l_st%>%`<`(-5))%>%.$gene
+filteredgenes = modfilteredgenes
+# filteredgenes = setdiff(filteredgenes,highpigenes)%>%setdiff(low_stgenes)
+
+'Myl6b'%in% highpigenes
 
 estimate%>%filter(gene%in%filteredgenes)%>%.$l_pihalf%>%txtdensity
+estimate%>%filter(gene%in%filteredgenes)%>%.$l_st%>%txtdensity
+
+filteredgenes%>%length
 
 pihalftest = estimate%>%filter(gene%in%filteredgenes)%>%
 	inner_join(mcshanethalfs)%>%
@@ -224,9 +319,11 @@ pihalftest = estimate%>%filter(gene%in%filteredgenes)%>%
 	{cor.test(.$l_pihalf,log(.$half_life))}%>%tidy
 pihalftest
 
+# filteredgenes=filteredgenesold
 
+{
 
-jointmodel1te = stan_model(here('src/Stan/becker_proda_oneKs.stan'))
+jointmodel1te = stan_model(here('src/Archive/Stan/becker_proda_oneKs.stan'))
 
 stopifnot(length(filteredgenes)>100)
 
@@ -250,17 +347,32 @@ combinitvals$l_st%>%txtdensity
 
 jopt = rstan::optimizing(jointmodel1te,data=jointdata,init=combinitvals,as_vector=F,save_iterations=TRUE,hessian=F,verbose=T)
 
+
 pihalftest = jopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
 	inner_join(mcshanethalfs)%>%
 	# filter(abs(l_pihalf) <  5)%>%
 	filter(McShane_deg_cat!='NED')%>%
-	{cor.test(.$l_pihalf,log(.$half_life))}%>%tidy
-pihalftest
+	# filter(l_pihalf<3)%>%
+	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+
+message(paste0(sep='\n',capture.output(pihalftest)))
+
+}
+
+
+
+
+
+stop()
+nedgenes <- (mcshanethalfs%>%filter(McShane_deg_cat=='NED')%>%.$gene)
 
 modeltestdf%>%group_by(gene)%>%	
-	filter(data=='riboseq')%>%filter(best)%>%
-	mutate(isned = gene %in% (mcshanethalfs%>%filter(McShane_deg_cat=='NED')%>%.$gene))%>%
-	{split(.$BIC,.$isned)}%>%{t.test(.[['TRUE']],.[['FALSE']])}
+	filter(data=='riboseq')%>%
+	filter(best)%>%
+	mutate(isned = gene %in% nedgenes)%>%
+	mutate(sumresid = sum(residuals1^2+residuals2^2+residuals3^2+residuals4^2+residuals5^2))%>%
+	{split(.$sumresid,.$isned)}%>%
+	{t.test(.[['TRUE']],.[['FALSE']])}
 	# {table(.$isned,.$model==)}%>%fisher.test
 
 
@@ -274,17 +386,18 @@ pdf(plotfile)
 p = 
 	jopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
 	inner_join(mcshanethalfs)%>%
-	filter(abs(l_pihalf) <  5)%>%
-	filter(McShane_deg_cat!='NED')%>%
+	# filter(abs(l_pihalf) <  5)%>%
+	# filter(McShane_deg_cat!='NED')%>%
 	# filter()
 	# ggplot(.,aes(log(half_life),l_pihalf,color=McShane_deg_cat))+
 	ggplot(.,aes(log(half_life),l_pihalf))+
 	geom_point()+
+	facet_grid(McShane_deg_cat~.)+
 	scale_color_discrete(name='McShane_deg_cat')+
 	scale_x_continuous(paste0('log2(Half Life) (McShane et al)'))+
 	scale_y_continuous(paste0('Joint TE Model - estimated log(Half Life)'))+
 	ggtitle(paste0('Measured Half Lives vs Estimated'),sub=codreltests)+
-	geom_smooth(method='lm',aes(color=I('black')))+
+	geom_smooth(method='lm',color=I('black'))+
 	theme_bw()
 p
 dev.off()
@@ -299,12 +412,13 @@ normalizePath(plotfile)
 ########If we optimize a hiearach model?
 ################################################################################
 
-jointmodel_hierach = stan_model(here('src/Stan/becker_proda_jhierarch.stan'))
+jointmodel_hierach = stan_model(here('src/Archive/Stan/becker_proda_jhierarch.stan'))
 
 mu_lks = log(unique(jopt$par$Ks))
 sd_lks = sd(combinitvals$l_st + (log(log(2))-combinitvals$l_pihalf))
 
 jopth = rstan::optimizing(jointmodel_hierach,data=jointdata,init=c(mu_lks =mu_lks ,sd_lks = sd_lks,combinitvals),as_vector=F,save_iterations=TRUE,hessian=F,verbose=T)
+
 jopth$par$mu_lks
 jopth$par$sd_lks
 
@@ -421,6 +535,7 @@ modeltestdf%<>%select(-matches('residuals\\d'))
 
 
 modeltestdf%>%filter(data=='rnaseq')%>%filter(best)%>%.$model%>%table
+
 modeltestdf%>%filter(data=='riboseq')%>%filter(best)%>%.$model%>%table
 
 modeltestdf%>%filter(data=='rnaseq')%>%summarise(reject=all(!passtest))%>%.$reject%>%table
@@ -707,7 +822,7 @@ Kd = log(log(2)) -  initvals$l_pihalf;
 Ks = exp(initvals$l_st - lKd);
 ribo = exp(lribo);
 exp(initvals$lprot0);
-beckermodel <- rstan::stan_model('src/Stan/becker_proda.stan')
+beckermodel <- rstan::stan_model('src/Archive/Stan/becker_proda.stan')
 opt <- rstan::optimizing(beckermodel,data=sampdata,verbose=TRUE,init=initvals,as_vector=F,iter=0,save_iterations=TRUE)
 library(txtplot)
 txtplot(log(opt$par$prot))

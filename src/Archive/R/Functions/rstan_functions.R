@@ -196,10 +196,10 @@ fix_param <- function(stanmodel,vars2fix){
     stanlines[varname,]$ulimit = NA
     stanlines[varname,]$llimit = NA
     stanlines[varname,]$linenum = NA
-    if(stanlines[varname,]$class%>%is_in('vector')){
-      stanlines[varname,]$class%<>% str_replace('vector','real')#vectors switched to 'reals' for data
-      stanlines[varname,]$dimensionsvarname%<>%str_replace('(\\[.*?\\])(.*)','\\2\\1')#put dim after varname for reals
-    }
+    # if(stanlines[varname,]$class%>%is_in('vector')){
+      # stanlines[varname,]$class%<>% str_replace('vector','real')#vectors switched to 'reals' for data
+      # stanlines[varname,]$dimensionsvarname%<>%str_replace('(\\[.*?\\])(.*)','\\2\\1')#put dim after varname for reals
+    # }
   }
   #now for each block, find the declarations at the start,
   #and show the new vars in there

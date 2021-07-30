@@ -25,7 +25,7 @@ prediction_df = bind_rows(
     separate(contrast,c('time','assay'))%>%
     select(gene_id,time,assay,estimate=logFC,CI.L,CI.R)
 )
-
+#
 exprdf = bind_rows( 
   allvoom$E%>%
     as.data.frame%>%
@@ -54,7 +54,6 @@ prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
 # all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
 # library(data.table)
 
-
 rpexprdf = exprdf%>%inner_join(ms_metadf%>%filter(is_rpl|is_rps))
 rpexprdf$cat = case_when(
   rpexprdf$gene_id %in% (ms_metadf%>%filter(is_rpl)%>%.$gene_id) ~ 'RPL',
@@ -63,6 +62,10 @@ rpexprdf$cat = case_when(
 )
 rpexprdf$cat%>%table
 rpexprdf%<>%bind_rows(rpexprdf%>%filter(assay=='ribo')%>%mutate(assay='TE',signal = signal - (rpexprdf%>%filter(assay=='total')%>%.$signal)))
+
+#possibly useful formodeling?
+ggdf%>%filter(assay=='ribo')%>%group_by(time)%>%summarise_at(vars(signal),median)%>%.$signal%>%
+  saveRDS('data/rp_ribo_offsets.rds')
 
 ggdf = rpexprdf%>%
   arrange(time,assay=='MS',assay=='TE',assay=='ribo')%>%

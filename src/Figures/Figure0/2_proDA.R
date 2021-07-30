@@ -137,9 +137,7 @@ lridssplit<-rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast
 sridssplit<-rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 ridssplit<-c(lridssplit,sridssplit)
 # rids%>%filter(`Mito-RP`)%>%nrow
-
 #get info on proteins so we can catagorize them
-
 rplids = rids%>%filter(!`Mito-RP`,`RPL_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 rpsids = rids%>%filter(!`Mito-RP`,`RPS_+`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist
 mrpids = rids%>%filter(`Mito-RP`)%>%.$`Protein_IDs`%>%str_split_fast%>%unlist

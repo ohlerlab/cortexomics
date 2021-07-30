@@ -9,13 +9,10 @@ data {
   real l_ribo_priorsd;
   real l_pihalf_priormu;
   real l_pihalf_priorsd;
+  vector[T] ribooffset;
 }
 
 parameters {
-  real  <lower=-10,upper=10> mu_lks;
-  real  <lower=0.01,upper=10> sd_lks;
-  real  <lower=-10,upper=10> mu_l_pihalf;
-  real  <lower=0.01,upper=10> sd_l_phalf;
   vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lribo;  // log vector of ribo-seq levels
   vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
@@ -28,12 +25,10 @@ transformed parameters{
     vector[G] lKd; // the degred
     vector[G] Ks; // the synthesis constant
     vector[G] m; // the slope in ribo/mRNA
-    vector[G] lKs; // the slope in ribo/mRNA
     //get Kd
     lKd = log(log(2)) -  l_pihalf;
     //get Ks
-    lKs = l_st + lKd;
-    Ks = exp(lKs);
+    Ks = exp(l_st + lKd);
     ribo = exp(lribo);
     prot[,1] = exp(lprot0);
     // print("Ks:");
@@ -68,11 +63,9 @@ transformed parameters{
 model {
   // l_st ~ normal(0,l_st_priorsd);
   // l_pihalf ~ normal(l_pihalf_priormu,l_pihalf_priorsd);
-  lKs ~ normal(mu_lks,sd_lks);
-  l_pihalf ~ normal(mu_l_pihalf,sd_l_phalf);
   for(g in 1:G){
     for(t in 1:T){
-      lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);
+      lSeqmu[g,t] ~ normal(lribo[g,t]+ribooffset[t],lSeqsigma[g,t]);
       lMSmu[g,t]  ~ normal(log(prot[g,t]),lMSsigma[g,t]);
     }
   }
