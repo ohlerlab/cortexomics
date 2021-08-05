@@ -6,7 +6,8 @@ if(!exists("cdsgrl")) {
 }
 gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
 	{safe_hashmap(.[[1]],.[[2]])}
-
+gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{safe_hashmap(.[[2]],.[[1]])}
 #We are going off of- https://peerj.com/articles/270/#fig-4
 
 ################################################################################
@@ -53,23 +54,24 @@ tx_countdata$abundance%>%
 	# {txtplot(log2(.$TPM),.$diff)}
 	lm(data=.,diff~log2(TPM))%>%confint
 
-countpred_df%>%
-	separate(contrast,c('time','assay'))%>%
-	filter(time=='E13',assay=='ribo')%>%
-	left_join(sel_prodpreds,by=c('gene_id','time'))%>%
-	select(gene_id,diff,logFC)%>%
-	filter(!is.na(diff),!is.na(logFC))%>%
-	filter(logFC > quantile(logFC,.1))%>%
-	# {txtplot(log2(.$logFC),.$diff)}
-	lm(data=.,diff~logFC)%>%confint
+# countpred_df%>%
+# 	separate(contrast,c('time','assay'))%>%
+# 	filter(time=='E13',assay=='ribo')%>%
+# 	left_join(sel_prodpreds,by=c('gene_id','time'))%>%
+# 	select(gene_id,diff,logFC)%>%
+# 	filter(!is.na(diff),!is.na(logFC))%>%
+# 	filter(logFC > quantile(logFC,.1))%>%
+# 	# {txtplot(log2(.$logFC),.$diff)}
+# 	lm(data=.,diff~logFC)%>%confint
 
 stopifnot('se' %in% colnames(countpred_df))
 
- 
+tps = unique(countpred_df$time) 
+
 withinstage_varexpldf = map_df(.id='time',tps%>%setNames(.,.),function(stage){
 map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 	varmodeldf  = countpred_df%>%
-		separate(contrast,c('time','assay'))%>%
+		# separate(contrast,c('time','assay'))%>%
 		filter(time==stage,assay==cassay)%>%
 		left_join(sel_prodpreds,by=c('gene_id','time'))%>%
 		filter(!is.na(diff),!is.na(logFC))%>%
@@ -95,6 +97,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 
 
 #or use ms
+contrdf<-readRDS('data/contrdf.rds')
 contrdf$gene_name <- gid2gnm[[contrdf$gene_id]]
 mschangedf = contrdf%>%
   group_by(gene_name)%>%
@@ -113,21 +116,52 @@ genesets = list(all = sel_prodpreds$gene_name,
 	MS_down = msdowngenes
 )
 
+stop()
+
+# kineticres = 
+cassay='ribo_kinetic' 
 cassay='ribo' 
+geneset=genesets[[1]]
+
 betweenstagevardf =
 map_df(.id='geneset',genesets,function(geneset){
+# map_df(.id='assay',c('total','ribo','ribo_kinetic')%>%setNames(.,.),function(cassay){
 map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
-	varmodeldf  = countpred_df%>%
-		separate(contrast,c('time','assay'))%>%
-		filter(assay==cassay)%>%
-		left_join(sel_prodpreds,by=c('gene_id','time'))%>%
+		counttraj  = countpred_df%>%
+			# separate(contrast,c('time','assay'))%>%
+			filter(assay==cassay%>%str_replace('_kinetic',''))
+		counttraj$gene_name = gid2gnm[[counttraj$gene_id]]
+		countses = counttraj%>%select(gene_id,time,se)
+	if(!cassay=='ribo_kinetic'){
+	}else{
+
+			kinetictraj = bmodelopts[gns_by_mod$production]%>%map(~.[['riboseq']][['production']]$par$prot)%>%
+				discard(is.null)%>%
+				map_df(.id='gene_name',.%>%set_colnames(tps)%>%as.data.frame)%>%
+				pivot_longer(-gene_name,names_to='time',values_to='logFC')
+			kinetictraj$logFC%<>%log
+			alldrawses = bmodelopts%>%map('riboseq')%>%map('production')%>%map('cov')%>%discard(is.null)%>%map(diag)%>%map(~.[str_subset(names(.),'prot\\[')])%>%
+					map_df(.id='gene_name',enframe,'time','se')
+			alldrawses$time %<>% as.factor%>%as.numeric%>%tps[.]
+			kinetictraj$gene_id = gnm2gid[[kinetictraj$gene_name]]
+			# kinetictraj%<>%left_join(countses)	
+			kinetictraj%<>%left_join(alldrawses)	
+			kinetictraj$se = kinetictraj$se*(kinetictraj$logFC^(-2))
+		counttraj <- kinetictraj%>%group_by(gene_id)%>%filter(!any(is.na(se)))	
+
+	}
+
+	counttraj$gene_name<-NULL
+	varmodeldf <- counttraj%>%left_join(sel_prodpreds,by=c('gene_id','time'))%>%
 		filter(!is.na(diff),!is.na(logFC))%>%
 		# filter(logFC > quantile(logFC,.1))%>%
 		identity
 	varmodeldf%<>%group_by(gene_id)%>%mutate(logFC= logFC-logFC[1])
 	varmodeldf%<>%group_by(gene_id)%>%mutate(diff= diff-diff[1])
 	varmodeldf%<>%filter(gene_name%in%geneset)
-	varmodel = varmodeldf%>%	lm(data=.,diff~logFC)
+	varmodeldf%>%{quicktest(.$diff,.$logFC)}
+
+	varmodel = varmodeldf%>%lm(data=.,diff~logFC)
 	b_all = varmodel$coef[2]
 	b_r = 1
 	allvar = sum(varmodel$residuals^2)
@@ -138,6 +172,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 	var_explained = (var_mp - var_p - var_pdt) / (var_mp - var_p)
 	names(var_explained)=NULL
 	c(var_explained = var_explained,count_variance = var_r / (var_mp - var_p))
+
 })
 })
 
@@ -148,7 +183,7 @@ withinstage_varexpldf%>%
 	ggplot(.,aes(y=var_explained,x=assay,fill=assay))+
 	facet_grid(.~time)+
 	stat_identity(geom='bar')+
-	scale_color_manual(name='assay',c('total'='blue','ribo'='green'))+
+	scale_color_manual(name='assay',c('total'='blue','ribo'='green','ribo_traj'='red'))+
 	scale_x_discrete(paste0('Assay'))+
 	scale_y_continuous(paste0('% Variance Explained'))+
 	ggtitle(paste0('Between - Timepoint Variance Explained'))+

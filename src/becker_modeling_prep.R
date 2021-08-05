@@ -42,8 +42,6 @@ models = list(
 }
 
 allTEchangedf<-'tables/xtailTEchange.tsv'%>%read_tsv
-
-
 downtegenes = allTEchangedf%>%filter(down==1)%>%.$gene_name
 uptegenes = allTEchangedf%>%filter(up==1)%>%.$gene_name
 # bmodel_stationary = fix_param(bmodel,vars2fix = c('l_st','l_pihalf'))%>%{f='src/Archive/Stan/bmodel_stationary.stan';cat(.,file=f);f}%>%stan_model
@@ -60,32 +58,13 @@ prot_ests = sel_prodpreds%>%distinct(time,gene_name,.keep_all=TRUE)%>%select(gen
 prot_ses = sel_prodpreds%>%distinct(time,gene_name,.keep_all=TRUE)%>%select(gene_name,time,se)%>%spread(time,se)%>%{set_rownames(as.matrix(.[,-1]),.$gene_name)}
 ribocols = count_ests%>%colnames%>%str_subset('ribo')
 rnacols = count_ests%>%colnames%>%str_subset('total')
-
-timepoints = ribocols%>%str_replace('_ribo_\\d','')
-xtailfoldchange<-Sys.glob('pipeline/xtail/xtail_*')%>%setNames(timepoints[-1])%>%
-	map_df(.id='time',fread)%>%
-	mutate(changetype='translational_xtail')
-
-teupgenes=xtailfoldchange%>%filter(time=='P0_ribo')%>%filter(adj_p_value<0.05,log2fc > 1)%>%.$gene_name
-tedowngenes = xtailfoldchange%>%filter(time=='P0_ribo')%>%filter(adj_p_value<0.05,log2fc < -1)%>%.$gene_name
-
 protscl = prot_ests%>%colMedians
+# protscl = prot_ests%>%colMedians%>%median%>%rep(ncol(prot_ests))
 prot_ests = sweep(prot_ests,2,'-',STAT=protscl)
-
 countrscl = count_ests%>%colMedians
 count_ests = sweep(count_ests,2,'-',STAT=countrscl)
-
-
-#get mcshane half life data too
-mcshanedf<-fread('ext_data/mcshane_etal_2016_S1.csv')
-#
-mcshanethalfs<-mcshanedf%>%select(2,38,41)%>%set_colnames(c('gene','half_life','McShane_deg_cat'))
-#
-mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
-mcshanethalfs%<>%filter(half_life<299)
-mcshanethalfs$half_life %<>% {./24}
-
-
+# if(USE_RAW){
+# }
 make_standata <- function(g,prot_ests,c_ests,prot_ses,c_ses){
 	l2e = log2(exp(1))
 	nT=ncol(c_ests)
@@ -113,15 +92,19 @@ gdatas = lapply(datafuns,function(datafun){
 	})
 })
 
+###For selecting subsets of genes
 contrdf<-readRDS('data/contrdf.rds')
-
 siggenes = rownames(count_ests)%>%intersect(rownames(prot_ests))
 siggenes = rownames(count_ests)%>%intersect(rownames(prot_ests))#%>%intersect(contrdf%>%filter(adj_pval<0.05)%>%.$gene_name)
-
-
-
+#
 testgrpsize = if(!getwd()%>%str_detect('Users/dharnet/')) Inf else 50
+timepoints = ribocols%>%str_replace('_ribo_\\d','')
+xtailfoldchange<-Sys.glob('pipeline/xtail/xtail_*')%>%setNames(timepoints[-1])%>%
+	map_df(.id='time',fread)%>%
+	mutate(changetype='translational_xtail')
 
+teupgenes=xtailfoldchange%>%filter(time=='P0_ribo')%>%filter(adj_p_value<0.05,log2fc > 1)%>%.$gene_name
+tedowngenes = xtailfoldchange%>%filter(time=='P0_ribo')%>%filter(adj_p_value<0.05,log2fc < -1)%>%.$gene_name
 dec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
 	intersect(siggenes)%>%intersect(c(downtegenes,uptegenes))%>%head(testgrpsize)
 incr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
@@ -130,17 +113,16 @@ notedec_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
 	intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%head(testgrpsize)
 noteincr_genes = (prot_ests[,1]-prot_ests[,5])%>%sort%>%names%>%
 	intersect(siggenes)%>%setdiff(c(downtegenes,uptegenes))%>%tail(testgrpsize)
-
-
 testgenes = c(dec_genes,incr_genes,notedec_genes,noteincr_genes)%>%unique
 
-datafuns = list(riboseq =  make_ribodata , rnaseq =  make_rnadata)
-	
+##for comparing half life results
+#get mcshane half life data too
+mcshanedf<-fread('ext_data/mcshane_etal_2016_S1.csv')
+#
+mcshanethalfs<-mcshanedf%>%select(2,38,41)%>%set_colnames(c('gene','half_life','McShane_deg_cat'))
+#
+mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
+mcshanethalfs%<>%filter(half_life<299)
+mcshanethalfs$half_life %<>% {./24}
 
-#precompute the data
-gdatas = lapply(datafuns,function(datafun){
-	lapply(testgenes%>%setNames(.,.),function(gene){
-		simdata = datafun(gene)
-	})
-})
 

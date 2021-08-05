@@ -16,13 +16,14 @@ parameters {
   // real  <lower=0.01,upper=10> sd_lks;
   real  <lower=0,upper=10> var_l_phalf;
   real  <lower=-10,upper=10> mu_l_pihalf;
-  real<lower=-20,upper=20> lKs; // the ratio of steady state ratio to ribo
-  //vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
+  real  <lower=-10,upper=10> lKs;
+  // vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lribo;  // log vector of ribo-seq levels
   vector<lower=-20,upper=20>[G] l_pihalf;  //log half life
   vector[G] lprot0; // initial LOG amount of protein
   matrix[G,T] msdev;//msdev
   vector<lower = 0, upper = 1>[G] theta; // prob it's deviant - responsibility parameter
+  vector<lower=-20,upper=20>[G] l_st_dev; // the ratio of steady state ratio to ribo
 
 }
 
@@ -33,7 +34,8 @@ transformed parameters{
 //     vector[G] Ks; // the synthesis constant
 //     vector[G] m; // the slope in ribo/mRNA
 //     // vector[G] lKs; // the slope in ribo/mRNA
-    real sd_l_phalf;
+//     real sd_l_phalf;
+//     sd_l_phalf = sqrt(var_l_phalf);
 //     //get Kd
 //     lKd = log(log(2)) -  l_pihalf;
 //     //get Ks
@@ -76,11 +78,11 @@ transformed parameters{
     vector[G] lKd; // the degred
     vector[G] Ks; // the synthesis constant
     vector[G] m; // the slope in ribo/mRNA
-    sd_l_phalf = sqrt(var_l_phalf);
     lKd = log(log(2)) -  l_pihalf;
     Ks = rep_vector(exp(lKs),G);
     ribo = exp(lribo);
     prot[,1] = exp(lprot0);
+    // l_st = lKs - lKd;
     for(i in 2:T){
       m = ribo[,i] - ribo[,i-1] ;
       prot[,i] = 
@@ -89,7 +91,7 @@ transformed parameters{
         ((Ks .* m)  ./ exp(lKd)) +
         ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
     }
-    dprot = exp(log(prot) + msdev);
+    dprot = exp(lribo + rep_matrix(l_st_dev,T) + msdev);
 }
 model {
   // l_st ~ normal(0,l_st_priorsd);
@@ -97,15 +99,14 @@ model {
   // var_l_phalf ~ inv_gamma(0.001,0.001);
   // sd_l_phalf ~ normal(mu_l_pihalf,3)
   // lKs ~ normal(mu_lks,sd_lks);
-  l_pihalf ~ normal(mu_l_pihalf,sd_l_phalf);
+  // l_pihalf ~ normal(mu_l_pihalf,sd_l_phalf);
   // l_pihalf ~ normal(mu_l_pihalf,1);
   // mu_l_pihalf ~ normal(l_pihalf_priormu,3);
-  // l_pihalf ~ normal(mu_l_pihalf,2);
+  l_pihalf ~ normal(mu_l_pihalf,2);
   for(g in 1:G){
     for(t in 1:T){
       lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);
-      // lMSmu[g,t]  ~ normal(log(prot[g,t]),lMSsigma[g,t]);
-      if(dprot[g,t] <= 0){
+          if(dprot[g,t] <= 0){
         print("problem with gene:");
         print(g);
         print(" dprot is:");
@@ -120,9 +121,8 @@ model {
         print(lribo[g,]);
         print(" l_pihalf is:");
         print(l_pihalf[g]);
-        print(" theta is:");
-        print(theta[g]);
       }
+      // lMSmu[g,t]  ~ normal(log(prot[g,t]),lMSsigma[g,t]);
       target += log_sum_exp(
             log(1-theta[g]) + normal_lpdf(lMSmu[g,t] | log(prot[g,t]),lMSsigma[g,t]),
             log(theta[g]) + normal_lpdf(lMSmu[g,t] | log(dprot[g,t]),lMSsigma[g,t])

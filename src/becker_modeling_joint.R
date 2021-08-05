@@ -1,24 +1,3 @@
-################################################################################
-########Now do joint modelling
-################################################################################
-	
-
-{
-# filteredgenes=filteredgenesold
-filteredgenes = modfilteredgenes%>%
-	c(genebmodels%>%.[.=='production']%>%names)%>%
-	c(genebmodels%>%.[.=='degredation']%>%names)%>%
-# 	# c(genebmodels%>%.[.=='stationary']%>%names)%>%
-# 	c(genebmodels%>%.[.=='msdev']%>%names)%>%
-	c(genebmodels%>%.[.=='linear']%>%names%>%{.})%>%
-	unique
-
-
-
-jointmodel1te = stan_model(here('src/Archive/Stan/becker_proda_oneKs.stan'))
-
-stopifnot(length(filteredgenes)>100)
-
 get_comb_initvals <- function(bestfitinits){
   combinitvals <- lapply(names(bestfitinits[[1]])%>%setNames(.,.),function(argind){
     bestfitinits%>%
@@ -29,6 +8,26 @@ get_comb_initvals <- function(bestfitinits){
   combinitvals	
 }
 
+################################################################################
+########Now do joint modelling
+################################################################################
+	
+
+{
+# filteredgenes=filteredgenesold
+filteredgenes = modfilteredgenes%>%
+	c(genebmodels%>%.[.=='production']%>%names)%>%
+	c(genebmodels%>%.[.=='degredation']%>%names)%>%
+	# c(genebmodels%>%.[.=='stationary']%>%names)%>%
+	# c(genebmodels%>%.[.=='msdev']%>%names)%>%
+	c(genebmodels%>%.[.=='linear']%>%names%>%{.})%>%
+	unique%>%
+	intersect(rownames(g_elong_mat))
+filteredgenes=ext_elong_gns%>%intersect(filteredgenes)
+
+
+jointmodel1te = stan_model(here('src/Archive/Stan/becker_proda_oneKs.stan'))
+filteredgenes=nonoutconvgenes
 combinitvals <- bmodelopts[filteredgenes]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
 jointdata = datafuns$riboseq(filteredgenes)
 jointdata$G = nrow(jointdata$lMSmu)
@@ -40,7 +39,8 @@ combinitvals$l_pihalf[]=0
 combinitvals$l_st[]=0
 jopt = NULL
 while(is.null(jopt)){
-	jopt <- possibly(rstan::optimizing,NULL)(
+	jopt <- rstan::optimizing(
+	# jopt <- possibly(rstan::optimizing,NULL)(
 		jointmodel1te,
 		data=jointdata,
 		init=combinitvals,
@@ -48,8 +48,6 @@ while(is.null(jopt)){
 		save_iterations=TRUE,
 		hessian=F,verbose=T,)	
 }
-
-
 pihalftest = jopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
 	inner_join(mcshanethalfs)%>%
 	# filter(abs(l_pihalf) <  5)%>%
@@ -63,10 +61,24 @@ message(paste0(sep='\n',capture.output(jopt$par$Ks[1])))
 }
 
 
+pihalftest = jopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
+	inner_join(mcshanethalfs)%>%
+	# filter(abs(l_pihalf) <  5)%>%
+	filter(McShane_deg_cat!='NED')%>%
+	# filter(l_pihalf<3)%>%
+	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+pihalftest
+pihalftest = ixopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
+	inner_join(mcshanethalfs)%>%
+	# filter(abs(l_pihalf) <  5)%>%
+	filter(McShane_deg_cat!='NED')%>%
+	# filter(l_pihalf<3)%>%
+	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+pihalftest
 
 
-
-
+jopt$value
+ixopt$value
 # nedgenes <- (mcshanethalfs%>%filter(McShane_deg_cat=='NED')%>%.$gene)
 
 # modeltestdf%>%group_by(gene)%>%	
@@ -120,6 +132,7 @@ normalizePath(plotfile)
 ########Now let's use that fixed lKS to get half life estimates for eveyrthing
 ################################################################################
 'becker_proda_lKsfix.stan'
+
 nofailgenes = bmodelopts%>%map('riboseq')%>%map('production')%>%map_lgl(Negate(is.null))%>%.[.]%>%names
 
 allinivals <- bmodelopts%>%.[nofailgenes]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
@@ -147,6 +160,7 @@ pihalftest = fopt$par%>%.$l_pihalf%>%setNames(nofailgenes)%>%enframe('gene','l_p
 	filter(McShane_deg_cat!='NED')%>%
 	# filter(l_pihalf<3)%>%
 	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+
 pihalftest
 
 stop()
@@ -189,9 +203,179 @@ p
 dev.off()
 normalizePath(plotfile)
 
+################################################################################
+########Now let's try with ribo offsets per timepoint?
+################################################################################
+	
+
+
+{
+# filteredgenes=filteredgenesold
+filteredgenes = modfilteredgenes%>%
+	c(genebmodels%>%.[.=='production']%>%names)%>%
+	# c(genebmodels%>%.[.=='degredation']%>%names)%>%
+# 	# c(genebmodels%>%.[.=='stationary']%>%names)%>%
+# 	c(genebmodels%>%.[.=='msdev']%>%names)%>%
+	# c(genebmodels%>%.[.=='linear']%>%names%>%{.})%>%
+	unique
+jointmodel5te = stan_model(here('src/Archive/Stan/becker_proda_fiveKs.stan'))
+stopifnot(length(filteredgenes)>100)
+
+get_comb_initvals <- function(bestfitinits){
+  combinitvals <- lapply(names(bestfitinits[[1]])%>%setNames(.,.),function(argind){
+    bestfitinits%>%
+      map(argind)%>%
+      setNames(.,seq_along(.))%>%
+      do.call(what=partial(abind::abind,along=1))
+  })
+  combinitvals	
+}
+
+combinitvals <- bmodelopts[filteredgenes]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
+jointdata = datafuns$riboseq(filteredgenes)
+jointdata$G = nrow(jointdata$lMSmu)
+combinitvals$lKs = 0
+#
+combinitvals$l_pihalf%>%txtdensity
+combinitvals$l_st%>%txtdensity
+combinitvals$l_pihalf[]=0
+combinitvals$l_st[]=0
+combinitvals$ribooffset=array(0,4)
+# combinitvals = combinitvals$ribooffset
+jopt = NULL
+while(is.null(jopt)){
+
+	jopt <- possibly(rstan::optimizing,NULL)(
+	# jopt <- rstan::optimizing(
+		jointmodel5te,
+		data=jointdata,
+		init=combinitvals,
+		as_vector=F,
+		save_iterations=TRUE,
+		hessian=F,verbose=T)
+
+}
+
+
+pihalftest = jopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
+	inner_join(mcshanethalfs)%>%
+	# filter(abs(l_pihalf) <  5)%>%
+	filter(McShane_deg_cat!='NED')%>%
+	# filter(l_pihalf<3)%>%
+	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+
+message(paste0(sep='\n',capture.output(pihalftest)))
+message(paste0(sep='\n',capture.output(jopt$par$Ks[1])))
 
 
 
+jopt$par$ribooffset%>%txtplot
+jopt$par$protoffset%>%txtplot
+
+
+}
+
+
+################################################################################
+########
+################################################################################
+
+trelongs = Sys.glob('../Ribotransformer/pipeline/ixnos_elong/*/*.elong.csv')%>%
+	setNames(.,basename(dirname(.)))%>%
+	map_df(.id='sample',read_csv)
+
+iso_prop_df = iso_tx_countdata$abundance%>%as.data.frame%>%rownames_to_column('tr_id')%>%pivot_longer(-tr_id)%>%
+	left_join(ids_nrgname%>%select(tr_id=transcript_id,gene_id,gene_name)%>%distinct)%>%
+	group_by(gene_name,gene_id,name)%>%mutate(prop=value/sum(value+1e-12))%>%
+	select(tr_id,gene_id,sample=name,prop)
+
+table(filteredgenes%in%iso_prop_df$gene_name)
+
+iso_prop_df%<>%filter(is.finite(prop))
+
+g_elong_df = trelongs%>%mutate(tr_id = str_replace(tr_id,'\\.\\d+$',''))%>%
+	left_join(ids_nrgname%>%select(tr_id=transcript_id,gene_id,gene_name)%>%distinct)%>%	
+	left_join(iso_prop_df%>%ungroup%>%select(-gene_name),by=c('sample','gene_id'))%>%
+	group_by(sample,gene_id,gene_name)%>%
+	summarise(elong=weighted.mean(x=elong,w=prop))
+
+g_elong_mat = g_elong_df%>%ungroup%>%select(gene_name,sample,elong)%>%
+	pivot_wider(names_from='sample',values_from='elong')%>%
+	{set_rownames(as.matrix(.[,-1]),.[['gene_name']])}
+g_elong_mat%<>%replace_na(1)
+
+g_elong_mat <- sapply(seq(1,10,by=2),function(i){
+	g_elong_mat[,i]+g_elong_mat[,i+1]/2
+})
+ext_elong_gns =  g_elong_mat%>%rowMeans%>%sort%>%{c(head(.,100),tail(.,100))}%>%names
+
+table(filteredgenes%in%rownames(g_elong_mat))
+
+
+
+{
+# filteredgenes=filteredgenesold
+filteredgenes = modfilteredgenes%>%
+	c(genebmodels%>%.[.=='production']%>%names)%>%
+	c(genebmodels%>%.[.=='degredation']%>%names)%>%
+	# c(genebmodels%>%.[.=='stationary']%>%names)%>%
+	# c(genebmodels%>%.[.=='msdev']%>%names)%>%
+	c(genebmodels%>%.[.=='linear']%>%names%>%{.})%>%
+	unique%>%
+	intersect(rownames(g_elong_mat))
+filteredgenes=ext_elong_gns%>%intersect(filteredgenes)
+
+ixnos_offsetmodel = stan_model(here('src/Archive/Stan/becker_proda_ixnos.stan'))
+stopifnot(length(filteredgenes)>20)
+
+get_comb_initvals <- function(bestfitinits){
+  combinitvals <- lapply(names(bestfitinits[[1]])%>%setNames(.,.),function(argind){
+    bestfitinits%>%
+      map(argind)%>%
+      setNames(.,seq_along(.))%>%
+      do.call(what=partial(abind::abind,along=1))
+  })
+  combinitvals	
+}
+
+combinitvals <- bmodelopts[filteredgenes]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
+jointdata = datafuns$riboseq(filteredgenes)
+jointdata$G = nrow(jointdata$lMSmu)
+jointdata$lSeq_offset = g_elong_mat[filteredgenes,]
+combinitvals$lKs = 0
+#
+combinitvals$l_pihalf%>%txtdensity
+combinitvals$l_st%>%txtdensity
+combinitvals$l_pihalf[]=0
+combinitvals$l_st[]=0
+combinitvals$ribooffset=array(0,4)
+# combinitvals = combinitvals$ribooffset
+ixopt = NULL
+while(is.null(ixopt)){
+
+	ixopt <- possibly(rstan::optimizing,NULL)(
+	# ixopt <- rstan::optimizing(
+		ixnos_offsetmodel,
+		data=jointdata,
+		init=combinitvals,
+		as_vector=F,
+		save_iterations=TRUE,
+		hessian=F,verbose=T)
+
+}
+
+
+pihalftest = ixopt$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
+	inner_join(mcshanethalfs)%>%
+	# filter(abs(l_pihalf) <  5)%>%
+	filter(McShane_deg_cat!='NED')%>%
+	# filter(l_pihalf<3)%>%
+	{quicktest(.$l_pihalf,log(.$half_life))}%>%tidy
+
+message(paste0(sep='\n',capture.output(pihalftest)))
+message(paste0(sep='\n',capture.output(ixopt$par$Ks[1])))
+
+}
 
 
 ################################################################################
@@ -199,9 +383,13 @@ normalizePath(plotfile)
 ########If we optimize a hiearach model?
 ################################################################################
 
-jointmodel_hierach = stan_model(here('src/Archive/Stan/becker_proda_jhierarch.stan'))
+estimate%>%filter(gene%in%gns4model)%>%.$l_pihalf%>%txtdensity
+estimate%>%filter(gene%in%gns4model)%>%.$l_pihalf%>%min
 
+{
+jointmodel_hierach = stan_model(here('src/Archive/Stan/becker_proda_jhierarch.stan'))
 gns4model = gns_by_mod$production
+# gns4model = nonoutconvgenes
 combinitvals <- bmodelopts[gns4model]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
 jointdata = datafuns$riboseq(gns4model)
 jointdata$G = nrow(jointdata$lMSmu)
@@ -210,17 +398,23 @@ combinitvals$mu_lks=0
 combinitvals$mu_l_pihalf=0
 combinitvals$sd_lks=1
 combinitvals$sd_l_phalf=1
-
+combinitvals$theta = array(0.5,combinitvals$G)
+#
 jhopth = rstan::optimizing(jointmodel_hierach,data=jointdata,init=combinitvals,as_vector=F,save_iterations=TRUE,hessian=F,verbose=T)
-
-jhopth$par%>%.$l_pihalf%>%setNames(filteredgenes)%>%enframe('gene','l_pihalf')%>%
+#
+jhopth$par%>%.$l_pihalf%>%setNames(gns4model)%>%enframe('gene','l_pihalf')%>%
 	inner_join(mcshanethalfs)%>%
 	# filter(abs(l_pihalf) <  5)%>%
 	filter(McShane_deg_cat!='NED')%>%
 	# filter(l_pihalf<4)%>%
 	{quicktest(.$l_pihalf,log(.$half_life));.}%>%
 	{cor.test(.$l_pihalf,log(.$half_life))}%>%tidy
+}
 
+jhopth$par%>%names
+jhopth$par['var_l_phalf']
+jhopth$par['mu_l_pihalf']
+jhopth$par$l_pihalf%>%txtdensity
 #hmmmmm, thi sdoesn't work that well...
 
 lineargenes = modeltestdf%>%filter(data=='riboseq',model=='linear',best,passtest)%>%.$gene

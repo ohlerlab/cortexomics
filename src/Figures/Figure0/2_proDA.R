@@ -28,6 +28,7 @@ colnames(ms_mat) <- colnames(ms_mat)%>%
 	str_replace('input','MS')%>%
 	str_replace('rep','')%>%
 	str_replace('p(\\d)','\\1')
+ms_mat_nonorm <- ms_mat 
 ms_mat = proDA::median_normalization(ms_mat)
 
 ################################################################################
@@ -68,6 +69,7 @@ if(!file.exists(here('data/stepproDAfitms.rds'))){
 	            reference_level = NULL
 	)
 	saveRDS(stepproDAfitms,here('data/stepproDAfitms.rds'))
+	
 }else{
 	stepproDAfitms<-readRDS(here('data/stepproDAfitms.rds'))
 }
@@ -209,3 +211,11 @@ ms_metadf%>%saveRDS('data/ms_metadf.rds')
 
 ms_metadf<-readRDS('data/ms_metadf.rds')
 
+bestmeta <- ms_metadf%>%filter(best)
+sel_ms_mat_nonorm <- ms_mat_nonorm[bestmeta$ms_id,]%>%
+	set_rownames(bestmeta$gene_name)
+
+sel_ms_mat_nonorm%>%saveRDS('data/sel_ms_mat_nonorm.rds')
+sel_ms_mat%>%colMedians(na.rm=T)%>%txtplot
+ms_mat%>%colMedians(na.rm=T)%>%txtplot
+median_normalization(ms_mat)%>%colMedians(na.rm=T)%>%txtplot
