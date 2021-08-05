@@ -103,7 +103,7 @@ model_tests = lapply(datnames,function(datname){
 		w_rperrors = rerrors/sims[[datname]]$lSeqsigma
 		n_df = opts[[datname]][[modname]]$par[get_stanpars(models[[modname]])]%>%unlist%>%length
 		errorsum = sum(c(w_perrors,rerrors)^2)
-		BIC = -2*opts[[datname]][[modname]]$value+(log(n_df))*n_df
+		BIC = -2*opts[[datname]][[modname]]$value+(log(length(c(w_perrors,rerrors))))*n_df
 		pval = pchisq(errorsum,n_df)
 		c(BIC=BIC,pval=pval)
 		# errorsum

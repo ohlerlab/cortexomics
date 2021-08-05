@@ -4,6 +4,8 @@ base::source(here::here('src/R/Rprofile.R'))
 if(!exists("cdsgrl")) {
 	base::source("src/Figures/Figure0/0_load_annotation.R")
 }
+gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{safe_hashmap(.[[1]],.[[2]])}
 
 #We are going off of- https://peerj.com/articles/270/#fig-4
 

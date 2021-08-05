@@ -73,3 +73,11 @@ model {
     }
   }
 }
+
+
+
+generated quantities {
+  matrix [G,T] resid;
+  resid =  log(prot) - lMSmu ;
+}
+

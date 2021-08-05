@@ -17,7 +17,7 @@ transformed data{
 parameters {
   vector<lower=-10,upper=10>[G] l_st; // the ratio of steady state ratio to ribo
   matrix<lower=-10,upper=10>[G,T] lribo;  // log vector of ribo-seq levels
-  vector[G] lprot0; // initial LOG amount of protein
+  // vector[G] lprot0; // initial LOG amount of protein
 }
 
 transformed parameters{
@@ -31,14 +31,15 @@ transformed parameters{
     //get Ks
     Ks = exp(l_st + lKd);
     ribo = exp(lribo);
-    prot[,1] = exp(lprot0);
+    // prot[,1] = exp(lprot0);
+    prot = exp(lribo + rep_matrix(l_st,T));
     // print("Ks:");
     // print(Ks);
     // print("l_st:");
     // print(l_st);
     // print("lKd:");
     // print(lKd);
-    for(i in 2:T){
+    // for(i in 2:T){
       // Becker's code:
       //  c = y_model[idx] - a * b / l + a * m / l ** 2
       // y_model[idx + 1] = 
@@ -48,17 +49,17 @@ transformed parameters{
       //c * np.exp(-l * dt)
       //dt is just 1 in our model
       // we also can't do vectorized exponentiation, so we worth with lKd
-      m = ribo[,i] - ribo[,i-1] ;
-      prot[,i] = 
-        (Ks .* ribo[,i-1])./exp(lKd) - 
-        ((Ks .* m) ./ (exp(lKd*2))) + 
-        ((Ks .* m)  ./ exp(lKd)) +
-        ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
-        // print((Ks .* ribo[,i-1])./exp(lKd));
+      // m = ribo[,i] - ribo[,i-1] ;
+      // prot[,i] = 
+      //   (Ks .* ribo[,i-1])./exp(lKd) - 
+      //   ((Ks .* m) ./ (exp(lKd*2))) + 
+      //   ((Ks .* m)  ./ exp(lKd)) +
+      //   ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
+      //   // print((Ks .* ribo[,i-1])./exp(lKd));
         // print(((Ks .* m) ./ (exp(lKd*2))) );
         // print(((Ks .* m)  ./ exp(lKd)) );
         // print(((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd)));
-    }
+    // }
 }
 
 model {
@@ -71,3 +72,12 @@ model {
     }
   }
 }
+
+
+generated quantities {
+  matrix [G,T] resid;
+  resid =  log(prot) - lMSmu ;
+}
+
+
+
