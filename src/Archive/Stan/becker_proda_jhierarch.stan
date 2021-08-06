@@ -101,6 +101,8 @@ model {
   // l_pihalf ~ normal(mu_l_pihalf,1);
   // mu_l_pihalf ~ normal(l_pihalf_priormu,3);
   // l_pihalf ~ normal(mu_l_pihalf,2);
+  // theta ~ beta(1,5)
+  // msdev ~ normal(0,1)
   for(g in 1:G){
     for(t in 1:T){
       lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);

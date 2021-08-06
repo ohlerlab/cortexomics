@@ -67,17 +67,19 @@ model {
   // l_pihalf ~ normal(l_pihalf_priormu,l_pihalf_priorsd);
   for(g in 1:G){
     for(t in 1:T){
-      lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);
-      lMSmu[g,t]  ~ normal(log(prot[g,t]),lMSsigma[g,t]);
+      // lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);
+      // lMSmu[g,t] ~ normal(log(prot[g,t]),lMSsigma[g,t]);
+      target += normal_lpdf(lSeqmu[g,t] | lribo[g,t],lSeqsigma[g,t]);
+      target += normal_lpdf(lMSmu[g,t] | log(prot[g,t]),lMSsigma[g,t]);
     }
   }
 }
 
 
-generated quantities {
-  matrix [G,T] resid;
-  resid =  log(prot) - lMSmu ;
-}
+// generated quantities {
+//   matrix [G,T] resid;
+//   resid =  log(prot) - lMSmu ;
+// }
 
 
 

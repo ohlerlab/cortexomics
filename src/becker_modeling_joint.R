@@ -382,12 +382,8 @@ message(paste0(sep='\n',capture.output(ixopt$par$Ks[1])))
 ########Okay so the joint model with a point estimate works okay, what about
 ########If we optimize a hiearach model?
 ################################################################################
-
-estimate%>%filter(gene%in%gns4model)%>%.$l_pihalf%>%txtdensity
-estimate%>%filter(gene%in%gns4model)%>%.$l_pihalf%>%min
-
 {
-jointmodel_hierach = stan_model(here('src/Archive/Stan/becker_proda_jhierarch.stan'))
+jointmodel_hierach = stan_model(here('src/Archive/Stan/becker_proda_jhierarch_ldev_nomix.stan'))
 gns4model = gns_by_mod$production
 # gns4model = nonoutconvgenes
 combinitvals <- bmodelopts[gns4model]%>%map('riboseq')%>%map('production')%>%map('par')%>%get_comb_initvals
