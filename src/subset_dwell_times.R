@@ -125,27 +125,55 @@ if(!file.exists(here('data/allcodlist.rds'))){
 if(!exists('fpcovlist')) fpcovlist<-readRDS(here('data/fpcovlist.rds'))
 #	
 fpcovlist <- fpcovlist[names(allbamtbls)]
+sampname=fpcovlist%>%names%>%head(1)
+sampfpcov=fpcovlist[[sampname]]
+rlfpcov=sampfpcov[['29']]
 
 if(!file.exists(here('data/subfpprofilelist.rds'))){
-	subfpprofilelist <-mclapply(mc.cores=8,dtselgenelist,function(seltrs){
-			imap(fpcovlist,function(sampfpcov,sampname){
+	fpcodonmats <- 	imap(fpcovlist%>%head(1),function(sampfpcov,sampname){
 				trsums = sampfpcov%>%head(1)%>%map(~.[seltrs])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
 				sampfpcov['29']%>%lapply(function(rlfpcov){
 					rlfpcov = rlfpcov[seltrs]
 					rlfpcov = rlfpcov/(trsums)
 					# rlfpcov = rlfpcov > mean(rlfpcov)
-					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums>=32])
+					allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums>=0])
 					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
 					('.')
-					out = rlfpcov[allcodlistnz]%>%split(cods)%>%lapply(as.matrix)%>%map(colMeans)
+					out = rlfpcov[allcodlistnz]%>%split(cods)%>%lapply(as.matrix)
+					list(seqnames(allcodlistnz))
+					out %>% map(~Matrix::Matrix(.,sparse=TRUE))
+
+				})
+			})
+	object.size(fpcodonmats)/1e6
+
+	fpcodonmats <- 
+			imap(fpcovlist,function(sampfpcov,sampname){
+				trsums = sampfpcov%>%head(1)%>%map(~.[seltrs])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
+				sampfpcov%>%lapply(function(rlfpcov){
+					rlfpcov = rlfpcov[seltrs]
+					rlfpcov = rlfpcov/(trsums)
+					# rlfpcov = rlfpcov > mean(rlfpcov)
+					# allcodlistnz = allcodlist%>%subset(seqnames%in%names(trsums)[trsums>=32])
+					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
+					('.')
+					out = rlfpcov[allcodlistnz]%>%
+						as.matrix%>%set_rownames(as.vector(seqnames(allcodlistnz)))%>%
+						{mat=.;lapply(unique(cods),function(cod)mat[cods==cod,TRUE])}%>%
+						lapply(Matrix::Matrix,sparse=TRUE)
+					# out %>% map(colMeans)
 					out
 				})
 			})
-		})
+	
+	object.size(subfpprofilelist)/1e6
+
 	saveRDS(subfpprofilelist,here('data/subfpprofilelist.rds'))
 }else{
 	subfpprofilelist<-readRDS(here('data/subfpprofilelist.rds'))
 }
+
+
 
 # #RUST
 # if(!file.exists(here('data/subfprustprofilelist.rds'))){

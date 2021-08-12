@@ -1,3 +1,4 @@
+library(here)
 if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
 if(!exists('codonprofiledat')) base::source(here('src/subset_dwell_times.R'))
 
@@ -435,10 +436,10 @@ totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,dwell_time~availabilit
 totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,dwell_time~AA+availability)%>%anova
 
 
-LRT(
-	totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,abundance~AA)%>%anova
-	totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,aacor_dwell_time~abundance+AA)%>%anova
-)
+# LRT(
+	# totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,abundance~AA)%>%anova
+	# totrepsumcodondata%>%split(.,.$time)%>%.[[1]]%>%lm(data=.,aacor_dwell_time~abundance+AA)%>%anova
+# )
 
 gingold_types = 'ext_data/gingold_etal_2014_trna_types.tsv'%>%read_tsv
 gingold_types=gingold_types%>%mutate(codon = DNAStringSet(anticodon)%>%reverseComplement%>%as.character)
