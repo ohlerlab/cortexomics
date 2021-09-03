@@ -50,6 +50,7 @@ prop <- function(x,rnd=3) round(x/sum(x),rnd)
 enddist <- function(gr){
 	end(gr) - seqlengths(gr)[as.vector(seqnames(gr))]
 }
+
 width1grs <- function(gr){
 	stopifnot(Negate(is.unsorted)(gr))
 	isw1 <- width(gr)==1
@@ -63,6 +64,7 @@ width1grs <- function(gr){
 	mcols(narrow) <- mcols(broad)[rep(seq_along(broad),width(broad)),,drop=F]
 	sort(c(gr[isw1],narrow))
 }
+
 add_flank_bases <- function(reads,exonsgrl,fafileob,nbp=2){
 	#
 	#this gets the flanking bases for reads,
@@ -613,12 +615,245 @@ dev.off()
 normalizePath(plotfile)%>%message
 }
 
+sampfpcov=psitecov[[1]]
+if(!file.exists(here('data/ptrsums.rds'))){
+	ptrsums <- 	mcmapply(mc.cores=8,SIMPLIFY=F,psitecov,names(psitecov),FUN=function(sampfpcov,sampname){
+				sampfpcov = sampfpcov
+				sampfpcov%>%map(regScoreSums,innercds)%>%purrr::reduce(.,`+`)
+			})
+	saveRDS(ptrsums,here('data/ptrsums.rds'))
+}else{
+	ptrsums<-readRDS(here('data/ptrsums.rds'))
+	stopifnot(names(ptrsums)==names(psitecov))
+	stopifnot(names(ptrsums[[1]])==names(innercds))
+}
+psitecodonmats <- 	mcmapply(mc.cores=4,SIMPLIFY=F,psitecov[1:10],names(psitecov)[1:10],FUN=function(samp_pcov,sampname){
+	ptrsum = ptrsums[[sampname]]
+	samp_pcov%>%lapply(safely(function(rlfpcov){
+		rlfpcov = rlfpcov[names(ptrsum)]
+		rlfpcov = rlfpcov/(ptrsum)
+		('.')
+		out = rlfpcov[allcodlistnz]
+		stopifnot(out%>%max(na.rm=T)%>%max(na.rm=T)%>%is.finite)
+		out = out %>%split(cods)%>%lapply(as.matrix)
+		out = lapply(out,Matrix::Matrix,sparse=TRUE)
+		out
+	}))
+})
+psitecodonmats%<>%map_depth(2,'result')
+saveRDS(psitecodonmats,'data/psitecodonmats.rds')
+psitecodonmats<-readRDS('data/psitecodonmats.rds')
+
+row_gnames <- seqnames(allcodlistnz)%>%split(cods)
+matlist=psitecodonmats[[1]][[1]]
+.x='AAC'
+get_glist_profiles<-function(glist,row_gnames,psitecodonmats){
+	matlist = psitecodonmats[[1]][[1]]
+	.x='AAA'
+	ucods <- unique(cods)%>%setNames(.,.)
+	psitecodonmats%>%map_depth(2,function(matlist)map(ucods,function(cod){
+		matlist[[cod]][as.vector(row_gnames[[cod]])%in%unique(glist),]%>%colMeans(na.rm=T)
+	}))
+}
+glist=dtselgenelist[['nochange']]
+get_codon_prof_df <- function(glist,row_gnames,psitecodonmats){
+	codonprofiledat <- get_glist_profiles(glist,row_gnames,psitecodonmats)	
+	codonprofiledat <- codonprofiledat%>%
+		map_depth(3,.%>%
+			enframe('position','count'))%>%
+			map_df(.id='sample',.%>%
+				map_df(.id='readlen',.%>%
+					bind_rows(.id='codon')))
+	# codonprofiledat <- codonprofiles%>%map_depth(3,.%>%enframe('position','count'))%>%map_df(.id='sample',.%>%map_df(.id='readlen',.%>%bind_rows(.id='codon')))
+	codonprofiledat %<>% mutate(position = position - 1 - (FLANKCODS*3))
+	# codonprofiledat %<>% group_by(subgroup,sample,readlen,codon)%>%mutate(count= count / median(count))
+	codonprofiledat %<>% group_by(sample,readlen,codon)%>%
+		# mutate(count= count / median(count))
+		identity
+	codonprofiledat %<>% filter(!codon %in% c('TAG','TAA','TGA'))
+	codonprofiledat$readlen%<>%str_replace('^(\\d)','rl\\1')
+	codonprofiledat
+}
+sub_p_profilelist <- dtselgenelist['allhigh']%>%lapply(get_codon_prof_df,row_gnames,psitecodonmats)
+# subfpprofilelist[['nochange']]
 
 
 
 
+# subfpprofilelist%>%names
+geneset='allhigh'
+codonvarprofiles <-  
+	sub_p_profilelist[[geneset]]%>%
+# rustprofiledat%>%
+	ungroup%>%
+	group_by(sample,readlen,position)%>%
+	# mutate(count = count / mean(count))%>%
+	# filter(count==0)%>%.$codon%>%unique
+	# filter(signal!=0)%>%
+	# filter(position==1)%>%
+	# filter(sample%>%str_detect('ribo_1'))%>%
+	filter(!is.nan(count))%>%
+	# summarise(sdsig=sd(count,na.rm=T)/median(count,na.rm=T))%>%
+	separate(sample,c('time','assay','rep'))%>%
+	group_by(rep,time,readlen,position)%>%
+	# mutate(count = count / mean(count))%>%
+	summarise(sdsig=sd(count,na.rm=T))%>%
+	group_by(readlen,time,position)%>%
+	summarise(sdsig=mean(sdsig))%>%
+	mutate(numreadlen=str_extract(readlen,'\\d+')%>%as.numeric)%>%
+	filter(-18<position,position < 12)%>%
+	# filter(position> -numreadlen+6,position< -6)%>%
+	filter(numreadlen>=25,numreadlen<=31)%>%
+	arrange(position)
+#
+codonvaroffsets = codonvarprofiles%>%
+	filter(-9<position,position < 9)%>%
+	group_by(readlen,time)%>%slice(which.max(sdsig))%>%
+	mutate(offset=position+3)%>%
+	as.data.frame
+#
+codonvaroffsets = sub_p_profilelist[[geneset]]%>%
+	ungroup%>%
+	distinct(sample)%>%
+	separate(sample,c('time','assay','rep'),remove=F)%>%
+	left_join(codonvaroffsets)%>%
+	select(sample,readlen,numreadlen,offset)%>%
+	separate(sample,c('time','assay','rep'),remove=F)
 
-stop()
+
+{
+# codonvaroffsets%<>%mutate(readlen=paste0(length))
+plotfile='plots/sh_p_pos_vs_codon_variance.pdf'
+pdf(plotfile,w=12,h=3*n_distinct(codonvarprofiles$readlen))
+#plotting variance amongst codons at each point.
+# sh_codprof%>%
+codonvarprofiles%>%
+	filter(time%>%is_in(names(stagecols)))%>%
+	{
+		qplot(data=.,x=position,y=sdsig)+
+		theme_bw()+
+		facet_grid(readlen~time)+
+		scale_y_continuous('between codon variation (meannorm)')+
+		scale_x_continuous('5 read position relative to codon ')+
+		geom_vline(data=filter(codonvaroffsets,readlen%in%.$readlen),aes(xintercept= offset),color=I('blue'),linetype=2)+
+		geom_vline(data=filter(codonvaroffsets,readlen%in%.$readlen),aes(xintercept= offset-5),color=I('green'),linetype=2)+
+		# geom_vline(xintercept= 0,color=I('blue'),linetype=2)+
+		# geom_vline(xintercept= -5,color=I('green'),linetype=2)+
+		ggtitle("variance of 5' read occurance vs position")
+	}%>%print
+dev.off()
+normalizePath(plotfile)
+}
+
+{
+offsets%<>%mutate(readlen=paste0(length))
+plotfile='plots/sh_p_pos_vs_codon_variance_zoom.pdf'
+pdf(plotfile,w=6,h=3*1)
+#plotting variance amongst codons at each point.
+# sh_codprof%>%
+codonvarprofiles%>%
+	filter(time%>%is_in(names(stagecols)))%>%
+	filter(time%>%is_in(c('E13','E175')),readlen%>%is_in('rl29'))%>%
+	{
+		qplot(data=.,x=position,y=sdsig)+
+		theme_bw()+
+		facet_grid(readlen~time)+
+		scale_y_continuous('between codon variation (meannorm)')+
+		scale_x_continuous('5 read position relative to codon ')+
+		geom_vline(data=filter(offsets,readlen%in%.$readlen),aes(xintercept= -offset),color=I('green'),linetype=2)+
+		# geom_vline(data=codonvaroffsets2plot%>%filter(time%>%is_in(c('E13','E175')),readlen%>%is_in('rl29')),aes(xintercept= -offset),color=I('blue'),linetype=2)+
+		# geom_vline(data=codonvaroffsets2plot%>%filter(time%>%is_in(c('E13','E175')),readlen%>%is_in('rl29')),aes(xintercept= -offset-5),color=I('green'),linetype=2)+
+		# geom_vline(xintercept= 0,color=I('blue'),linetype=2)+
+		# geom_vline(xintercept= -5,color=I('green'),linetype=2)+
+		ggtitle("variance of 5' read occurance vs position")
+	}%>%print
+dev.off()
+normalizePath(plotfile)
+}
+
+
+
+################################################################################
+########## Now check against tRNA levels
+################################################################################
+if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
+allcodsig_isomerge%<>%addcodon
+trna_ab_df_samp = allcodsig_isomerge[c("fraction", "time", "sample", "anticodon", "abundance", "codon",
+"weightedusage", "availability","rep")]
+#get data on the trnas
+trna_dat <- trna_ab_df_samp%>%
+	select(-sample)%>%
+    select(fraction,time,rep,codon,abundance,availability)%>%
+    group_by(fraction,time,codon)%>%
+    summarise_at(vars(one_of(c('abundance','availability'))),list(mean),na.rm=T)
+#
+clean_fr_sampnames<-function(x) x%>%str_replace('.*_(Poly|80S)(.*)_()','\\2_\\1ribo_\\3')
+rloffsets<-offsets%>%select(readlen,length,offset)%>%mutate(readlen=str_replace(length,'^(\\d)','rl\\1'))
+lexp = 3+3 #include positions for positions corresponding to bigger offsets
+rexp = 3#include positions for positions corresponding to smaller offsets
+# codonprofiles%>%
+codondata <- 
+	sub_p_profilelist[['allhigh']]%>%
+	# codonprofiledat%>%
+	# filter(subgroup=='nochangehighe')%>%
+	# filter(subgroup=='all')%>%
+# codondata <- rustprofiledat%>%
+	# filter(sample%>%str_detect('ribo'))%>%
+	# mutate_at(vars(sample),clean_fr_sampnames)%>%
+    group_by(sample)%>%
+    # mutate(readlen=paste0('rl',length))%>%
+    # safe_left_join(rloffsets)%>%
+    safe_left_join(codonvaroffsets%>%mutate_at('sample',clean_fr_sampnames))%>%
+    separate(sample,c('time','assay','rep'))%>%
+    # filter(readlen=='rl29')%>%
+    # filter(readlen%in%c('rl29','rl30','rl28','rl27'))%>%
+    # filter(readlen%in%c('rl29','rl31','rl30','rl27','rl26'))%>%
+    # mutate(offset=0)%>%#for the shifted data
+    # filter(position <= -(offset-rexp))%>%
+    # filter(position >= -(offset+lexp))%>%
+    # filter(position == -offset)%>%
+    filter(between(position, -offset-5,-offset))%>%
+    # filter(between(position, -offset-5,-offset-3))%>%
+    group_by(assay,time,codon,rep)%>%
+    summarise(
+    	inf_p_site_occ= sum(count[position%>%between(-2,0)]),
+    	p_site_occ = sum(count[position%>%between(-offset-2,-offset)]),
+    	a_site_occ = sum(count[position%>%between(-offset-3,-offset-3)])
+    )%>%
+    arrange(assay!='ribo')
+#seperate poly and total tRNA info
+total_trnadat <- trna_dat%>%filter(fraction=='Total')%>%select(time,codon,abundance,availability)
+poly_trnadat <- trna_dat%>%filter(fraction=='Poly')%>%
+	select(time,codon,poly_abundance=abundance,poly_availability=availability,inf_p_site_occ)
+#add tRNA info, 
+#AA and aa corrected dwell time
+codondata%<>%
+    left_join(total_trnadat,by=c('time','codon'))%>%
+    left_join(poly_trnadat,by=c('time','codon'))%>%
+    mutate(AA=GENETIC_CODE[codon])%>%
+    group_by(assay,time,rep,AA)%>%
+    arrange(assay!='ribo')%>%
+    mutate(aacor_p_site_occ=ifelse(n()==1,NA,p_site_occ-mean(p_site_occ)))
+#summarise the replicates
+repsumcodondata<-codondata%>%
+	group_by(assay,time,codon,AA)%>%
+	summarise_at(vars(abundance,availability,poly_abundance,poly_availability,a_site_occ,p_site_occ,aacor_p_site_occ,inf_p_site_occ),mean)%>%
+    arrange(assay!='ribo')
+#check all codons there
+stopifnot(codondata%>%group_by(assay,time,rep)%>%tally%>%.$n%>%`==`(61)%>%all)
+stopifnot(repsumcodondata%>%group_by(assay,time)%>%tally%>%.$n%>%`==`(61)%>%all)
+
+# codondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$availability)}
+repsumcodondata%>%filter(assay=='ribo',time=='E13')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$a_site_occ,.$availability)}
+repsumcodondata%>%filter(assay=='ribo',time=='E13')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$availability)}
+# codondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(2)%>%{quicktest(.$p_site_occ,.$availability)}
+# repsumcodondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(2)%>%{quicktest(.$p_site_occ,.$availability)}
+# repsumcodondata%>%filter(assay=='Polyribo')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$poly_abundance)}
+
+
+codondata%>%lm(data=.,a_site_occ~AA)%>%aov%>%summary%>%as.list%>%.[[1]]%>%.[[2]]%>%{.[1]/sum(.)}
+codondata%>%lm(data=.,p_site_occ~AA)%>%aov%>%summary%>%as.list%>%.[[1]]%>%.[[2]]%>%{.[1]/sum(.)}
+codondata%>%lm(data=.,inf_p_site_occ~AA)%>%aov%>%summary%>%as.list%>%.[[1]]%>%.[[2]]%>%{.[1]/sum(.)}
 
 # best_samp_rl_reads
 # 	group_by(sample,length)%

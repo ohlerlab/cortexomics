@@ -163,3 +163,29 @@ find  $finalfolder -type f -mtime -1
 
 mkdir -p "$finalfolder"/Figure_S/opt_vs_dt/
 cp /fast/work/groups/ag_ohler/dharnet_m/cortexomics/plots/rfreq_vs_dwell_time.pdf "$finalfolder"/Figure_S/opt_vs_dt/
+
+
+## Kinetics Redo
+destdir=~/Dropbox/projects/cortexomics/manuscript/Draft_August/kinetics_redo
+mkdir -p $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/becker_trajectory_classes.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/demoplot.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/NED_vs_notmsdev_barplots.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/trajectory_example_plots.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/hierarch_tefix_indiv_v_mcshane_pihalf.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/beck_traj_class_goplots.pdf $destdir
+## Psites-redo
+destdir=/home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/p_a_redux
+mkdir -p  $destdir
+#
+cp   /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/a_occ_ab_vs_dt.pdf $destdir
+cp   /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/a_occ_av_vs_dt.pdf $destdir
+cp  /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/p_occ_ab_vs_dt.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/p_occ_av_vs_dt.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/a_occ_stage_dtdist.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/p_occ_stage_dtdist.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/atimes_adjecency_vs_psite_occ.pdf $destdir
+cp  /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/abundance_freq.pdf $destdir 
+cp   /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/ab_v_wusage.pdf $destdir
+cp  /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/p_site_occ_vs_poly_av_vs_dt.pdf $destdir
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/hierarch_tefix_indiv_v_mcshane_pihalf.pdf $destdir

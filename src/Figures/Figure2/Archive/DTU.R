@@ -92,28 +92,3 @@ all(rownames(cts) == txdf$TXNAME)
 counts <- data.frame(gene_id=txdf$GENEID,
                      feature_id=txdf$TXNAME,
                      cts)
-library(DRIMSeq)
-allcountdesign = colnames(iso_tx_countdata$counts)%>%data.frame(sample=.)%>%separate(sample,into=c('time','assay','rep'),remove=F)
-allcountdesign = allcountdesign%>%arrange(assay=='ribo')%>%mutate(assay=as_factor(assay))%>%as.data.frame%>%set_rownames(.$sample)
-
-allcountdesign%<>%mutate(sample_id=sample)
-d <- dmDSdata(counts=counts, samples=allcountdesign%>%as.data.frame)
-n.small = allcountdesign%>%group_by(time,assay)%>%tally%>%.$n%>%min
-n = nrow(allcountdesign)
-d <- dmFilter(d,
-              min_samps_feature_expr=n.small, min_feature_expr=10,
-              min_samps_feature_prop=n.small, min_feature_prop=0.1,
-              min_samps_gene_expr=n, min_gene_expr=10)
-design_full <- model.matrix(~assay*time, data=DRIMSeq::samples(d))
-
-
-
-
-#Run drimseq
-d = d
-d <- dmPrecision(d, design=design_full)
-d <- dmFit(d, design=design_full)
-d <- dmTest(d)
-d %>% saveRDS(here('data/d.rds'))
-
-

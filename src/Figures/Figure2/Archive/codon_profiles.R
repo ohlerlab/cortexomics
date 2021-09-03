@@ -228,9 +228,11 @@ codonprofiledat%<>%mutate(position = position - 1 - (FLANKCODS*3))
 codonprofiledat%<>%group_by(sample,readlen,codon)%>%mutate(count= count / median(count))
 codonprofiledat%<>%filter(!codon %in% c('TAG','TAA','TGA'))
 #
-profvarpca = codonprofiledat%>%
-	split(.,.$sample)%>%
-	map_df(.id='sample',.%>%
+
+profvarpca = subfpprofilelist[['allhigh']]%>%
+	# split(.,.$sample)%>%
+	# map_df(.id='sample',.%>%
+		group_by(readlen,codon,position)%>%summarise(count=sum(count))%>%
 		split(.,list(.$readlen))%>%
 		# .[[1]]%>%
 		map_df( .id='readlen',.%>%
@@ -239,30 +241,45 @@ profvarpca = codonprofiledat%>%
 			filter(position> -numreadlen+6,position < -6)%>%
 			# filter(sample=='E13_ribo_1')%>%
 			ungroup%>%
-			select(-numreadlen,-readlen,-sample)%>%
+			select(codon,position,count)%>%
 			# group_by(codon)%>%mutate(count/median(count))%>%
+			{browser();.}%>%
 			spread(position,count)%>%
 			{set_rownames(.[,-1],.$codon)}%>%
-			princomp%>%{.$loadings[,1]}%>%{./.[which.max(abs(.))]}%>%enframe('position','pca1')
+			{
+				x=.
+			pcaout = princomp(x)%>%{.$loadings[,1]}%>%{./.[which.max(abs(.))]}%>%enframe('position','pca1')
+			pcaout = left_join(pcaout,
+				princomp(x)%>%{.$loadings[,2]}%>%{./.[which.max(abs(.))]}%>%enframe('position','pca2'),
+				by=c('position')
+			)
+			pcaout
+			}
 		)
-	)
+	# )
+	# )
+profvarpca%<>%select(sample,readlen,position,pca1,pca2)
+profvarpca<-profvarpca%>%pivot_longer(pca1:pca2,names_to='comp',values_to='pcaval')
 #
-profvarpca%<>%select(sample,readlen,position,pca1)
-profvarpca$readlen = paste0('rl',profvarpca$readlen)
+
+# profvarpca$readlen = paste0('rl',profvarpca$readlen)
 library(rlang)
 offsets <- read_tsv('ext_data/offsets_manual.tsv')
 #
-
-plotfile<-'plots/figures/figure2/trna_codons/fppos_vs_codon_pcascore.pdf'
-offsets%<>%mutate(readlen=paste0('rl',length))
+plotfile<-'plots/fppos_vs_codon_pcascore.pdf'
+# offsets%<>%mutate(readlen=paste0('rl',length))
 pdf(plotfile,w=12,h=12)
 profvarpca%>%
 	# slice_by(sample,c(1,2,3,4,5,6))%>%
 	filter(sample%>%str_detect('ribo_1'))%>%
-ggplot(data=.,aes(y=pca1,x=as.numeric(position)))+geom_point()+
+ggplot(data=.,aes(y=pcaval,color=comp,x=as.numeric(position)))+geom_line()+
 	facet_grid(readlen~sample)+
 		geom_vline(data=offsets,aes(xintercept= -offset),color=I('blue'),linetype=2)+
 		geom_vline(data=offsets,aes(xintercept= -offset-5),color=I('green'),linetype=2)
+		geom_vline(data=offsets,aes(xintercept= -offset-1),color=I('blue'),linetype=2)+
+		geom_vline(data=offsets,aes(xintercept= -offset-4),color=I('green'),linetype=2)
+		geom_vline(data=offsets,aes(xintercept= -offset-2),color=I('blue'),linetype=2)+
+		geom_vline(data=offsets,aes(xintercept= -offset-3),color=I('green'),linetype=2)
 dev.off()
 normalizePath(plotfile)
 

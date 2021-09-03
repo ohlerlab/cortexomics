@@ -212,10 +212,10 @@ allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
 #now get the mean across replicates
 allcodsigmean_isomerge <- allcodsig_isomerge %>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
-    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
+    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean),na.rm=T)
 allcodsigmean <- all_deco_sig%>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
-    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean))
+    summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean),na.rm=T)
 # add codon info
 allcodsigmean_isomerge %<>% addcodon
 allcodsigmean %<>% addcodon
@@ -277,6 +277,9 @@ test_that("HTqPCR agrees with me",{
     # stopifnot(`<`(testvals$dCt[2]- mean(exprs(d.norm)['Ala-AGC-1',c(1,2,5,6)][3:4]),0.001))
 
 })
+
+
+allcodsig_isomerge%>%left_join(enframe('codon','freq'),by='codon')
 
 test_that("These values look right, abundance correlates with usage on log scale before and after",{
     

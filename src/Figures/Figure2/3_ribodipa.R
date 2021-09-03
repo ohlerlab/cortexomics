@@ -589,9 +589,9 @@ message(normalizePath(plotfile))
 
 startuptrs = poseffectdf%>%filter(str_pvalue<0.05,str_lfc>0)%>%.$tr_id
 nonstartuptrs = poseffectdf%>%filter(!(str_pvalue<0.05&str_lfc>0))%>%.$tr_id
-
+#
 allaatable = cdsstartaas%>%as.matrix%>%.[,2:10]%>%table
-
+#
 aacontentmat = matrix(ncol=2,
 	c(cdsstartaas[nonstartuptrs]%>%as.matrix%>%.[,2:4]%>%table%>%.[names(allaatable)],
 	cdsstartaas[startuptrs]%>%as.matrix%>%.[,2:4]%>%table%>%.[names(allaatable)]

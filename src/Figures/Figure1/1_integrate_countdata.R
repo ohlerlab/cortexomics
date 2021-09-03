@@ -308,7 +308,9 @@ countcontr_df %>% saveRDS(here('data/countcontr_df.rds'))
 ################################################################################
 ########Stepwise version
 ################################################################################
+
 {
+tps <- allcountdesign$time%>%unique
 desmat = allvoom$design
 tpcontrnames = desmat%>%colnames%>%str_subset('^time')
 for(i in 2:length(tpcontrnames)){

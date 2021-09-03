@@ -13,45 +13,46 @@ multi_spread <- function(df, key, value) {
         unite(temp, !!keyq, variable) %>%
         spread(temp, value)
 }
-
+fr_stepcountcontrdf <- readRDS(here('data/fr_stepcountcontrdf.rds'))
+#
+alllimmares$contrast%>%table
+fr_stepcountcontrdf$time%>%table
+stepcountcontrdf <- stepcountcontrdf
+#
 foldchangetbl<-bind_rows(
-	alllimmares%>%
-		filter(contrast%>%str_detect('^time'))%>%
-		mutate(time=str_replace(contrast,'time',''))%>%
+	stepcountcontrdf%>%
+		filter(assay=='all')%>%
 		mutate(changetype='transcriptional'),
-	alllimmares%>%
-		filter(contrast%>%str_detect('assayribo:time'))%>%
-		mutate(time=str_replace(contrast,'assayribo:time',''))%>%
+	stepcountcontrdf%>%
+		filter(assay=='TE')%>%
 		mutate(changetype='translational')
 )
-foldchangetbl%<>%select(-contrast)
+foldchangetbl%<>%select(-assay)
+foldchangetbl$gene_name <- gid2gnm[[foldchangetbl$gene_id]]
 foldchangetbl$time%>%unique	
-stopifnot(all(foldchangetbl%>%colnames%>%setequal(c("time", "logFC", "CI.L", "CI.R", "AveExpr",
+limmaobcols<-c("time", "logFC", "CI.L", "CI.R", "AveExpr",
 "t", "P.Value", "adj.P.Val", "B", "gene_name", "gene_id",
-"changetype"))))
-
+"changetype")
+stopifnot(all(foldchangetbl%>%colnames%>%setequal(limmaobcols)))
 xtailcols <- c('time',"gene_id", "mRNA_log2FC", "RPF_log2FC", "log2FC_TE_v1",
 "pvalue_v1", "E13_log2TE", "E145_log2TE", "log2FC_TE_v2", "pvalue_v2",
 "logFC", "p_value", "adj.P.Val", "base_mean", "gene_name",
 "E16_log2TE", "E175_log2TE", "P0_log2TE")
-
 stopifnot(all(foldchangetbl%>%colnames%>%setequal(c("time", "logFC", "CI.L", "CI.R", "AveExpr",
 "t", "P.Value", "adj.P.Val", "B", "gene_name", "gene_id",
 "changetype"))))
-
-
 xtailfoldchange<-Sys.glob('pipeline/xtail/xtail_*')%>%setNames(timepoints[-1])%>%
 	map_df(.id='time',fread)%>%
 	mutate(gene_id = gnm2gid[[gene_name]])%>%
 	# set_colnames(xtailcols)%>%
 	# select(one_of(colnames(foldchangetbl)))%>%
 	mutate(changetype='translational_xtail')
-
 foldchangetblall<-bind_rows(
 	foldchangetbl,
 	xtailfoldchange%>%select(changetype,time,gene_id,logFC=log2fc,adj.P.Val=adj_p_value)
 )
 
+foldchangetbl
 
 
 foldchangetblall_spread<-foldchangetblall%>%select(changetype,time,gene_id,logFC,adj.P.Val)%>%
