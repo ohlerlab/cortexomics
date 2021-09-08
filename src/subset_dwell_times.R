@@ -204,6 +204,7 @@ zerotrs = which(trsums[[1]]==0)%>%names
 # fpcodonmats[[1]][[1]][[1]]%>%is.finite%>%not%>%which
 # fpcodonmats[[1]][[1]][[1]]
 
+stop()
 
 if(!file.exists(here('data/fpcodonmats.rds'))){
 	
@@ -473,6 +474,12 @@ fprustprofilelist<-readRDS(here('data/fprustprofilelist.rds'))
 
 rust_rocl<-readRDS(here('data/subfprustprofilelist.rds'))[['all']]
 
+sampname<-mainsamps[1]
+sampfpcov<-fpcovlist[[sampname]]
+rlfpcov <- sampfpcov[['29']]
+seltrs=TRUE
+ 
+
 rust_roel <- 	mclapply(mc.cores=1,dtselgenelist['all'],function(seltrs){
 			imap(fpcovlist[mainsamps[1]],function(sampfpcov,sampname){
 				# trsums = sampfpcov%>%map(~.[innercds[seltrs]])%>%map(sum)%>%purrr::reduce(.,`+`)#sum over counts for that transcript
@@ -480,16 +487,19 @@ rust_roel <- 	mclapply(mc.cores=1,dtselgenelist['all'],function(seltrs){
 				sampfpcov['29']%>%lapply(function(rlfpcov){
 					browser()
 					rlfpcov = rlfpcov[seltrs]
-					rlfpcov = rlfpcov > mean(rlfpcov)
+					innercdsmeans <- samptrsums/width(innercds[names(samptrsums)])
+					rlfpcov = rlfpcov > innercdsmeans[names(rlfpcov)]
+					
+					nz_trs <- names(samptrsums)[samptrsums!=0]
 					allcodlistnz = allcodlist%>%
-						subset(seqnames%in%names(samptrsums)[samptrsums!=0])
+						subset(seqnames%in%nz_trs)
 					cods = names(allcodlistnz)%>%str_split('\\.')%>%map_chr(1)
 					('.')
 					rustvalmat = rlfpcov[allcodlistnz]%>%split(cods)%>%
 						lapply(as.matrix)%>%
 						map(colMeans)
 					rustvalmat
-					samptrsums/width(innercds[names(samptrsums)])
+					
 				})
 			})
 		})

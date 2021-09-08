@@ -1,6 +1,6 @@
 library(here)
 if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
-if(!exists('codonprofiledat')) base::source(here('src/subset_dwell_times.R'))
+if(!exists('kl_df')) base::source(here('src/subset_dwell_times.R'))
 
 
 
@@ -24,39 +24,64 @@ trna_dat <- trna_ab_df_samp%>%
     select(fraction,time,rep,codon,abundance,availability)%>%
     group_by(fraction,time,codon)%>%
     summarise_at(vars(one_of(c('abundance','availability'))),list(mean),na.rm=T)
-varoffsets2use<-codonvaroffsets
-rloffsets<-offsets%>%select(readlen,length,offset)%>%mutate(readlen=str_replace(length,'^(\\d)','rl\\1'))
-lexp = 3+3 #include positions for positions corresponding to bigger offsets
-rexp = 3#include positions for positions corresponding to smaller offsets
+# varoffsets2use<-codonvaroffsets
+varoffsets2use<-kl_offsets2plot%>%
+	# group_by(readlen,time)%>%slice(1)%>%
+	mutate(phase=position%%3)%>%
+	# select(offset,readlen,phase,sample)
+	select(-position)
+	# rloffsets<-offsets%>%select(readlen,length,offset)%>%mutate(readlen=str_replace(length,'^(\\d)','rl\\1'))
+# lexp = 3+3 #include positions for positions corresponding to bigger offsets
+# rexp = 3#include positions for positions corresponding to smaller offsets
 # codonprofiles%>%
-codondata <- 
-	# subfpprofilelist[['nochange']]%>%
+precodondata <- 
+	# frustprofilelist%>%
 	frustprofilelist%>%
     mutate_at('sample',clean_fr_sampnames)%>%
     group_by(sample)
-codondata<-codondata%>%safe_left_join(varoffsets2use,by=c('sample','readlen'))%>%
+codondata_notrna<-precodondata%>%
+	mutate(phase=position%%3)%>%
+	# inner_join(varoffsets2use,by=c('sample','readlen','phase'),allow_missing=T)%>%
+	inner_join(varoffsets2use,by=c('readlen','phase'),allow_missing=T)%>%
     separate(sample,c('time','assay','rep'))%>%
-    filter(between(position, -offset-5,-offset))%>%
-    group_by(assay,time,codon,rep)%>%
-    # filter(readlen%in%c('rl27','rl28','rl29','rl30'))%>%
+    # filter(between(position, -offset-5,-offset))%>%
+    # group_by(assay,time,codon,rep)%>%
+    # filter(readlen%in%c('rl26','rl27','rl28','rl29','rl30'))%>%
     filter(readlen%in%c('rl29'))%>%
-    summarise(
+    group_by(time,assay,rep,readlen)%>%
+    select(time,assay,rep,readlen,phase,codon,count,position,offset)
+#
+codondata_notrna%>%filter(is.na(offset))
+#
+#seperate a and p site occ
+codondata_notrna%<>%    
+	group_by(time,assay,rep,codon)%>%
+	summarise(
     	# p_site_occ = sum(count[position== -offset]),
-    	p_site_occ = sum(count[position%>%between(-offset-2,-offset)]),
     	# a_site_occ = sum(count[position== -offset-3]),
-    	a_site_occ = sum(count[position%>%between(-offset-5,-offset-3)])
-    	# p_site_occ = sum(count[position%>%between(-)]),
-    	# a_site_occ = sum(count[position%>%between(-15,-14)])
+    	# p_site_occ = sum(count[position== -11]),
+    	# a_site_occ = sum(count[position== -11-3]),
+    	# p_site_occ = sum(count[position== -offset]),
+    	# p_site_occ = sum(count[position%>%between(-offset-2,-offset)]),
+    	# a_site_occ = sum(count[position== -offset-3]),
+    	# a_site_occ = sum(count[position%>%between(-offset-5,-offset-3)])
+    	p_site_occ = sum(count[position%>%between(-offset,-offset)]),
+    	a_site_occ = sum(count[position%>%between(-offset-3,-offset-3)]),
+    	# a_site_occ = sum(count[position%>%between(-offset-3-3,-offset+1-3-3)]),
     )%>%
     arrange(assay!='ribo')
+stopifnot(!is.na(codondata_notrna$a_site_occ))
+stopifnot(!is.na(codondata_notrna$p_site_occ))
+}
+{
 #codondatasave<-codondata
 #seperate poly and total tRNA info
-total_trnadat <- trna_dat%>%filter(fraction=='Total')%>%select(time,codon,abundance,availability)
-poly_trnadat <- trna_dat%>%filter(fraction=='Poly')%>%
+total_trnadat <- trna_dat%>%ungroup%>%filter(fraction=='Total')%>%select(time,codon,abundance,availability)
+poly_trnadat <- trna_dat%>%ungroup%>%filter(fraction=='Poly')%>%
 	select(time,codon,poly_abundance=abundance,poly_availability=availability)
 #add tRNA info, 
 #AA and aa corrected dwell time
-codondata%<>%
+codondata<-codondata_notrna%>%
     left_join(total_trnadat,by=c('time','codon'))%>%
     left_join(poly_trnadat,by=c('time','codon'))%>%
     mutate(AA=GENETIC_CODE[codon])%>%
@@ -71,6 +96,7 @@ repsumcodondata<-codondata%>%
 #check all codons there
 stopifnot(codondata%>%group_by(assay,time,rep)%>%tally%>%.$n%>%`==`(61)%>%all)
 stopifnot(repsumcodondata%>%group_by(assay,time)%>%tally%>%.$n%>%`==`(61)%>%all)
+
 # codondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$availability)}
 repsumcodondata%>%filter(assay=='ribo',time=='E13')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$a_site_occ,.$availability)}
 repsumcodondata%>%filter(assay=='ribo',time=='E13')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$availability)}
@@ -78,10 +104,8 @@ repsumcodondata%>%filter(assay=='ribo',time=='E13')%>%group_by(assay,time)%>%gro
 # codondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(2)%>%{quicktest(.$p_site_occ,.$availability)}
 # repsumcodondata%>%filter(assay=='ribo')%>%group_by(assay,time)%>%group_slice(2)%>%{quicktest(.$p_site_occ,.$availability)}
 # repsumcodondata%>%filter(assay=='Polyribo')%>%group_by(assay,time)%>%group_slice(1)%>%{quicktest(.$p_site_occ,.$poly_abundance)}
-codondata %>% saveRDS(here('data/codondata.rds'))
-repsumcodondata %>% saveRDS(here('data/repsumcodondata.rds'))
-}
-
+# codondata %>% saveRDS(here('data/codondata.rds'))
+#r epsumcodondata %>% saveRDS(here('data/repsumcodondata.rds'))
 
 totrepsumcodondata <- repsumcodondata%>%filter(assay=='ribo')
 polyrepsumcodondata <- repsumcodondata%>%filter(assay=='Polyribo')
@@ -127,19 +151,95 @@ ggarrange(plotlist=list(p1,p2),nrow=2)
 dev.off()
 message(normalizePath(plotfile))
 
+# asiteoccs = subfpprofilelist[['allhigh']]%>%filter(sample%>%str_detect('E13_ribo'),readlen=='rl29')%>%filter(position== -11-3)%>%
+	# group_by(sample,codon)%>%summarise_at(vars(count),mean)%>%
+	# group_by(codon)%>%summarise_at(vars(count),mean)
+# asiteoccs%>%rename('a_site_occ'=count)%>%
+	# left_join(psiteoccs%>%rename('p_site_occ'=count),by='codon')%>%
+	# mutate(foo=1)%>%
+	# make_quantcompplot_fac(a_site_occ,p_site_occ,foo,fname='plots/atimes_adjecency_vs_psite_occ.pdf')
 
+################################################################################
+########
+################################################################################
+	
+make_quantcompplot_fac <- function(compdf, col1, col2, facetvar=NULL, fname){
+	require(LSD)
+	base::source(here('Applications/LSD/R/LSD.heatscatter.R'))
+	require(broom)
+	col1<-enquo(col1)
+	col2<-enquo(col2)
+	facetvar<-enquo(facetvar)
+	compdf%<>%dplyr::rename(facet=!!facetvar)
+	corlabel = compdf%>%
+		group_by(facet)%>%
+		filter(is.finite(!!col1),is.finite(!!col2))%>%
+		summarise(tidy(cor.test(!!col1, !!col2)))
+	corlabel = corlabel%>%
+		mutate(
+			pformat=format(p.value,format='e',digits=4),
+			pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
+			labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
+	#
+	nlabel= corlabel%>%
+		mutate(labl=paste0('N=',parameter))
+	facetnum <- n_distinct(compdf$facet)
+	# compdf%<>%mutate(facet=!!facetvar)
+	# pdf(fname,h=3,w=5*facetnum)
+	# gplot = heatscatter(ggplot=TRUE,
+			# compdf[[quo_name(col1)]],compdf[[quo_name(col2)]])+
+	gplot=compdf%>%ggplot(aes(x=!!col1,y=!!col2))+
+		geom_point()+
+		scale_x_continuous(quo_name(col1))+
+		scale_y_continuous(quo_name(col2))+
+		facet_grid(.~facet)+
+		geom_smooth(method='lm')+
+		ggtitle(basename(fname))+
+		geom_text(show.legend=F,data=corlabel,
+			hjust=1,vjust=1,x= Inf,y=Inf,aes(label=labl))+
+		geom_text(show.legend=F,data=nlabel,
+			hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))+
+		theme_bw()
+	# dev.off()
+	pdf(fname,h=5,w=5*facetnum)
+	print(gplot)
+	dev.off()
+	message(normalizePath(fname))
+}
 
-psiteoccs = subfpprofilelist[['allhigh']]%>%filter(sample%>%str_detect('E13_ribo'),readlen=='rl29')%>%filter(position== -11)%>%
-	group_by(sample,codon)%>%summarise_at(vars(count),mean)%>%
-	group_by(codon)%>%summarise_at(vars(count),mean)
-asiteoccs = subfpprofilelist[['allhigh']]%>%filter(sample%>%str_detect('E13_ribo'),readlen=='rl29')%>%filter(position== -11-3)%>%
-	group_by(sample,codon)%>%summarise_at(vars(count),mean)%>%
-	group_by(codon)%>%summarise_at(vars(count),mean)
-asiteoccs%>%rename('a_site_occ'=count)%>%
-	left_join(psiteoccs%>%rename('p_site_occ'=count),by='codon')%>%
-	mutate(foo=1)%>%
-	make_quantcompplot_fac(a_site_occ,p_site_occ,foo,fname='plots/atimes_adjecency_vs_psite_occ.pdf')
+totrepsumcodondata <- repsumcodondata%>%filter(assay=='ribo')
+polyrepsumcodondata <- repsumcodondata%>%filter(assay=='Polyribo')
+# dir.create('plots/p_a_redux/')
+fname= here(paste0('plots/p_a_redux/','a_occ_ab_vs_dt','.pdf'))
+totrepsumcodondata%>%make_quantcompplot_fac(abundance,a_site_occ,time,fname)
+fname= here(paste0('plots/p_a_redux/','a_occ_av_vs_dt','.pdf'))
+totrepsumcodondata%>%make_quantcompplot_fac(availability,a_site_occ,time,fname)
+#
+fname= here(paste0('plots/p_a_redux/','p_occ_ab_vs_dt','.pdf'))
+totrepsumcodondata%>%make_quantcompplot_fac(abundance,p_site_occ,time,fname)
+fname= here(paste0('plots/p_a_redux/','p_occ_av_vs_dt','.pdf'))
+totrepsumcodondata%>%make_quantcompplot_fac(availability,p_site_occ,time,fname)
+#
+# fname= here(paste0('plots/p_a_redux/','p_site_occ_vs_poly_av_vs_dt','.pdf'))
+# polyrepsumcodondata%>%
+	# left_join(poly_trnadat,by=c('time','codon'))%>%
+	# make_quantcompplot_fac(poly_availability,p_site_occ,time,fname)
+#
+fname= here(paste0('plots/p_a_redux/','abundance_freq','.pdf'))
+trna_dat%>%left_join(enframe(overallcodonfreqs,'codon','freq'),by='codon')%>%
+	filter(fraction=='Total')%>%
+	group_by(time,fraction)%>%
+	# mutate(abundance = replace_na(abundance,min(abundance%>%keep(is.finite))))%>%
+	make_quantcompplot_fac(abundance,freq,time,fname)
+#
+fname= here(paste0('plots/p_a_redux/','ab_v_wusage','.pdf'))
+trna_dat%>%
+	left_join(weighted_codon_usage)%>%
+	filter(fraction=='Total')%>%
+	group_by(time,fraction)%>%
+	make_quantcompplot_fac(abundance,weightedusage,time,fname)
 
+stop()
 ################################################################################
 ########Process these
 ################################################################################
@@ -259,93 +359,11 @@ message(normalizePath('tables/gingold_ttest_vals.tsv'))
 repsumcodondata
 
 ################################################################################
-########
-################################################################################
-	
-{
-make_quantcompplot_fac <- function(compdf, col1, col2, facetvar=NULL, fname){
-	require(LSD)
-	base::source(here('Applications/LSD/R/LSD.heatscatter.R'))
-	require(broom)
-	col1<-enquo(col1)
-	col2<-enquo(col2)
-	facetvar<-enquo(facetvar)
-	compdf%<>%dplyr::rename(facet=!!facetvar)
-	corlabel = compdf%>%
-		group_by(facet)%>%
-		filter(is.finite(!!col1),is.finite(!!col2))%>%
-		summarise(tidy(cor.test(!!col1, !!col2)))
-	corlabel = corlabel%>%
-		mutate(
-			pformat=format(p.value,format='e',digits=4),
-			pvalstring = ifelse(p.value > 0.001,round(p.value,4),pformat),
-			labl=paste0('rho = ',round(estimate,3),'\n','pval = ',pvalstring))
-	#
-	nlabel= corlabel%>%
-		mutate(labl=paste0('N=',parameter))
-	facetnum <- n_distinct(compdf$facet)
-	# compdf%<>%mutate(facet=!!facetvar)
-	# pdf(fname,h=3,w=5*facetnum)
-	# gplot = heatscatter(ggplot=TRUE,
-			# compdf[[quo_name(col1)]],compdf[[quo_name(col2)]])+
-	gplot=compdf%>%ggplot(aes(x=!!col1,y=!!col2))+
-		geom_point()+
-		scale_x_continuous(quo_name(col1))+
-		scale_y_continuous(quo_name(col2))+
-		facet_grid(.~facet)+
-		geom_smooth(method='lm')+
-		ggtitle(basename(fname))+
-		geom_text(show.legend=F,data=corlabel,
-			hjust=1,vjust=1,x= Inf,y=Inf,aes(label=labl))+
-		geom_text(show.legend=F,data=nlabel,
-			hjust=0,vjust=1,x= -Inf,y=Inf,aes(label=labl))+
-		theme_bw()
-	# dev.off()
-	pdf(fname,h=5,w=5*facetnum)
-	print(gplot)
-	dev.off()
-	message(normalizePath(fname))
-}
-
-totrepsumcodondata <- repsumcodondata%>%filter(assay=='ribo')
-polyrepsumcodondata <- repsumcodondata%>%filter(assay=='Polyribo')
-# dir.create('plots/p_a_redux/')
-fname= here(paste0('plots/p_a_redux/','a_occ_ab_vs_dt','.pdf'))
-totrepsumcodondata%>%make_quantcompplot_fac(abundance,a_site_occ,time,fname)
-fname= here(paste0('plots/p_a_redux/','a_occ_av_vs_dt','.pdf'))
-totrepsumcodondata%>%make_quantcompplot_fac(availability,a_site_occ,time,fname)
-#
-fname= here(paste0('plots/p_a_redux/','p_occ_ab_vs_dt','.pdf'))
-totrepsumcodondata%>%make_quantcompplot_fac(abundance,p_site_occ,time,fname)
-fname= here(paste0('plots/p_a_redux/','p_occ_av_vs_dt','.pdf'))
-totrepsumcodondata%>%make_quantcompplot_fac(availability,p_site_occ,time,fname)
-#
-fname= here(paste0('plots/p_a_redux/','p_site_occ_vs_poly_av_vs_dt','.pdf'))
-polyrepsumcodondata%>%
-	# left_join(poly_trnadat,by=c('time','codon'))%>%
-	make_quantcompplot_fac(poly_availability,p_site_occ,time,fname)
-#
-fname= here(paste0('plots/p_a_redux/','abundance_freq','.pdf'))
-trna_dat%>%left_join(enframe(overallcodonfreqs,'codon','freq'),by='codon')%>%
-	filter(fraction=='Total')%>%
-	group_by(time,fraction)%>%
-	# mutate(abundance = replace_na(abundance,min(abundance%>%keep(is.finite))))%>%
-	make_quantcompplot_fac(abundance,freq,time,fname)
-#
-fname= here(paste0('plots/p_a_redux/','ab_v_wusage','.pdf'))
-trna_dat%>%
-	left_join(weighted_codon_usage)%>%
-	filter(fraction=='Total')%>%
-	group_by(time,fraction)%>%
-	make_quantcompplot_fac(abundance,weightedusage,time,fname)
-}
-
-################################################################################
 ########Okay so do poly DT and total DT even agree??
 ################################################################################
-left_join(totrepsumcodondata,polyrepsumcodondata,by=c('time','codon'),suffix=c('_tot','_poly'))%>%
-	make_quantcompplot_fac(a_site_occ_tot,a_site_occ_poly,time,
-		fname=paste0('plots/bDT_dtpoly_vsdt.pdf'))
+# left_join(totrepsumcodondata,polyrepsumcodondata,by=c('time','codon'),suffix=c('_tot','_poly'))%>%
+	# make_quantcompplot_fac(a_site_occ_tot,a_site_occ_poly,time,
+		# fname=paste0('plots/bDT_dtpoly_vsdt.pdf'))
 
 
 #do the tRNAs which drop out have unusual dwell times?
