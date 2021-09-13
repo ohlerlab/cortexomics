@@ -9,9 +9,11 @@ if(!exists('tx_countdata')) {
 	base::source("src/Figures/Figure0/0_load_annotation.R")
 	load('data/1_integrate_countdata.R')
 }
+
+gnm2gid <- ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{setNames(.$gene_id,.$gene_name)}
 # base::source(here::here('src/R/Rprofile.R'))
 # base::source(here::here('src/Figures/Figures0/1_ms_data_import.R'))
-gnm2gid
 
 #
 protgnmtrids<-readRDS('data/protgnmtrids.rds')
@@ -145,7 +147,7 @@ tps %<>%setNames(.,.)
 cassays = c('total','ribo')%>%setNames(.,.)
 
 allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
+allxtail$gene_id = gnm2gid[ allxtail$gene_name]
 
 txnchangedf <- countcontr_df%>%filter(assay=='all')%>%group_by(gene_id)%>%
   mutate(sig = (adj.P.Val < 0.05)& (abs(logFC)>log2(1.25)))%>%
@@ -322,7 +324,7 @@ normalizePath(plotfile)
 
 gnm2gid <- ids_nrgname%>%distinct(gene_id,gene_name)%>%
 	{setNames(.$gene_id,.$gene_name)}
-cassaynames = c('RNAseq','Riboseq')%>%setNames(c('all','ribo'))
+cassaynames = c('RNAseq','Riboseq','TE')%>%setNames(c('all','ribo','TE'))
 
 stepcountcontrdf <- readRDS(here('data/stepcountcontrdf.rds'))
 stepstepprotcontrdf<-readRDS('data/stepprotcontrdf.rds')
@@ -336,63 +338,96 @@ xtail_stepwise <- Sys.glob('pipeline/xtail/xtail*v*')%>%
 
 testepcountcontrdf <- stepcountcontrdf%>%
 	bind_rows(xtail_stepwise)
-
 stepcountcontrdf%>%colnames%>%dput
 cassay='ribo'
+
+stop()
+
+cassay='TE'
+v_mrna=FALSE
+v_msR=TRUE
+
 for(cassay in c('all','ribo','TE')){
+	for(v_mrna in c(TRUE,FALSE)){
+		for(v_msR in c(TRUE,FALSE)){
+			if((v_mrna) & cassay!='TE') next
+
 	library(broom)
 	yaxisfoldchanges = stepstepprotcontrdf%>%
 		mutate(psig = adj_pval<0.05)%>%
 		select(gene_id,time,prot_logFC=diff,psig)
 	yaxassay='MS'
-	if(cassay=='TE'){
+	if((cassay=='TE')&(v_mrna) ){
 		yaxisfoldchanges = testepcountcontrdf%>%
 			filter(assay=='all')%>%
 			mutate(psig = adj.P.Val<0.05)%>%
 		  select(gene_id,time,prot_logFC=logFC,psig)
 		 yaxassay='RNA-seq'
-	}	
-steplcdf = testepcountcontrdf%>%
-	mutate(csig = adj.P.Val<0.05)%>%
-	select(gene_id,time,logFC,assay,csig)%>%
-	filter(assay==cassay)%>%
-	inner_join(yaxisfoldchanges)%>%
-	group_by(gene_id)
-
-csigname = paste0(cassaynames[cassay],' Sig')
-steplcdf%<>%mutate(sigset = case_when(
-	csig & psig ~ 'Both Sig',
-	psig ~ str_interp('${yaxassay} Sig'),
-	csig ~ csigname,
-	TRUE ~ 'None'
-))
-lfccorlabels = steplcdf%>%group_by(time)%>%filter(is.finite(logFC),is.finite(prot_logFC))%>%summarise(tidy(cor.test(logFC,prot_logFC)))%>%
-	mutate(label = paste0('rho = ',round(conf.low,3),'-',round(conf.high,3),'\np = ',format(p.value,sci=T,digits=2)%>%str_replace('.*0.0.*',' < 1.0e-300')
-))
-
-sisetcolors = c('None'='#D8D8D8',csigname='#000000',
-	'MS Sig'='#04B404','Both Sig'='#DF0174')
-names(sisetcolors)%<>%str_replace('MS Sig',str_interp('${yaxassay} Sig'))
-# BOTH sig (); Riboseq or RNAseq sig (); MS sig (); not sig ()
-names(sisetcolors)%<>%str_replace('csigname',csigname)
-steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%.$sigset%>%setdiff(names(sisetcolors))
-#now plot
-p<- steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%
-	ggplot(aes(x=logFC,y=prot_logFC,color=sigset))+facet_grid(.~time)+geom_point(size=I(0.2),aes(alpha=sigset!='None'))+
-	geom_text(data=lfccorlabels,aes(label=label,color=NULL),y=I(-Inf),x=I(-Inf),vjust=0,hjust=0,guide=F)+
-	scale_color_manual(name='colorname',values=sisetcolors)+
-	scale_x_continuous(paste0(cassay,' Fold Change'),limits=c(-5,5))+
-	scale_y_continuous(paste0(yaxassay,' Fold Change'),limits=c(-5,5))+
-	ggtitle(paste0('Fold Change Comparison - ',yaxassay,' vs ',cassaynames[cassay]))+
-	scale_alpha_discrete(guide=F)+
-	theme_bw()
-if(cassay=='TE') p = p+coord_flip()	
-plotfile<- here(paste0('plots/','Figures/Figure4/lfc_cors_',cassay,'.pdf'))
-pdf(plotfile,w=16,h=4)
-print(p)
-dev.off()
-message(normalizePath(plotfile))
-
+	}
+	if(v_msR){
+		if(cassay!='TE')next
+		if(v_mrna)next
+		denom = testepcountcontrdf%>%
+			filter(assay=='all')%>%
+			mutate(rsig = adj.P.Val<0.05)%>%
+		  select(gene_id,time,rna_logFC=logFC)
+		yaxisfoldchanges = yaxisfoldchanges%>%inner_join(denom,by=c('gene_id','time'))%>%mutate(RM_diff=prot_logFC-rna_logFC)
+		yaxisfoldchanges <- yaxisfoldchanges%>%mutate(prot_logFC = RM_diff)
+		yaxisfoldchanges <- yaxisfoldchanges%>%mutate(psig = FALSE)
+		yaxassay = 'MS_RNA_Ratio'
+	}
+	#
+	steplcdf = testepcountcontrdf%>%
+		mutate(csig = adj.P.Val<0.05)%>%
+		select(gene_id,time,logFC,assay,csig)%>%
+		filter(assay==cassay)%>%
+		inner_join(yaxisfoldchanges,by=c('gene_id','time'))%>%
+		group_by(gene_id)
+	#
+	csigname = paste0(cassaynames[cassay],' Sig')
+	steplcdf%<>%mutate(sigset = case_when(
+		csig & psig ~ 'Both Sig',
+		psig ~ str_interp('${yaxassay} Sig'),
+		csig ~ csigname,
+		TRUE ~ 'None'
+	))
+	#
+	lfccorlabels = steplcdf%>%group_by(time)%>%filter(is.finite(logFC),is.finite(prot_logFC))%>%summarise(tidy(cor.test(logFC,prot_logFC)))%>%
+		mutate(label = paste0('rho = ',round(conf.low,3),'-',round(conf.high,3),'\np = ',format(p.value,sci=T,digits=2)%>%str_replace('.*0.0.*',' < 1.0e-300')
+	))
+	sisetcolors = c('None'='#D8D8D8',csigname='#000000',
+		'MS Sig'='#04B404','Both Sig'='#e81887')
+	if(cassay=='TE')sisetcolors['MS Sig']='#241e20'
+	if(cassay=='TE')sisetcolors['csigname']='#159244'
+	names(sisetcolors)%<>%str_replace('MS Sig',str_interp('${yaxassay} Sig'))
+	# BOTH sig (); Riboseq or RNAseq sig (); MS sig (); not sig ()
+	names(sisetcolors)%<>%str_replace('csigname',csigname)
+	#steplcdf%>%arrange(-match(sigset,names(sisetcolors)))%>%.$sigset%>%setdiff(names(sisetcolors))
+	#now plot
+	p<- steplcdf%>%
+		arrange(match(sigset,names(sisetcolors)))%>%
+		# ungroup%>%distinct(sigset)
+		mutate(sigset = sigset%>%as_factor)%>%
+		ggplot(aes(x=logFC,y=prot_logFC,color=sigset))+
+		facet_grid(.~time)+
+		geom_text(data=lfccorlabels,aes(label=label,color=NULL),y=I(-Inf),x=I(-Inf),
+				vjust=0,hjust=0,legend=F,show_guide=F)+
+		geom_point(size=I(0.2),aes(alpha=sigset!='None'))+
+		scale_color_manual(name='colorname',values=sisetcolors)+
+		scale_x_continuous(paste0(cassay,' Fold Change'),limits=c(-5,5))+
+		scale_y_continuous(paste0(yaxassay,' Fold Change'),limits=c(-5,5))+
+		ggtitle(paste0('Fold Change Comparison - ',yaxassay,' vs ',cassaynames[cassay]))+
+		scale_alpha_discrete(guide=F)+
+		theme_bw()
+	if((cassay=='TE')&(v_mrna)) p = p+coord_flip()	
+	#
+	plotfile<- here(paste0('plots/','Figures/Figure4/lfc_cors_',cassay,ifelse(v_mrna,'vmrna',''),ifelse(v_msR,'v_msR',''),'.pdf'))
+	pdf(plotfile,w=16,h=4)
+	print(p)
+	dev.off()
+	message(normalizePath(plotfile))
+	}
+}
 }
 
 }

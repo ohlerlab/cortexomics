@@ -189,3 +189,11 @@ cp  /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/abundance_freq.pdf $destd
 cp   /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/ab_v_wusage.pdf $destdir
 cp  /fast/AG_Ohler/dharnet/cortexomics/plots/p_a_redux/p_site_occ_vs_poly_av_vs_dt.pdf $destdir
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/hierarch_tefix_indiv_v_mcshane_pihalf.pdf $destdir
+
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/rust_fppos_vs_codon_variance.pdf $destdir
+
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TE.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TEvmrna.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_all.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_ribo.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TEv_msR.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
