@@ -1112,17 +1112,22 @@ vals <- function(x){
 GRanges(1:2,1:2)%>%split(1:2)
 
 spl_mapFromTranscripts <- function(trspacegr,exons_grl){
-
-  exons_tr<-exons_grl%>%unlist%>%mapToTranscripts(exons_grl)%>%.[names(.)==seqnames(.)]
+  #
+  exons_tr<-exons_grl%>%unlist%>%
+    mapToTranscripts(exons_grl)%>%.[names(.)==seqnames(.)]
   ov <- findOverlaps(trspacegr,exons_tr)
-
-  trspacegr_spl <- suppressWarnings({trspacegr[queryHits(ov)]%>%pintersect(exons_tr[subjectHits(ov)])})
+  #
+  trspacegr_spl <- suppressWarnings({
+    trspacegr[queryHits(ov)]%>%
+    pintersect(exons_tr[subjectHits(ov)])
+  })
   genomic_trspacegr <- mapFromTranscripts(
   trspacegr_spl,
   # exons_tr[subjectHits(ov)]%>%split(.,seqnames(.))
   exons_grl
   )
   genomic_trspacegr$xHits <- queryHits(ov)[genomic_trspacegr$xHits]
+  # mcols(genomic_trspacegr) <- mcols(trspacegr)[genomic_trspacegr$xHits]
   genomic_trspacegr
 }
 
@@ -1140,15 +1145,12 @@ resize_grl_startfix<-function(grl,width){
   #finally, use these to trim
   grl@unlistData[newends] <- resize(grl@unlistData[newends], width(grl@unlistData[newends]) - endtrims  )
   grl
-  
 }
-
-
 str_order_grl<-function(grl){order( start(grl)*(((strand(grl)!='-')+1)*2 -3) )}
 sort_grl_st <- function(grl)grl[str_order_grl(grl),]
 resize_grl_endfix <- function(grl,width){
   grl = invertStrand(grl)%>%sort_grl_st
-  
+  # 
   grl = resize_grl_startfix(grl,width)
   invertStrand(grl)%>%sort_grl_st
 }
@@ -1162,10 +1164,9 @@ resize_grl <- function(grl,width,fix='start',check=TRUE){
   }else if(fix=='center'){
     grlwidths = sum(width(grl)) 
     diffs = (width - grlwidths)
-    
+    # 
     grl = resize_grl_startfix(grl,grlwidths + ceiling(diffs/2))
     grl = resize_grl_endfix(grl,grlwidths + diffs)
-    
   }
   if(check){
     startstoolow <- any(start(grl)<=0)

@@ -197,3 +197,5 @@ cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TEvmrna.pdf
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_all.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_ribo.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TEv_msR.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+
+cp /fast/AG_Ohler/dharnet/cortexomics/plots/broad_dt_aa_stripplot.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/

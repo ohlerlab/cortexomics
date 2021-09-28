@@ -240,6 +240,37 @@ trna_dat%>%
 	make_quantcompplot_fac(abundance,weightedusage,time,fname)
 
 stop()
+
+#now plot
+plotfile<- here(paste0('plots/','rust_dt_aa_stripplot','.pdf'))
+pdf(plotfile,w=15,h=5)
+totrepsumcodondata%>%
+	group_by(AA)%>%
+		mutate(AA = GENETIC_CODE[codon])%>%
+		# filter(fraction=='Total')%>%
+		mutate(codonname = paste0(AA,'-',codon))%>%
+		group_by(codonname)%>%
+		mutate(codmean=mean(a_site_occ))%>%group_by(AA)%>%mutate(aamean=mean(a_site_occ))%>%
+		ungroup()%>%arrange(aamean,codmean)%>%
+		mutate(codonname=as_factor(codonname),AA=as_factor(AA),codonname=as_factor(codonname))%>%
+	arrange(mean(a_site_occ))%>%
+	mutate(AA=as_factor(AA))%>%
+	ggplot(.,aes(y=a_site_occ,x=codon,color=time))+
+	geom_point(alpha=I(0.5))+
+	facet_grid(.~AA,scale='free')+
+	scale_color_manual(name='stage',values=stagecols)+
+	scale_y_continuous(paste0('a_site_occ_broad'))+
+	ggtitle(paste0('broad dt_aa_stripplot'))+
+	theme_bw()+
+	theme(axis.text.x=element_text(angle=45,vjust=0))
+dev.off()
+message(normalizePath(plotfile))
+
+
+
+
+
+
 ################################################################################
 ########Process these
 ################################################################################
@@ -436,34 +467,6 @@ p2=totrepsumcodondata%>%
 ggarrange(plotlist=list(p1,p2),nrow=2)
 dev.off()
 message(normalizePath(plotfile))
-
-
-
-#now plot
-plotfile<- here(paste0('plots/','broad_dt_aa_stripplot','.pdf'))
-pdf(plotfile,w=15,h=5)
-totrepsumcodondata%>%
-	group_by(AA)%>%
-		mutate(AA = GENETIC_CODE[codon])%>%
-		# filter(fraction=='Total')%>%
-		mutate(codonname = paste0(AA,'-',codon))%>%
-		group_by(codonname)%>%
-		mutate(codmean=mean(dwell_time))%>%group_by(AA)%>%mutate(aamean=mean(dwell_time))%>%
-		ungroup()%>%arrange(aamean,codmean)%>%
-		mutate(codonname=as_factor(codonname),AA=as_factor(AA),codonname=as_factor(codonname))%>%
-	arrange(mean(dwell_time))%>%
-	mutate(AA=as_factor(AA))%>%
-	ggplot(.,aes(y=dwell_time,x=codon,color=time))+
-	geom_point(alpha=I(0.5))+
-	facet_grid(.~AA,scale='free')+
-	scale_color_manual(name='stage',values=stagecols)+
-	scale_y_continuous(paste0('dwell_time_broad'))+
-	ggtitle(paste0('broad dt_aa_stripplot'))+
-	theme_bw()
-dev.off()
-message(normalizePath(plotfile))
-
-
 
 
 

@@ -295,6 +295,7 @@ resize_grl <- function(grl,nbps,fix='start'){
 
 
 }
+
 #lapply(1:20,function(i){resize_grl(grl,i,fix='start')%>%width})
 # cds_grl<-gtf_gr%>%{split(.,.$protein_id)}
-# resize_grl(cds_grl)
+resize_grl(sort(cdsgrl), 3)

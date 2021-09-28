@@ -79,7 +79,7 @@ glmfits = lapply(sections,function(section){
 	testpsitecovs = c(psitecov[is3nt][tnt_entrop_cds])
 
 	sitedf = get_sitedf(testpsitecovs,codposdf%>%split(.,.$protein_id))
-
+	#
 	library(MASS)
 	message('fit')
 	codglmfit = glm.nb(data=sitedf,formula= count ~ 0 + gene + codon+a_codon+phase)

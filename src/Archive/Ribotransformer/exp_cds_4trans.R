@@ -13,7 +13,7 @@ spl_mapFromTranscripts <- function(trspacegr,exons_grl){
   genomic_trspacegr$xHits <- queryHits(ov)[genomic_trspacegr$xHits]
   genomic_trspacegr
 }
-
+#
 resize_grl_startfix<-function(grl,width){
   #what follows is some slightly black magic using S4 vectors
   #Integerlist which showings how much we'd need to trim that exon to get to to the desired transcript length
@@ -27,15 +27,14 @@ resize_grl_startfix<-function(grl,width){
   endtrims=trim[IntegerList(as.list(elementNROWS(grl)))]@unlistData
   #finally, use these to trim
   grl@unlistData[newends] <- resize(grl@unlistData[newends], width(grl@unlistData[newends]) - endtrims  )
-  grl
-  
+  grl 
 }
-
+#
 str_order_grl<-function(grl){order( start(grl)*(((strand(grl)!='-')+1)*2 -3) )}
 sort_grl_st <- function(grl)grl[str_order_grl(grl),]
 resize_grl_endfix <- function(grl,width){
   grl = invertStrand(grl)%>%sort_grl_st
-  
+  # 
   grl = resize_grl_startfix(grl,width)
   invertStrand(grl)%>%sort_grl_st
 }
@@ -49,10 +48,10 @@ resize_grl <- function(grl,width,fix='start',check=TRUE){
   }else if(fix=='center'){
     grlwidths = sum(width(grl)) 
     diffs = (width - grlwidths)
-    
+  #   
     grl = resize_grl_startfix(grl,grlwidths + ceiling(diffs/2))
     grl = resize_grl_endfix(grl,grlwidths + diffs)
-    
+    #  
   }
   if(check){
     startstoolow <- any(start(grl)<=0)
@@ -76,7 +75,7 @@ trim_grl <- function(grl,bp,end='tp'){
     stop("end should be fp or tp")
   }
 }
-
+#
 fmcols <- function(grl,...){
   with(grl@unlistData@elementMetadata,...)[start(grl@partitioning)]
 }
