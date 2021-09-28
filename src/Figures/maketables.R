@@ -42,6 +42,7 @@ s1tpms = readRDS('data/tx_countdata.rds')%>%
 #
 mspeptidefile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 msgenefile = here('ext_data/MS_Data_New/Ages_Brain_PG_summ.txt')
+if(!exists('highcountgenes')) load('data/1_integrate_countdata.R')
 #
 stopifnot(s1counts%>%nrow%>%identical(22373L))
 stopifnot(highcountgenes%>%length%>%identical(12228L))
@@ -60,8 +61,11 @@ highcountgenes <- readxl::read_xlsx('tables/S1.xlsx','highcountgenes')%>%.$gene_
 
 #S2
 message('S2 - writing fold changes...')
-allxtailtimes <- Sys.glob('pipeline/xtail/*')%>%str_extract('(?<=xtail_).*(?=.txt)')
+allxtailtimes <- Sys.glob('pipeline/xtail/*')%>%
+	str_extract('(?<=xtail_).*(?=.txt)')%>%
+	str_subset(neg=T,'_v_')
 allxtail <- Sys.glob('pipeline/xtail/*')%>%
+	str_subset(neg=T,'_v_')%>%
 	setNames(allxtailtimes)%>%
 	lapply(fread)%>%
 	map_df(.id='time',.%>%
@@ -69,10 +73,25 @@ allxtail <- Sys.glob('pipeline/xtail/*')%>%
 			str_replace_all('E13','T1')%>%
 			str_replace_all('(E|P)\\d+','T2');
 		.})
-allxtail$gene_id = gnm2gid[[allxtail$gene_name]]
-
+stepallxtail <- Sys.glob('pipeline/xtail/*')%>%
+	str_subset('_v_')%>%
+	setNames(allxtailtimes)%>%
+	lapply(fread)%>%
+	map_df(.id='time',.%>%
+		{
+			tp1 = colnames(.)%>%str_extract('.*_log2TE')%>%
+				na.omit%>%head(1)%>%str_replace('_log2TE','')
+			x=.
+				colnames(x)%<>%
+				str_replace_all(tp1,'T1')%>%
+				str_replace_all('(E|P)\\d+','T2');
+		x})
+gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%{setNames(.$gene_id,.$gene_name)}
+allxtail$gene_id = gnm2gid[allxtail$gene_name]
+stepallxtail$gene_id = gnm2gid[stepallxtail$gene_name]
 S2=list(
 	xtail = allxtail,
+	xtail_stepwise = allxtail,
 	startstop_eff_lfc = fread(here('tables/ribo_position_effect.tsv')),
 	limma_count_lfc = readRDS(here('data/countcontr_df.rds')),
 	proDA_ms_lfc_proDA = readRDS(here('data/contrdf.rds')),
@@ -95,14 +114,14 @@ readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
 
 #S3
 codonstats<-read_tsv('tables/tRNA_stat_df.tsv')
-codonoccs <- read_tsv('tables/codonoccs_orig.tsv')
-codonstats <- codonoccs%>%filter(fraction=='total')%>%select(time,codon,dwell_time=occupancy)%>%
+codonoccs <- read_tsv('tables/codonoccs_final.tsv')
+codonstats <- codonoccs%>%
 	left_join(codonstats%>%select(-dwell_time))
 codonstats%<>%select(-common,-abundance_enrich,-availability_enrich)
 list(
 	isodecoder_data = fread('tables/isodecoder_data.tsv'),
 	codon_level_data =  codonstats,
-	psite_offsets = fread('ext_data/offsets_manual.tsv')
+	psite_offsets = fread('ext_data/offsets_rustvar.tsv')
 )%>%
 map(dftpconv)%>%
 openxlsx::write.xlsx( file = "tables/S3.xlsx")
@@ -116,21 +135,23 @@ cluster_goterms <- read_tsv('tables/cluster_go.tsv')
 #output clustering reuslts
 list(
 	cluster_genes = cluster_genes ,
-	cluster_goterms = cluster_goterms
+	cluster_goterms = cluster_goterms,
+	traj_model_table = read_tsv('tables/traj_model_df.tsv'),
+	pihalf_est_table = read_tsv('tables/est_pihalf_v_mcshane.tsv')
 )%>%
 openxlsx::write.xlsx( file = "tables/S4.xlsx")
 
 
-#S5
-musicres <- fread('tables/musicdata.tsv')
-musicres %<>% add_descrip_lines(
-	c('# time - collection stage',
-		'#assay - riboseq or rnaseq',
-	'#ftset - the flashtag set from telley et al used as a signature',
-	'#music_prop - estimated proportion according to MuSiC')
-)
-list(
-	 music_proportion_data = musicres
-)%>%
-openxlsx::write.xlsx( file = "tables/S5.xlsx")
-normalizePath("tables/S5.xlsx")%>%message
+# #S5
+# musicres <- fread('tables/musicdata.tsv')
+# musicres %<>% add_descrip_lines(
+# 	c('# time - collection stage',
+# 		'#assay - riboseq or rnaseq',
+# 	'#ftset - the flashtag set from telley et al used as a signature',
+# 	'#music_prop - estimated proportion according to MuSiC')
+# )
+# list(
+# 	 music_proportion_data = musicres
+# )%>%
+# openxlsx::write.xlsx( file = "tables/S5.xlsx")
+# normalizePath("tables/S5.xlsx")%>%message

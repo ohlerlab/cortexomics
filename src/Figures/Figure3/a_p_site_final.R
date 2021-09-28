@@ -1,18 +1,6 @@
 library(here)
 if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
-if(!exists('kl_df')) base::source(here('src/subset_dwell_times.R'))
-
-
-
-# #does amino acid variability determine the asite effects?
-# codonprofiledat%>%left_join(offsets)%>%filter(position== -offset)%>%
-# 	mutate(AA=GENETIC_CODE[codon])%>%
-# 	lm(data=.,count~AA)%>%summary
-# codonprofiledat%>%left_join(offsets)%>%
-# 	filter(between(position, -offset-5,-offset-3))%>%
-# 	group_by(sample,codon)%>%summarise(count=sum(count))%>%
-# 	mutate(AA=GENETIC_CODE[codon])%>%
-# 	lm(data=.,count~AA)%>%summary
+if(!exists('kl_df')) base::source(here('src/rust_redo.R'))
 
 {
 allcodsig_isomerge%<>%addcodon
@@ -151,6 +139,12 @@ ggarrange(plotlist=list(p1,p2),nrow=2)
 dev.off()
 message(normalizePath(plotfile))
 
+codondata%>%
+	ungroup%>%
+	# select(-matches('poly'),-matches('aacor'),-AA,-abundance,-availability,-assay)%>%
+	select(time, rep, codon, p_site_occ, a_site_occ)%>%
+	write_tsv('tables/codonoccs_final.tsv')
+
 # asiteoccs = subfpprofilelist[['allhigh']]%>%filter(sample%>%str_detect('E13_ribo'),readlen=='rl29')%>%filter(position== -11-3)%>%
 	# group_by(sample,codon)%>%summarise_at(vars(count),mean)%>%
 	# group_by(codon)%>%summarise_at(vars(count),mean)
@@ -239,7 +233,6 @@ trna_dat%>%
 	group_by(time,fraction)%>%
 	make_quantcompplot_fac(abundance,weightedusage,time,fname)
 
-stop()
 
 #now plot
 plotfile<- here(paste0('plots/','rust_dt_aa_stripplot','.pdf'))
@@ -269,6 +262,7 @@ message(normalizePath(plotfile))
 
 
 
+if(FALSE){
 
 
 ################################################################################
@@ -470,3 +464,4 @@ message(normalizePath(plotfile))
 
 
 
+}
