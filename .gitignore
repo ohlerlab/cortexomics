@@ -75,3 +75,8 @@ Reports
 !______
  src/!_______max_cortexomics
 *.svg
+._.DS_Store
+.here
+.vscode
+*._*
+src/Shiny/rsconnect

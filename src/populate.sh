@@ -200,3 +200,4 @@ cp /fast/AG_Ohler/dharnet/cortexomics/plots/Figures/Figure4/lfc_cors_TEv_msR.pdf
 
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/broad_dt_aa_stripplot.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
 cp /fast/AG_Ohler/dharnet/cortexomics/plots/kinetics_redo/NED_vs_notmsdev_barplots.pdf /home/zslastman/Dropbox/projects/cortexomics/manuscript/Draft_August/
+cp //fast/AG_Ohler/dharnet/cortexomics/plots/atimes_adjecency_vs_psite_occ.pdf ~/Dropbox/projects/cortexomics/manuscript/Draft_August/ 

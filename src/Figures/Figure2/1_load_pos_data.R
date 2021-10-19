@@ -76,7 +76,7 @@ if(!file.exists(here('data/ribocovtrs.rds'))){
 
 cds2use <- cdsgrl[ribocovtrs]
 
-cdsseq <- cds2use%>%{GenomicFeatures::extractTranscriptSeqs(.,x=fafile)}
+cdsseq <- cds2use%>%{GenomicFeatures::extractTranscriptSeqs(.,x=fafileob)}
 allcodons=getGeneticCode()
 
 highcountcovtrs = ribocovtrs[trid2gid[[ribocovtrs]]%in%highcountgenes]

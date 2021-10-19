@@ -1,0 +1,15 @@
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E13_n1.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E13_n2_171111234903.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E13_n3.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E14p5_n1.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E14p5_n2.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E14p5_n3.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E16_n1.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E16_n2_171113124300.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E16_n3.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E17p5_n1.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E17p5_n2.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_E17p5_n3.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_P0_n1.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_P0_n2.raw
+http://ftp.pride.ebi.ac.uk/pride/data/archive/2021/01/PXD014841/Waldorf_20171109_KI_MM_P0_n3.raw

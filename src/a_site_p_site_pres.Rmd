@@ -1,0 +1,62 @@
+---
+title: A-site Alignment (Slide 1)
+output:
+  ioslides_presentation:
+    slide_level: 2
+---
+
+```{r setup, echo = FALSE}
+  # powerpoint_presentation:
+    # slide_level: 2
+  # beamer_presentation:
+    # slide_level: 2
+library(knitr)
+library(here)
+opts_chunk$set(cache.path=(here::here('Reports/cache/')))
+
+```
+
+# Alignment by A/P site method
+
+## test fig
+
+```{r,include=TRUE, echo=FALSE, fig.caption='foo'}
+plot(1)
+```
+
+## test fig pdf
+
+:::::::::::::: {.columns}
+::: {.column}
+```{r, include=TRUE,echo=FALSE,cache=TRUE, out.with='75%', out.height='%75',fig.cap='foo'}
+knitr::include_graphics(('sh_fppos_vs_codon_variance.pdf'))
+```
+:::
+::: {.column}
+Some text explaining this figure
+:::
+::::::::::::::
+
+## test fig no cols but pdf
+
+```{r, include=TRUE,echo=FALSE,cache=TRUE, out.with='75%', out.height='%75',fig.cap='foo'}
+knitr::include_graphics(('sh_fppos_vs_codon_variance.pdf'))
+```
+
+## test fig but direct link
+
+![foo](sh_fppos_vs_codon_variance.pdf)
+
+
+
+# Inferred A-site more closely related to Amino acid using Metacodon method (Slide 4)
+
+# Resulting A-site distribution not related to tRNA levels (ab or availability)
+
+- actual availibility of tRNA not necesarily the same as concentration in cell
+
+### Resulting P-site distribution is - at earlier time points
+
+- suggests 
+
+### Also agrees well with poly DT measurements -->

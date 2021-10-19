@@ -1,7 +1,15 @@
 library(here)
 if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
 if(!exists('kl_df')) base::source(here('src/rust_redo.R'))
-
+#
+#should perhaps follow supp tables
+trnacodonstats<-read_tsv('tables/tRNA_decoder_data.tsv')
+#make sure we have the right number of values here
+allcodsig_isomerge%<>%addcodon
+GENETIC_CODEnostop = GENETIC_CODE[GENETIC_CODE!='*']
+#53 non-stop codons have tRNA measurements
+stopifnot(allcodsig_isomerge%>%filter(fraction=='Total',time=='E13',is.finite(abundance))%>%
+	filter(codon%in%names(GENETIC_CODEnostop))%>%.$codon%>%n_distinct%>%`==`(53))
 {
 allcodsig_isomerge%<>%addcodon
 trna_ab_df_samp = allcodsig_isomerge[c("fraction", "time", "sample", "anticodon", "abundance", "codon",
@@ -61,6 +69,7 @@ codondata_notrna%<>%
 stopifnot(!is.na(codondata_notrna$a_site_occ))
 stopifnot(!is.na(codondata_notrna$p_site_occ))
 }
+
 {
 #codondatasave<-codondata
 #seperate poly and total tRNA info
@@ -213,6 +222,7 @@ fname= here(paste0('plots/p_a_redux/','p_occ_ab_vs_dt','.pdf'))
 totrepsumcodondata%>%make_quantcompplot_fac(abundance,p_site_occ,time,fname)
 fname= here(paste0('plots/p_a_redux/','p_occ_av_vs_dt','.pdf'))
 totrepsumcodondata%>%make_quantcompplot_fac(availability,p_site_occ,time,fname)
+
 #
 # fname= here(paste0('plots/p_a_redux/','p_site_occ_vs_poly_av_vs_dt','.pdf'))
 # polyrepsumcodondata%>%
@@ -259,7 +269,14 @@ totrepsumcodondata%>%
 dev.off()
 message(normalizePath(plotfile))
 
-
+#compare a and p site occs
+codondata_notrna%>%
+	group_by(time,codon)%>%summarise_at(vars(p_site_occ,a_site_occ),mean)%>%
+	make_quantcompplot_fac(
+		a_site_occ,
+		p_site_occ,
+		time,
+		fname='plots/atimes_adjecency_vs_psite_occ.pdf')
 
 
 if(FALSE){

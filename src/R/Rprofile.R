@@ -930,7 +930,6 @@ get_seqforrest_data <- function(trainreads,seq,nbp=2,trim=TRUE){
 #' this 
 #' @return returns 
 #' @export 
-
 group_slice<-function(dt,v){
   stopifnot('data.frame'%in%class(dt))
   stopifnot(v>0,(v%%1)==0)

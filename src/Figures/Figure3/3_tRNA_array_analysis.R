@@ -14,7 +14,7 @@ library(GenomicFeatures)
 
 
 setwd(here())
-cdsseq = extractTranscriptSeqs(x=fafile,cdsgrl)
+cdsseq = extractTranscriptSeqs(x=fafileob,cdsgrl)
 
 ################################################################################
 ######## Codon optimality scores based on codon frequencies, gene expression levels
@@ -184,23 +184,29 @@ all_deco_sig %<>% safe_left_join(overallcodonfreqs%>%enframe('codon','freq'))
 all_deco_sig %<>% mutate(fraction = str_extract(sample, "\\w+"))
 all_deco_sig%>%group_by(time,fraction,codon)%>%group_by()
 logSumExp2 <- function(x) logSumExp(log(2)*x)/log(2)
- 
+# 
 decodtabledat <- all_deco_sig%>%
     filter(sample%>%str_detect('Total'))%>%select(sample,decoder,well,Ct,dCt)%>%
     mutate(sample=paste0(sample,'_',str_replace(rep,'rep','')))%>%
     mutate(sample = str_replace(sample,' ','_'))%>%
     ungroup%>%select(-rep)
-
+#
 decodtabledat%>%select(-dCt)%>%spread(sample,Ct)%>%write_tsv('tables/tRNA_decoder_data.tsv')
 decodtabledat%>%select(-Ct)%>%spread(sample,dCt)%>%write_tsv('tables/tRNA_decoder_data_norm.tsv')
-
-
+#
+#
+all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
 allcodsig_isomerge <- all_deco_sig %>%
     group_by(fraction, iscodon,time, sample, anticodon,rep,weightedusage) %>%
-    # filter(anticodon=='Ala-CGC')%>%
+    # filter(codon=='TGC',time=='E13',fraction=='Total')%>%
     #note here we flip the dCt so the infinities don't effect the summation
-    summarise(Ct = -logSumExp2(-Ct),dCt = -logSumExp2(-dCt),abundance= - dCt)%>%
+    summarise(Ct = -logSumExp2(-(Ct)),dCt = -logSumExp2(-(dCt)),abundance= - dCt)%>%
+    # summarise(Ct = -mean(-na.omit(Ct)),dCt = -mean(-na.omit(dCt)),abundance= - dCt)%>%
     mutate(abundance=ifelse(abundance== -Inf,NA,abundance))
+precods = all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$anticodon%>%unique
+postcods = allcodsig_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$anticodon%>%unique
+lostcods = precods%>%setdiff(postcods)
+stopifnot(length(lostcods)==3)
 #get availability - the residuals of the linear fit between abundance and weighted usage
 allcodsig_isomerge%<>%group_by(fraction,time)%>%nest%>%
     mutate(availability = map(data,~ {
@@ -216,6 +222,8 @@ allcodsigmean_isomerge <- allcodsig_isomerge %>%
 allcodsigmean <- all_deco_sig%>%
     group_by(fraction, time, iscodon, sample, anticodon, rep,weightedusage)%>%
     summarise_at(vars(one_of(c('Ct','dCt','abundance','availability'))),list(mean),na.rm=T)
+codswsig = allcodsigmean_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$anticodon%>%n_distinct
+stopifnot(codswsig==52)
 # add codon info
 allcodsigmean_isomerge %<>% addcodon
 allcodsigmean %<>% addcodon
@@ -223,7 +231,14 @@ allcodsigmean %<>% addcodon
 # allcodsigmean %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 allcodsigmean_isomerge %<>% mutate(AA = GENETIC_CODE[str_extract(codon, "[^\\-]+$")] %>% qs("S+"))
 #
-allcodsigmean_isomerge%>%filter(sample%>%str_detect('Total'))%>%select(sample,codon,availability,Ct,abundance,availability)%>%
+allcodsigmean_isomerge%>%
+    filter(fraction=='Total')%>%
+    select(sample,codon,availability,Ct,abundance,availability)%>%
+    left_join(weighted_codon_usage)%>%
+    left_join(codonfreqs%>%colSums%>%enframe('codon','freq'))%>%
+    ungroup%>%
+    mutate(common = freq>median(freq))%>%
+    group_by(AA)%>%mutate(tAI = freq/max(freq))%>%ungroup%>%
     write_tsv('tables/tRNA_decoder_data.tsv')
 
  all_deco_sig%>%
@@ -570,4 +585,9 @@ tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','frac
 #     ggtitle("Codon usage frequency vs summed tRNA abundance")
 # dev.off()
 # normalizePath("plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf")
-
+allcodsigmean%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+allcodsigmean_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+fread('tables/isodecoder_data.tsv')%>%filter(sample=='Total E13')%>%filter(is.finite(Ct))%>%.$codon%>%n_distinct
+allqpcrsig%>%filter(sample=='Total E13',is.finite(Ct))%>%.$anticodon%>%str_subset(neg=T,'rRNA|mt|PPC|Spike|U6|iMet')%>%n_distinct
+codonstats%>%filter(time=='E13',rep==1)%>%.$codon%>%n_distinct

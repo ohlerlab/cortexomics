@@ -48,7 +48,7 @@ stopifnot(s1counts%>%nrow%>%identical(22373L))
 stopifnot(highcountgenes%>%length%>%identical(12228L))
 list(
 	count_data = s1counts,
-	tpm_data = s1counts,
+	tpm_data = s1tpms,
 	peptide_ms_data = fread(mspeptidefile),
 	protein_ms_data = fread(msgenefile),
 	matched_ms_data = readRDS('data/sel_ms_mat.rds')%>%as.data.frame%>%rownames_to_column('gene_id'),
@@ -91,11 +91,13 @@ allxtail$gene_id = gnm2gid[allxtail$gene_name]
 stepallxtail$gene_id = gnm2gid[stepallxtail$gene_name]
 S2=list(
 	xtail = allxtail,
-	xtail_stepwise = allxtail,
+	xtail_stepwise = stepallxtail,
 	startstop_eff_lfc = fread(here('tables/ribo_position_effect.tsv')),
-	limma_count_lfc = readRDS(here('data/countcontr_df.rds')),
+	limma_count_lfc = readRDS(here('data/countcontr_df.rds'))%>%
+		mutate(time=replace_na(time,'initial')),
 	proDA_ms_lfc_proDA = readRDS(here('data/contrdf.rds')),
-	limma_count_stepwise_lfc = readRDS(here('data/stepcountcontrdf.rds')),
+	limma_count_stepwise_lfc = readRDS(here('data/stepcountcontrdf.rds'))%>%
+		mutate(time=replace_na(time,'initial')),
 	proDA_ms_stepwise_lfc = readRDS(here('data/stepcontrdf.rds'))
 )%>%
 # map(dftpconv)%>%
@@ -112,12 +114,31 @@ readxl::read_xlsx(  "tables/S2.xlsx",2,col_types=c(time='text'))%>%
 	mutate(end_sig = end_pvalue<0.05,end_up=end_lfc>0,end_down=end_lfc<0)%>%
 	filter(end_sig)%>%group_by(end_up,end_down)%>%tally
 
+allcodsigmean_isomerge%>%
+	filter(time=='E13',fraction=='Total')%>%
+
+
 #S3
-codonstats<-read_tsv('tables/tRNA_stat_df.tsv')
+trnacodonstats<-read_tsv('tables/tRNA_decoder_data.tsv')
 codonoccs <- read_tsv('tables/codonoccs_final.tsv')
+trnacodonstats$rep%<>%str_replace('rep','')%>%as.numeric
 codonstats <- codonoccs%>%
-	left_join(codonstats%>%select(-dwell_time))
-codonstats%<>%select(-common,-abundance_enrich,-availability_enrich)
+	left_join(trnacodonstats%>%filter(fraction=='Total'))
+codonstats%<>%select(-common,-iscodon,-Ct,-sample,-w_cAI,-fraction)
+s3cols = c("time", "rep", "codon", "p_site_occ", "a_site_occ",
+"anticodon", "abundance", "weightedusage", "availability", "AA", 
+"freq", "tAI")
+stopifnot(setequal(codonstats%>%colnames,s3cols))
+GENETIC_CODEnostop = GENETIC_CODE[GENETIC_CODE!='*']
+#all non stop codons have occupancies
+stopifnot(codonoccs%>%filter(time=='E13')%>%.$codon%>%DNAStringSet%>%translate%>%as.character%>%setequal(GENETIC_CODEnostop))
+#53 non-stop codons have tRNA measurements
+stopifnot(trnacodonstats%>%filter(time=='E13',is.finite(abundance))%>%
+	filter(codon%in%names(GENETIC_CODEnostop))%>%.$codon%>%n_distinct%>%`==`(50))
+stopifnot(codonstats%>%filter(time=='E13',is.finite(abundance))%>%
+	filter(codon%in%names(GENETIC_CODEnostop))%>%.$codon%>%n_distinct%>%`==`(50))
+#
+fread('tables/isodecoder_data.tsv')%>%addcodon%>%filter(time=='E13',codon=='AAT')
 list(
 	isodecoder_data = fread('tables/isodecoder_data.tsv'),
 	codon_level_data =  codonstats,
@@ -125,7 +146,7 @@ list(
 )%>%
 map(dftpconv)%>%
 openxlsx::write.xlsx( file = "tables/S3.xlsx")
-
+read_xlsx("tables/S2.xlsx",'limma_count_lfc')%>%head%>%as.data.frame
 
 #S4
 cluster_genes = read_tsv('tables/gene_clusters.tsv')%>%arrange(cluster)
