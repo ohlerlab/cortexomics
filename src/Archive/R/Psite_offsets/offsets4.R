@@ -1,4 +1,4 @@
-base::source('src/R/Rprofile.R')
+base::source('src/Rprofile.R')
 library(GenomicFiles)
 library(GenomicFeatures)
 argv <- c(

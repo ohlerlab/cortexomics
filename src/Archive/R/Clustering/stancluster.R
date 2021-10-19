@@ -5,7 +5,7 @@
 
 library(rstan)
 library(rstan)
-source(here::here('src/R/Rprofile.R'))
+source(here::here('src/Rprofile.R'))
 source('src/R/cortexomics_myfunctions.R')
 
 naivebayesstan <- rstan::stan_model(model_code = '
@@ -136,7 +136,7 @@ vbfit <- vb(
 
 library(rstan)
 library(rstan)
-source(here::here('src/R/Rprofile.R'))
+source(here::here('src/Rprofile.R'))
 
 
 

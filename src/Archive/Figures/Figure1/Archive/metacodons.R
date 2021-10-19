@@ -35,7 +35,7 @@ cat("Command-line arguments attached to global environment:\n");
 print(keys);
 str(mget(keys,  envir = globalenv()))
 
-base::source(here::here(paste0('../cortexomics/src/R/Rprofile.R')))
+base::source(here::here(paste0('../cortexomics/src/Rprofile.R')))
 dir.create(here('data'),showWarn=FALSE)
 
 dir.create(outputfolder,recursive=TRUE,showWarnings=FALSE)

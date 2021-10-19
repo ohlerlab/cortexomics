@@ -14,7 +14,7 @@ pdf = grDevices::pdf
 
 #let's simply try with the existing data
 # load('data/integrate_exprdata2.Rdata')
-base::source('src/R/Rprofile.R')
+base::source('src/Rprofile.R')
 library(GenomicAlignments)
 library(GenomicFeatures)
 msid2upid = metainfo%>%

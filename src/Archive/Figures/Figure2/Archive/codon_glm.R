@@ -1,7 +1,7 @@
 require("MatrixModels")
 require("Matrix")
 require('MASS') 
-source('src/R/Rprofile.R')
+source('src/Rprofile.R')
 ################################################################################
 ########Get codon sequences and quickly see if dwell time calc works for me
 ################################################################################

@@ -1,9 +1,9 @@
 ################################################################################
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 library(rtracklayer)
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/Figure0/0_load_annotation.R")
+	base::source("src/Figures/load_annotation.R")
 }
 ################################################################################
 ########This Script produces a shortlisted list of motif hits, integrating various information

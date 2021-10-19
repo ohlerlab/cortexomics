@@ -2,9 +2,9 @@
 #https://www.bioconductor.org/packages/devel/workflows/vignettes/rnaseqDTU/inst/doc/rnaseqDTU.html#drimseq
 ################################################################################
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/Figure0/0_load_annotation.R")
+	base::source("src/Figures/load_annotation.R")
 }
 library(GenomicFeatures)
 if(!'DRIMSeq'%in%installed.packages()) BiocManager::install("DRIMSeq")

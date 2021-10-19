@@ -1,10 +1,10 @@
 ################################################################################
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/Figure0/0_load_annotation.R")
+	base::source("src/Figures/load_annotation.R")
 }
-if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
+if(!exists('here')) base::source(here::here('src/Rprofile.R'))
 intersect <- BiocGenerics::intersect
 if(!exists('codonprofiles')) load('data/codon_coverage.Rdata')
 if((!exists('allcodsigmean_isomerge'))|(!'availability'%in%colnames(allcodsigmean_isomerge))) base::source(here('src/Figures/Figure2/3_tRNA_array_analysis.R'))

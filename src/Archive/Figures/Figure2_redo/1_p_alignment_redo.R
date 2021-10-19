@@ -1,6 +1,6 @@
 if(TRUE){
 # if(!exists('fpcovlist')) base::source(here::here("src/Figures/Figure2/1_load_pos_data.R"))
-if(!exists('fafile')) base::source(here::here("src/Figures/Figure0/0_load_annotation.R"))
+if(!exists('fafile')) base::source(here::here("src/Figures/load_annotation.R"))
 if(is.environment(fafile)){ fafileob = fafile} else{fafileob = Rsamtools::FaFile(fafile)}
 
 offsets <- here('ext_data/offsets_manual.tsv')%>%read_tsv

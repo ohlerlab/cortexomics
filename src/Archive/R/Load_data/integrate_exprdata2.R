@@ -54,7 +54,7 @@ message('...done' )
 
 LOWCOUNTLIM <- 32
 
-source(here('src/R/Rprofile.R'))
+source(here('src/Rprofile.R'))
 
 
 

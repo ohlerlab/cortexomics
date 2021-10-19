@@ -5,7 +5,7 @@ output: html_notebook
 
 ```{r}
 library(here)
-source(here('src/R/Rprofile.R'))
+source(here('src/Rprofile.R'))
 
 # devtools::install_git(c('https://github.com/cran/SDMTools'))
 # source("https://z.umn.edu/archived-seurat")

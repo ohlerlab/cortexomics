@@ -1,7 +1,7 @@
 # load
 library(xbioc)
 # library(MuSiC)
-base::source('src/R/Rprofile.R')
+base::source('src/Rprofile.R')
 
 if(!exists('ss_emat')) ss_emat <- projmemoise(fread)(Sys.glob(here('ext_data/GSE11*.gz')))
 

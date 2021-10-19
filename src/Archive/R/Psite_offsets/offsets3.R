@@ -40,7 +40,7 @@ reduce <- GenomicRanges::reduce
 MAPQTHRESH <- 50
 USEPHASE <- TRUE
 USERIBOSEQC <- FALSE
-base::source(here('src/R/Rprofile.R'))
+base::source(here('src/Rprofile.R'))
 
 
 

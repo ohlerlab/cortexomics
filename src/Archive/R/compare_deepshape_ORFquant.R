@@ -2,7 +2,7 @@
 ########This script tries to figure out why ORFquant doesn't identify a lot of the
 ########Genes that have MS in my data
 ################################################################################
-source('src/R/Rprofile.R')
+source('src/Rprofile.R')
 #get our expr data and metadata
 load('data/integrate_exprdata2.Rdata')
 #id conversions

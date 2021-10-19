@@ -29,7 +29,7 @@ conflict_prefer("clusterApply", "BiocGenerics")
 setwd(here())
 
 source(here('src/R/Functions/cortexomics_myfunctions.R'))
-source(here('src/R/Rprofile.R'))
+source(here('src/Rprofile.R'))
 # message('temp commented out')
 
 #processedexprdatafile=here('pipeline/exprdata/transformed_data.txt')

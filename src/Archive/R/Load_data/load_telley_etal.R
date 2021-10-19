@@ -10,7 +10,7 @@ knitr::opts_chunk$set(root.dir = here::here(),eval=FALSE,cache=FALSE,echo=FALSE,
 isknitr<-isTRUE(getOption('knitr.in.progress'))
 #if(!isknitr) rmarkdown::render(knitr::spin(here('src/R/load_telley_etal.R'),knit=F),output_dir=here('Reports'),knit_root_dir=here())
 
-if(!exists('projectmemoise'))source('src/R/Rprofile.R')
+if(!exists('projectmemoise'))source('src/Rprofile.R')
 library('DeconRNASeq')
 
 

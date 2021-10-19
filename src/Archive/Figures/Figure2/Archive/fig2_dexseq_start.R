@@ -1,5 +1,5 @@
 library(GenomicFeatures)
-source(here::here('src/R/Rprofile.R'))
+source(here::here('src/Rprofile.R'))
 
 #DEXseq position specific changes
 

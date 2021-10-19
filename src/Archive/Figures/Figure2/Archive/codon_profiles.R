@@ -3,10 +3,10 @@
 ########Do with deepshape etc instead
 ################################################################################
 library(GenomicFeatures)
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
-if(!exists('cdsgrl')) base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
-# base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
+if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
+# base::source(here::here('src/Figures/load_annotation.R'))
 trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 
 

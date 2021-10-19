@@ -224,8 +224,8 @@ rule all:
     # expand('gquad_enrich/{reg}/{set}/.done',reg=motseqregions,set=motseqsets),
     # expand('riboWaltz/{sample}/.done',sample=ribosamples),
     # expand('mappability/mappability_{kmer}.bedgraph', kmer = MAPPABILITY_LENGTHS),
-    # expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
-    # expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
+    expand('deepshapeprime/{sample}/runlog_199.txt',sample=samplegroups['old']),
+    expand('salmon/data/{sample}/.done',sample=list(filter(lambda s:  'total' in s,samples))),
     # expand('dpprimecov/{sample}/dpprime_dist_ribosig.tsv',sample=mainribosamples),
     # expand('scikit_ribo/{sample}/codons.csv',sample=mainribosamples)
 
@@ -1819,22 +1819,21 @@ rule ame:
       ame --scoring totalhits --method fisher {params.ctrlstr} --o {params.outdir}/all --sequence {input.fasta} {params.meme}
       ame --scoring totalhits --method fisher --control --shuffle-- --kmer 2 --o {params.outdir}/all_shuff --sequence {input.fasta} {params.meme}
       [[ -s {params.outdir}/all/ame.html ]]  || rm {params.outdir}/all/ame.html
-
    # done
   """
 
-rule gquad_enrich:
-  input:
-    seqfile = 'motseqs/{reg}/{set}/{set}.fa',
-    seqfileback = 'motseqs/{reg}/nontransregged.fa',
-  output: touch('gquad_enrich/{reg}/{set}/.done')
-  threads: 8
-  shell: r'''
-    Rscript ../exploration/quads.R \
-    {input.seqfile} \
-    {input.seqfileback} \
-    $(dirname {output})
-  '''
+# rule gquad_enrich:
+#   input:
+#     seqfile = 'motseqs/{reg}/{set}/{set}.fa',
+#     seqfileback = 'motseqs/{reg}/nontransregged.fa',
+#   output: touch('gquad_enrich/{reg}/{set}/.done')
+#   threads: 8
+#   shell: r'''
+#     Rscript ../exploration/quads.R \
+#     {input.seqfile} \
+#     {input.seqfileback} \
+#     $(dirname {output})
+#   '''
 
 #cat my_gencode.vM12.annotation.gtf | grep transcript  |  awk '{if($7=="+"){$5=$4}else{$4=$5};print $1,$4,$5,".",".",$7}' | awk -vOFS="\t" '{$2 = $2 - 100; $3 = $3 + 100;print $0}' | bedtools getfasta -bed - -fi my_GRCm38.p5.genome.chr_scaff.fa -fo /dev/stdout -s > promotorseqs.fa
 # samtools view -H star/data/E13_ribo_1/E13_ribo_1.bam | grep "SQ" | sed -r 's/^@SQ\s+SN://' | sed -r "s/\s+LN:/\t/" > my_GRCm38.p5.genome.chr_scaff.chromsizes
@@ -1845,35 +1844,33 @@ rule gquad_enrich:
 chrsizes = REF.replace(".fa",".chromsizes")
 
 
-rule fpTOP_scan:
-  input: toppwm='../ext_data/tops_yamashita_etal_2008/top_pwm.txt.meme',
-  output: 'fpTOP_scan/fimo.gff'
-  shell: r"""
+# rule fpTOP_scan:
+#   input: toppwm='../ext_data/tops_yamashita_etal_2008/top_pwm.txt.meme',
+#   output: 'fpTOP_scan/fimo.gff'
+#   shell: r"""
   
-    mkdir -p motseqs
+#     mkdir -p motseqs
 
-    cat {GTF} \
-      | awk '$3=="transcript"'  \
-      | awk -vOFS="\t" '{{if($7=="+"){{$5=$4}}else{{$4=$5}};print $1,$4,$5,$12,".",$7}}'\
-      | sed 's/[";]//g' \
-      | bedtools slop -b 11 -i - -g {chrsizes}\
-      | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s  -name \
-      > motseqs/promotorseqs.fa
+#     cat {GTF} \
+#       | awk '$3=="transcript"'  \
+#       | awk -vOFS="\t" '{{if($7=="+"){{$5=$4}}else{{$4=$5}};print $1,$4,$5,$12,".",$7}}'\
+#       | sed 's/[";]//g' \
+#       | bedtools slop -b 11 -i - -g {chrsizes}\
+#       | bedtools getfasta -bed - -fi {REF} -fo /dev/stdout -s  -name \
+#       > motseqs/promotorseqs.fa
 
-    fimo --oc $(dirname {output} ) {input.toppwm} motseqs/promotorseqs.fa 
+#     fimo --oc $(dirname {output} ) {input.toppwm} motseqs/promotorseqs.fa 
 
-  """
+#   """
 
 
 # rule set_enrich:
 #   input:
-
 #     genesetfile = 'gene_set_enrichment/allgenesets.gmt',
 #   output: touch('gquad_enrich/{reg}/{set}/.done')
 #   params:
 #   threads: 8
 #   shell: r'''
-
 #     R -e 'rmarkdown::render("{input.ribqc_report}",params = list(input_list = "{indata}",input_list_names = "{sinputs}", output_fig_path = "{figpath}"),output_file = "{outpath}")'
 #     Rscript ../exploration/quads.R \
 #     {input.seqfile} \
@@ -1884,17 +1881,17 @@ rule fpTOP_scan:
 
 
 
-##########Mappability
-for kmer in MAPPABILITY_LENGTHS:
-  kmer = str(kmer)
-  ASSAY_DICT['mappability_'+kmer] = 'ribo'
-  READ_PATTERN_DICT['mappability_'+kmer] = '-f *.fastq.gz'
-  SAMPLEFASTQDICT['mappability_'+kmer] = ['input/mappability_'+kmer+'/mappability_'+kmer+'.fastq.gz']
+# ##########Mappability
+# for kmer in MAPPABILITY_LENGTHS:
+#   kmer = str(kmer)
+#   ASSAY_DICT['mappability_'+kmer] = 'ribo'
+#   READ_PATTERN_DICT['mappability_'+kmer] = '-f *.fastq.gz'
+#   SAMPLEFASTQDICT['mappability_'+kmer] = ['input/mappability_'+kmer+'/mappability_'+kmer+'.fastq.gz']
 
-mappability_refbase = 'mappability/index/mref'
-mappability_ref = mappability_refbase +'.fa'
-mindex = ['mappability/index/mref.'+str(i)+'.bt2' for i in range(1,5)]
-contaminants = filter_index.replace('.done','.fa')
+# mappability_refbase = 'mappability/index/mref'
+# mappability_ref = mappability_refbase +'.fa'
+# mindex = ['mappability/index/mref.'+str(i)+'.bt2' for i in range(1,5)]
+# contaminants = filter_index.replace('.done','.fa')
 
 # rule create_mappability_ref:
 #   input: REF,filter_index
@@ -1904,26 +1901,26 @@ contaminants = filter_index.replace('.done','.fa')
 #     bowtie2-build {mappability_refbase}.fa {mappability_refbase}
 #   """
 
-rule create_mappability_reads:
-  input: trsizes,REF
-  output: 'trim_reads/mappability_{kmer}/mappability_{kmer}.fastq.gz'
-  threads: 8
-  shell: r"""
-  #do this for entire genome
-  set -x
-  #these one liners, in order, cat the chromosome sizesinto awk to create bed files spanning the chromosomes, 
-  #create fastas from a bed file, stick together every second line, generate the tiles of kmer size, modify the names of hte
-  #tiles, and then finally turn them into fastq format
+# rule create_mappability_reads:
+#   input: trsizes,REF
+#   output: 'trim_reads/mappability_{kmer}/mappability_{kmer}.fastq.gz'
+#   threads: 8
+#   shell: r"""
+#   #do this for entire genome
+#   set -x
+#   #these one liners, in order, cat the chromosome sizesinto awk to create bed files spanning the chromosomes, 
+#   #create fastas from a bed file, stick together every second line, generate the tiles of kmer size, modify the names of hte
+#   #tiles, and then finally turn them into fastq format
  
-  cat {trsizes} \
-    | awk '{{print $1"\t"1"\t"$2}}' \
-    | bedtools getfasta -s -fi {RNAFASTA} -bed -  \
-    | sed '$!N;s/\n/ /' \
-    | perl -lane '$i=0;while($i<=(length($F[1])-{wildcards.kmer})){{print $F[0] , "$i\n", substr $F[1],$i,{wildcards.kmer} ; $i = $i +1}}' \
-    | perl -lan -F'[\:\-|\)|\(]' -e 'if( /^>/){{print $F[0],"_",$F[1]+$F[4],"_",$F[1]+$F[4]+{wildcards.kmer}}}else{{print @F}}' \
-    | perl -lanpe 's/>/@/ ; s/^([^@]+)/\1\n+/; if($1){{$a="I" x length($1); s/\+/+\n$a/}}' \
-    | gzip > {output}
-    """
+#   cat {trsizes} \
+#     | awk '{{print $1"\t"1"\t"$2}}' \
+#     | bedtools getfasta -s -fi {RNAFASTA} -bed -  \
+#     | sed '$!N;s/\n/ /' \
+#     | perl -lane '$i=0;while($i<=(length($F[1])-{wildcards.kmer})){{print $F[0] , "$i\n", substr $F[1],$i,{wildcards.kmer} ; $i = $i +1}}' \
+#     | perl -lan -F'[\:\-|\)|\(]' -e 'if( /^>/){{print $F[0],"_",$F[1]+$F[4],"_",$F[1]+$F[4]+{wildcards.kmer}}}else{{print @F}}' \
+#     | perl -lanpe 's/>/@/ ; s/^([^@]+)/\1\n+/; if($1){{$a="I" x length($1); s/\+/+\n$a/}}' \
+#     | gzip > {output}
+#     """
 # rule create_mappability_bam:
 #   input: 'mappability/mappability_reads.{kmer}.fastq.gz'
 #   output: 'mappability/mappability_{kmer}.bam'
@@ -1961,39 +1958,39 @@ rule create_mappability_reads:
 #   bbmap.sh ref={params.ref} in={input} out={output} ambig=all nodisk vslow perfectmode maxsites={params.maxmmap}    
 #   """
 
-rule createmappability_bedgraph:
-  # input: 'mappability/mappability_{kmer}.bam'
-  input: 'star/data/mappability_{kmer}/.done',trsizes
-  output: 'mappability/mappability_{kmer}.bedgraph'
-  conda: '../envs/bedgraphtobigwig'
-  params:
-    bam = lambda wc: 'star/data/mappability_'+str(wc['kmer'])+'/mappability_'+str(wc['kmer'])+'.bam'
-  threads: 8
-  shell: r"""
-  trap "set -x; rm -rf ${{MY_TMP_DIR}}" EXIT KILL TERM INT HUP
+# rule createmappability_bedgraph:
+#   # input: 'mappability/mappability_{kmer}.bam'
+#   input: 'star/data/mappability_{kmer}/.done',trsizes
+#   output: 'mappability/mappability_{kmer}.bedgraph'
+#   conda: '../envs/bedgraphtobigwig'
+#   params:
+#     bam = lambda wc: 'star/data/mappability_'+str(wc['kmer'])+'/mappability_'+str(wc['kmer'])+'.bam'
+#   threads: 8
+#   shell: r"""
+#   trap "set -x; rm -rf ${{MY_TMP_DIR}}" EXIT KILL TERM INT HUP
 
-  MY_TMP_DIR=$(mktemp -d)
-  mkdir -p $MY_TMP_DIR
-  MY_TMP_DIR='mappatest'
+#   MY_TMP_DIR=$(mktemp -d)
+#   mkdir -p $MY_TMP_DIR
+#   MY_TMP_DIR='mappatest'
  
-  set -x
+#   set -x
 
-  samtools view -h {params.bam}  | sed -e '/^@PG/Q' \
-   | cut -f 2,3 | sed 's/[SL]N://g' | sed 's/ /_/g' \
-   | tail -n+2 >${{MY_TMP_DIR}}/chrsizes
+#   samtools view -h {params.bam}  | sed -e '/^@PG/Q' \
+#    | cut -f 2,3 | sed 's/[SL]N://g' | sed 's/ /_/g' \
+#    | tail -n+2 >${{MY_TMP_DIR}}/chrsizes
 
-  samtools view {params.bam} \
-    | grep -ve 'NH:i:1' \
-    | awk -vFS="_" -vOFS="\t" '{{print $1,$2-1,$2}}' \
-    | uniq \
-    | bedtools sort -i /dev/stdin -faidx {trsizes} \
-    | bedtools merge  -prec 1 \
-    | awk -vOFS="\t" '{{print $0,1}}' > {output[0]}
+#   samtools view {params.bam} \
+#     | grep -ve 'NH:i:1' \
+#     | awk -vFS="_" -vOFS="\t" '{{print $1,$2-1,$2}}' \
+#     | uniq \
+#     | bedtools sort -i /dev/stdin -faidx {trsizes} \
+#     | bedtools merge  -prec 1 \
+#     | awk -vOFS="\t" '{{print $0,1}}' > {output[0]}
 
     
-#  bedGraphToBigWig ${{MY_TMP_DIR}}/nomap.bg {trsizes} {output[0]}
+# #  bedGraphToBigWig ${{MY_TMP_DIR}}/nomap.bg {trsizes} {output[0]}
 
-"""
+# """
 
 ################################################################################
 ########ISoform specific quant
@@ -2104,6 +2101,7 @@ rule dpprimeformatbam:
 
   """
 
+#see integrate countdata for where this gets loaded
 rule dpprime:
   input: dpbam='deepshapebamdata/{sample}.bam.reformat.absolute',transcriptfasta=TRFASTA,
   output: file='deepshapeprime/{sample}/runlog_199.txt',
@@ -2135,146 +2133,146 @@ rule dpprimecov:
 """
 
 
-# SMARTBIN=../Applications/SSMART1.2/SSMART;python ssmart.py -f motseqs/tputr/teranked/teranked.fa -o teranked.ssmart.out -c 2 -p $SMARTBIN
-apsiteanno = 'asite_ip_preprocess/asite_ip_anno.tsv'
-rule asite_ip_anno:
-  input: TRFASTA
-  output: apsiteanno
-  # shell:r"""grep -e '>' {TRFASTA} | perl -lane 'if($.==1){{print join "\t","Gene name","Start index", "CDS Length"}}; /(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$1,$2,$3-$2' > {output}"""
-  shell:r"""grep -e '>' {TRFASTA} | perl -lane ';/(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$_,$2,$3-$2' | tr -d '>'  > {output}"""
+# # SMARTBIN=../Applications/SSMART1.2/SSMART;python ssmart.py -f motseqs/tputr/teranked/teranked.fa -o teranked.ssmart.out -c 2 -p $SMARTBIN
+# apsiteanno = 'asite_ip_preprocess/asite_ip_anno.tsv'
+# rule asite_ip_anno:
+#   input: TRFASTA
+#   output: apsiteanno
+#   # shell:r"""grep -e '>' {TRFASTA} | perl -lane 'if($.==1){{print join "\t","Gene name","Start index", "CDS Length"}}; /(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$1,$2,$3-$2' > {output}"""
+#   shell:r"""grep -e '>' {TRFASTA} | perl -lane ';/(ENSMUST\w+\.\w+).*CDS:(\d+)\-(\d+)/;print join "\t",$_,$2,$3-$2' | tr -d '>'  > {output}"""
 
-rule asite_ip_preprocess:
-  input: 'star_transcript/data/{sample}/{sample}.sort.bam',apsiteanno=apsiteanno
-  output: touch('asite_ip_preprocess/{sample}/.done'),'asite_ip_preprocess/{sample}/output/Multiple_mapped_gene_read_counts_20_35.tab'
-  conda: '../envs/biopython2.7'
-  shell: r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_preprocess.py -g {input.apsiteanno} -e {TRFASTA} -a transcriptome -m 20 -x 35 -i {input[0]} -o $(dirname {output})"""
-rule asite_ip:
-  input: 'asite_ip_preprocess/{sample}/.done'
-  output: touch('asite_ip/{sample}/.done')
-  conda: '../envs/biopython2.7'
-  shell:r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_run.py -i $(dirname {input[0]})/output/ -j $(dirname {input[0]})/output/Multiple_mapped_gene_read_counts_20_35.tab -m 20 -x 35 -o $(dirname {output[0]})"""
-
-
+# rule asite_ip_preprocess:
+#   input: 'star_transcript/data/{sample}/{sample}.sort.bam',apsiteanno=apsiteanno
+#   output: touch('asite_ip_preprocess/{sample}/.done'),'asite_ip_preprocess/{sample}/output/Multiple_mapped_gene_read_counts_20_35.tab'
+#   conda: '../envs/biopython2.7'
+#   shell: r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_preprocess.py -g {input.apsiteanno} -e {TRFASTA} -a transcriptome -m 20 -x 35 -i {input[0]} -o $(dirname {output})"""
+# rule asite_ip:
+#   input: 'asite_ip_preprocess/{sample}/.done'
+#   output: touch('asite_ip/{sample}/.done')
+#   conda: '../envs/biopython2.7'
+#   shell:r"""mkdir -p $(dirname {output[0]});python ../Applications/Asite_IP_method/src/asite_ip_run.py -i $(dirname {input[0]})/output/ -j $(dirname {input[0]})/output/Multiple_mapped_gene_read_counts_20_35.tab -m 20 -x 35 -o $(dirname {output[0]})"""
 
 
 
-################################################################################
-########Peptide calling
-################################################################################
-#eet the raw files from the pride ftp
-import pandas as pd
-msfiles = (pd.read_csv('../src/ms_raw_files.txt',sep='\t')['file'])
-msfiles = dict(msfiles)
-mssamples = list(msfiles.keys())
-mssamplegrp = dict([(s,'_'.join(s.split('_')[0:2])) for s in mssamples])
-mssamplegrps = list(set(mssamplegrp.values()))
-msgroupsample = dict([(g,[s for s in mssamples if mssamplegrp[s]==g] ) for
-  g in mssamplegrps])
 
 
-#R snippet to make a peptide db from florians orfquant fasta
-#Sys.glob('../../florian/mouse_neocortex_data/*.fasta')%>%readAAStringSet%>%unique%>%{names(.)<-str_extract(names(.),'[^|]+');.}%>%{x=.;c(x,stri_reverse(x)%>%setNames(paste0('rev_',names(x))))}%>%writeXStringSet('foq.peptidedb.fasta')
+# ################################################################################
+# ########Peptide calling
+# ################################################################################
+# #eet the raw files from the pride ftp
+# import pandas as pd
+# msfiles = (pd.read_csv('../src/ms_raw_files.txt',sep='\t')['file'])
+# msfiles = dict(msfiles)
+# mssamples = list(msfiles.keys())
+# mssamplegrp = dict([(s,'_'.join(s.split('_')[0:2])) for s in mssamples])
+# mssamplegrps = list(set(mssamplegrp.values()))
+# msgroupsample = dict([(g,[s for s in mssamples if mssamplegrp[s]==g] ) for
+#   g in mssamplegrps])
 
 
-# peptidefastas=[]
-# peptidedb = [f+'.peptidedb.fa' for f in peptidefastas]
-peptidedb = {'fOQdb':'foq.peptidedb.fasta'}
-
-# python makedecoys.py  -i test.fasta -o decoys.fasta
+# #R snippet to make a peptide db from florians orfquant fasta
+# #Sys.glob('../../florian/mouse_neocortex_data/*.fasta')%>%readAAStringSet%>%unique%>%{names(.)<-str_extract(names(.),'[^|]+');.}%>%{x=.;c(x,stri_reverse(x)%>%setNames(paste0('rev_',names(x))))}%>%writeXStringSet('foq.peptidedb.fasta')
 
 
-# rule allmsfragger:
-  # input: expand('msfragger/{msgroup}/{msgroup}',msgroup=mssamplegrps[1])
+# # peptidefastas=[]
+# # peptidedb = [f+'.peptidedb.fa' for f in peptidefastas]
+# peptidedb = {'fOQdb':'foq.peptidedb.fasta'}
 
-rule allphilosopher:
-  input: expand('philosopher/{msgroup}__{seq}/{msgroup}',seq='fOQdb',msgroup=mssamplegrps)
+# # python makedecoys.py  -i test.fasta -o decoys.fasta
 
-rule allionquant:
-  input: expand('ionquant/{msgroup}/{msgroup}',msgroup='P0_MS')
 
-rule convert_raw:
-  input: rawfile = lambda wc: msfiles[wc['sample']]
-  output: mzMLfile = 'mzML/{sample}/{sample}.mzML'
-  shell: r"""
-  mkdir -p $(dirname {output[0]})
-  mono ../Applications/ThermoRawFileParser/bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
-  mv $(dirname {output[0]})/* {output.mzMLfile}
-  """
+# # rule allmsfragger:
+#   # input: expand('msfragger/{msgroup}/{msgroup}',msgroup=mssamplegrps[1])
 
-rule msfragger:
-  input:
-    mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
-    fasta = lambda wc: peptidedb[wc['seq']]
-    # fasta = '/fast/AG_Ohler/dharnet/cortexomics/peptidedb.fasta'
-  params:
-    msfraggerpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/MSFragger-3.2.jar",
-    fraggerparamspath = '/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/closed_fragger.params',
-    inputfiles = lambda wc, input: ['../../'+ i for i in input.mzML],
-    outputfiles = lambda wc,input: ['../../'+i.replace('.mzML','.pepXML') for i in input.mzML]
-  output: touch('msfragger/{group}__{seq}/{group}'),'msfragger/{group}__{seq}/{group}_1.pepXML','msfragger/{group}__{seq}/{group}_2.pepXML','msfragger/{group}__{seq}/{group}_3.pepXML'
-  shell: r'''
-    mkdir -p $(dirname {output})
-    cd $(dirname {output})
-    echo $(readlink -f {input.mzML})
-    cp ../../{input.fasta} ./test.fasta
-    for i in {input.mzML} ; do ln -sf ../../$i . ; done
-    java -Xmx64G -jar {params.msfraggerpath} {params.fraggerparamspath} ./*mzML
-    '''
+# rule allphilosopher:
+#   input: expand('philosopher/{msgroup}__{seq}/{msgroup}',seq='fOQdb',msgroup=mssamplegrps)
 
-# rule create_decoy_fasta:
-#   input: 
-
-philosopherpath='/fast/AG_Ohler/dharnet/cortexomics/Applications/philosopher'
-
-rule philosopher:
-  input: 
-    # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
-    fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
-    mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
-    fasta = lambda wc: peptidedb[wc['seq']]
-  params:
-    decoyprefix='rev_'
-  output: touch('philosopher/{group}__{seq}/{group}')
-  shell:r'''
-  set -x
-  cd $(dirname {output})
-  cp ../../{input.fasta} ./test.fasta
-  for i in {input.fragger} ; do ln -sf ../../$i . ; done
-  for i in {input.mzML} ; do ln -sf ../../$i . ; done
-  # Run PeptideProphet, ProteinProphet, and FDR filtering with Philosopher
-  {philosopherpath} workspace --clean
-  {philosopherpath} workspace --init
-  {philosopherpath} database --annotate ./test.fasta --prefix {params.decoyprefix}
-  # Pick one from the following three commands and comment the other two.
-  {philosopherpath} peptideprophet --nonparam --expectscore --decoyprobs --ppm --accmass --decoy {params.decoyprefix} --database {input.fasta}  ./*.pepXML # Closed search
-  {philosopherpath} proteinprophet --maxppmdiff 2000000 --output combined ./interact*.pep.xml
-  {philosopherpath} filter --sequential --razor --mapmods --tag {params.decoyprefix} --pepxml ./interact*.pep.xml --protxml ./combined.prot.xml # closed or non-specific closed search
-
-  # Make reports.
-  {philosopherpath} report
-  {philosopherpath} workspace --clean
-  '''
-
-ionquantpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/IonQuant-1.5.5.jar"
-
-rule ionquant:
-  input:
-        # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
-      fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
-  output:
-      touch('ionquant/{group}__{seq}/{group}'),'ionquant/{group}__{seq}/peptides.tsv'
-  shell: r''' 
-  set -x
-  cd $(dirname {output})
-  mkdir -p ./specdir
-  for i in {input.fragger} ; do ln -sf ../../$i ./specdir ; done
-  java -Xmx64G -jar {ionquantpath} --specdir specdir {input.fragger}'''
+# rule allionquant:
+#   input: expand('ionquant/{msgroup}/{msgroup}',msgroup='P0_MS')
 
 # rule convert_raw:
-#   input: lambda wc: msfiles[wc['sample']]
-#   output: expand('mzML/{sample}/{sample}.mzML')
+#   input: rawfile = lambda wc: msfiles[wc['sample']]
+#   output: mzMLfile = 'mzML/{sample}/{sample}.mzML'
 #   shell: r"""
 #   mkdir -p $(dirname {output[0]})
-#   mono ./bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
-#   mv $(dirname {output[0]})/* $(dirname {output.mzMLfile})
+#   mono ../Applications/ThermoRawFileParser/bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
+#   mv $(dirname {output[0]})/* {output.mzMLfile}
 #   """
+
+# rule msfragger:
+#   input:
+#     mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
+#     fasta = lambda wc: peptidedb[wc['seq']]
+#     # fasta = '/fast/AG_Ohler/dharnet/cortexomics/peptidedb.fasta'
+#   params:
+#     msfraggerpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/MSFragger-3.2.jar",
+#     fraggerparamspath = '/fast/AG_Ohler/dharnet/cortexomics/Applications/MSFragger-3.2/closed_fragger.params',
+#     inputfiles = lambda wc, input: ['../../'+ i for i in input.mzML],
+#     outputfiles = lambda wc,input: ['../../'+i.replace('.mzML','.pepXML') for i in input.mzML]
+#   output: touch('msfragger/{group}__{seq}/{group}'),'msfragger/{group}__{seq}/{group}_1.pepXML','msfragger/{group}__{seq}/{group}_2.pepXML','msfragger/{group}__{seq}/{group}_3.pepXML'
+#   shell: r'''
+#     mkdir -p $(dirname {output})
+#     cd $(dirname {output})
+#     echo $(readlink -f {input.mzML})
+#     cp ../../{input.fasta} ./test.fasta
+#     for i in {input.mzML} ; do ln -sf ../../$i . ; done
+#     java -Xmx64G -jar {params.msfraggerpath} {params.fraggerparamspath} ./*mzML
+#     '''
+
+# # rule create_decoy_fasta:
+# #   input: 
+
+# philosopherpath='/fast/AG_Ohler/dharnet/cortexomics/Applications/philosopher'
+
+# rule philosopher:
+#   input: 
+#     # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+#     fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+#     mzML= lambda wc: expand('mzML/{sample}/{sample}.mzML', sample = msgroupsample[wc['group']]),
+#     fasta = lambda wc: peptidedb[wc['seq']]
+#   params:
+#     decoyprefix='rev_'
+#   output: touch('philosopher/{group}__{seq}/{group}')
+#   shell:r'''
+#   set -x
+#   cd $(dirname {output})
+#   cp ../../{input.fasta} ./test.fasta
+#   for i in {input.fragger} ; do ln -sf ../../$i . ; done
+#   for i in {input.mzML} ; do ln -sf ../../$i . ; done
+#   # Run PeptideProphet, ProteinProphet, and FDR filtering with Philosopher
+#   {philosopherpath} workspace --clean
+#   {philosopherpath} workspace --init
+#   {philosopherpath} database --annotate ./test.fasta --prefix {params.decoyprefix}
+#   # Pick one from the following three commands and comment the other two.
+#   {philosopherpath} peptideprophet --nonparam --expectscore --decoyprobs --ppm --accmass --decoy {params.decoyprefix} --database {input.fasta}  ./*.pepXML # Closed search
+#   {philosopherpath} proteinprophet --maxppmdiff 2000000 --output combined ./interact*.pep.xml
+#   {philosopherpath} filter --sequential --razor --mapmods --tag {params.decoyprefix} --pepxml ./interact*.pep.xml --protxml ./combined.prot.xml # closed or non-specific closed search
+
+#   # Make reports.
+#   {philosopherpath} report
+#   {philosopherpath} workspace --clean
+#   '''
+
+# ionquantpath = "/fast/AG_Ohler/dharnet/cortexomics/Applications/IonQuant-1.5.5.jar"
+
+# rule ionquant:
+#   input:
+#         # fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+#       fragger=lambda wc: expand('msfragger/{group}__{seq}/{sample}.pepXML',group=wc['group'],seq=wc['seq'], sample = msgroupsample[wc['group']]),
+#   output:
+#       touch('ionquant/{group}__{seq}/{group}'),'ionquant/{group}__{seq}/peptides.tsv'
+#   shell: r''' 
+#   set -x
+#   cd $(dirname {output})
+#   mkdir -p ./specdir
+#   for i in {input.fragger} ; do ln -sf ../../$i ./specdir ; done
+#   java -Xmx64G -jar {ionquantpath} --specdir specdir {input.fragger}'''
+
+# # rule convert_raw:
+# #   input: lambda wc: msfiles[wc['sample']]
+# #   output: expand('mzML/{sample}/{sample}.mzML')
+# #   shell: r"""
+# #   mkdir -p $(dirname {output[0]})
+# #   mono ./bin/x64/Debug/ThermoRawFileParser.exe -i {input.rawfile} -o $(dirname {output[0]})
+# #   mv $(dirname {output[0]})/* $(dirname {output.mzMLfile})
+# #   """

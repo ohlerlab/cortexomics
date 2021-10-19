@@ -1,7 +1,7 @@
 library(here)
 ################################################################################
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 
 trid2gid<-load_hashmap('trid2gid.hmp')
 gid2gnm<-load_hashmap('gid2gnm.hmp')

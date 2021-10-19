@@ -4,7 +4,7 @@ dir.create('plots/Figures/Figure3/',showWarn=F,rec=T)
 #src/R/Figures/Figure2/codon_coverage.R
 FLANKCODS<-15
 {
-if(!exists('here')) base::source(here::here('src/R/Rprofile.R'))
+if(!exists('here')) base::source(here::here('src/Rprofile.R'))
 intersect <- BiocGenerics::intersect
 # if(!exists('codonprofiles')) load(here('data/codon_coverage.Rdata'))
 if((!exists('allcodsigmean_isomerge'))||(!'availability'%in%colnames(allcodsigmean_isomerge))){

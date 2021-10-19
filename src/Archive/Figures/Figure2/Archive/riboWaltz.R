@@ -17,7 +17,7 @@ suppressMessages({library(GenomicAlignments)})
 suppressMessages({library(magrittr)})
 suppressMessages({library(Rsamtools)})
 
-source(here("src/R/Rprofile.R"))
+source(here("src/Rprofile.R"))
 
 if(!exists('cds'))load(here('data/1_integrate_countdata.R'))
 #load arguments

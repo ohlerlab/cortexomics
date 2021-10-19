@@ -11,10 +11,10 @@ require(rlang)
 
 library(data.table)
 
-base::source(here::here('src/R/Rprofile.R'))
-if(!exists('cdsgrl')) base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
+base::source(here::here('src/Rprofile.R'))
+if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
-# base::source(here::here('src/Figures/Figure0/0_load_annotation.R'))
+# base::source(here::here('src/Figures/load_annotation.R'))
 
 displaystagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
 stageconv = names(displaystagecols)%>%setNames(c('E13','E145','E16','E175','P0'))

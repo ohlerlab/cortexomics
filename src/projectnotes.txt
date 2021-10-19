@@ -171,7 +171,7 @@ src/R/Modeling/errornotes.txt
 src/R/Psite_offsets
 src/R/Psite_offsets/segment_counts.R
 
-src/R/Rprofile.R
+src/Rprofile.R
 src/R/Load_data/integrate_exprdata2.R
 src/R/TE_change/run_xtail.R
 

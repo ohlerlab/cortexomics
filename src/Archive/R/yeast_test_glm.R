@@ -1,7 +1,7 @@
 #if (!requireNamespace("BiocManager", quietly = TRUE))
 #    install.packages("BiocManager")
 #BiocManager::install("BSgenome.Scerevisiae.UCSC.sacCer3")
-source('src/R/Rprofile.R')
+source('src/Rprofile.R')
 library(BSgenome.Scerevisiae.UCSC.sacCer3)
 library("TxDb.Scerevisiae.UCSC.sacCer3.sgdGene")
 ygenome = BSgenome.Scerevisiae.UCSC.sacCer3

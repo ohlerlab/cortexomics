@@ -1,8 +1,8 @@
 ################################################################################
 ################################################################################
-base::source(here::here('src/R/Rprofile.R'))
+base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/Figure0/0_load_annotation.R")
+	base::source("src/Figures/load_annotation.R")
 }
 if(!exists("long_exons")) {
 	base::source("src/Figures/Figure4/7_motseqfiles.R")

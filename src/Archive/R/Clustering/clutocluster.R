@@ -1,5 +1,5 @@
 library(here)
-source(here::here('src/R/Rprofile.R'))
+source(here::here('src/Rprofile.R'))
 
 # suppressMessages({library(svglite)})
 suppressMessages({library(readr)})
