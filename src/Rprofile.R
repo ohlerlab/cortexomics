@@ -170,7 +170,6 @@ is_offchr<-function(gr,si){
   }else{
     seqinfo(gr)<-si
     end(gr) > seqlengths(gr)[as.character(seqnames(gr))]
-
   }
 }
 is_out_of_bounds <- function(gr,si = seqinfo(gr)){

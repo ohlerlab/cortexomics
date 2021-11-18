@@ -585,9 +585,9 @@ tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','frac
 #     ggtitle("Codon usage frequency vs summed tRNA abundance")
 # dev.off()
 # normalizePath("plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf")
-allcodsigmean%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-allcodsigmean_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-fread('tables/isodecoder_data.tsv')%>%filter(sample=='Total E13')%>%filter(is.finite(Ct))%>%.$codon%>%n_distinct
-allqpcrsig%>%filter(sample=='Total E13',is.finite(Ct))%>%.$anticodon%>%str_subset(neg=T,'rRNA|mt|PPC|Spike|U6|iMet')%>%n_distinct
-codonstats%>%filter(time=='E13',rep==1)%>%.$codon%>%n_distinct
+# allcodsigmean%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+# all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+# allcodsigmean_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
+# fread('tables/isodecoder_data.tsv')%>%filter(sample=='Total E13')%>%filter(is.finite(Ct))%>%.$codon%>%n_distinct
+# allqpcrsig%>%filter(sample=='Total E13',is.finite(Ct))%>%.$anticodon%>%str_subset(neg=T,'rRNA|mt|PPC|Spike|U6|iMet')%>%n_distinct
+# codonstats%>%filter(time=='E13',rep==1)%>%.$codon%>%n_distinct

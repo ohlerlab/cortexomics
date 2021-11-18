@@ -1,5 +1,5 @@
 
-
+{
 library(rtracklayer)
 library(Biostrings)
 library(GenomicFeatures)
@@ -8,14 +8,17 @@ require(txtplot)
 require(Rsamtools)
 require(rlang)
 #coverageplots
-
+# BiocManager::install(c('seqinr'))
+################################################################################
+########## Redo of codon usage pca analysis
+################################################################################
 library(data.table)
-
+#
 base::source(here::here('src/Rprofile.R'))
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
-if((!exists('allcodsigmean_isomerge'))||(!'availability'%in%colnames(allcodsigmean_isomerge))){
-	base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
+if(((!exists('allcodsigmean_isomerge')))||(!'availability'%in%colnames(allcodsigmean_isomerge))){
+	base::source(here('src/Figures/Figure6/3_tRNA_array_analysis.R'))
 } 
 stagecolsdisplay <- c(E12.5 = "#214098", E14 = "#2AA9DF", E15.5 = "#F17E22", E17 = "#D14E28", P0 = "#ED3124")
 displaystageconv <- names(stagecolsdisplay)%>% setNames(c("E13", "E145", "E16", "E175", "P0"))
@@ -25,6 +28,108 @@ GENETIC_CODE<-Biostrings::GENETIC_CODE
 #id dfs
 trgiddf=ids_nrgname%>%select(g_id=gene_id,tr_id=transcript_id)%>%distinct
 gnm_gid=ids_nrgname%>%select(gnm=gene_name,g_id=gene_id)%>%distinct
+}
+
+## Make a coding sequence from this:
+(cds <- s2c(paste(words(), collapse = "")))
+seqinr::uco(cds)
+
+ribocovtrs <- readRDS('data/ribocovtrs.rds')
+
+cdsseq = extractTranscriptSeqs(x=fafileob,cdsgrl%>%sort_grl_st)
+
+tr_codon_freqs = cdsseq%>%as.character%>%map(tolower)%>%str_split('')%>%
+	mclapply(mc.cores=8,seqinr::uco, index = "freq")
+	# mclapply(mc.cores=8,seqinr::uco, index = "rscu")
+#
+tr_codon_freqmat <- tr_codon_freqs%>%simplify2array%>%t
+tr_codon_freqmat%<>%replace_na(1)
+tr_codon_freqmat%<>%setNames(names(cdsseq))
+#
+codusage_pca = princomp(tr_codon_freqmat)
+
+#
+#load info on dTE genes
+dte_df = readxl::read_xlsx("tables/S2.xlsx",1,col_types=c(time='text'))
+tr2gid = ids_nrgname%>%distinct(transcript_id,gene_id)%>%{setNames(.$gene_id,.$transcript_id)}
+codusage_pca$scores %<>% set_rownames()
+#
+teupgenes = dte_df%>%filter(adj_p_value<0.05,log2fc>0)%>%.$gene_id
+tedowngenes = dte_df%>%filter(adj_p_value<0.05,log2fc<0)%>%.$gene_id
+#
+cod_pca_df = codusage_pca$scores[,1:2]%>%as.data.frame%>%
+	rownames_to_column('gene_id')%>%
+	set_colnames(c('gene_id','PCA1','PCA2'))%>%
+	mutate(dte = case_when(
+		gene_id %in% teupgenes ~ 'TE Up',
+		gene_id %in% tedowngenes ~ 'TE Down',
+		TRUE ~ as.character(NA)
+	))
+varprops <- capture.output(codusage_pca%>%summary)%>%.[4]%>%str_extract_all('0\\.\\d+')%>%unlist%>%
+	as.numeric%>%
+	round(3)%>%
+	multiply_by(100)%>%
+	paste0(.,'%')
+PCA1label = str_interp('PCA 1 ${varprops[1]}')
+PCA2label = str_interp('PCA 2 ${varprops[2]}')
+#
+
+codpca_ttestlabl1 <- tidy(wilcox.test(
+	cod_pca_df%>%filter(dte=='TE Up')%>%.$PCA1,
+	cod_pca_df%>%filter(dte=='TE Down')%>%.$PCA1
+))%>%{format(.$p.value,format='e',digits=4)}%>%{str_interp('wilcox test p.value = ${.}')}
+codpca_ttestlabl2 <- tidy(wilcox.test(
+	cod_pca_df%>%filter(dte=='TE Up')%>%.$PCA2,
+	cod_pca_df%>%filter(dte=='TE Down')%>%.$PCA2
+))%>%{format(.$p.value,format='e',digits=4)}%>%{str_interp('wilcox test p.value = ${.}')}
+#
+
+
+plotfile <- here(paste0('plots/','codusage_pca_dte','.pdf'))
+pdf(plotfile)
+cod_pca_df%>%
+	arrange(!is.na(dte))%>%
+	ggplot(aes(x=PCA1,y=PCA2,color=dte))+
+	geom_point(alpha=I(0.5))+
+	scale_x_continuous(PCA1label)+
+	scale_y_continuous(PCA2label)+
+	facet_grid()+
+	geom_text(data=tibble(labl=codpca_ttestlabl),
+		aes(label=labl,x=Inf,y=Inf),color=I('black'),hjust=1,vjust=1)+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+plotfile <- here(paste0('plots/','codusage_pca1_dte_dens','.pdf'))
+pdf(plotfile)
+cod_pca_df%>%
+	arrange(!is.na(dte))%>%
+	ggplot(aes(x=PCA1,color=dte))+
+	geom_density(alpha=I(0.5))+
+	scale_x_continuous(PCA1label)+
+	facet_grid()+
+	geom_text(data=tibble(labl=codpca_ttestlabl1),
+		aes(label=labl,x=Inf,y=Inf),color=I('black'),hjust=1,vjust=1)+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+plotfile <- here(paste0('plots/','codusage_pca2_dte_dens','.pdf'))
+pdf(plotfile)
+cod_pca_df%>%
+	arrange(!is.na(dte))%>%
+	ggplot(aes(x=PCA2,color=dte))+
+	geom_density(alpha=I(0.5))+
+	scale_x_continuous(PCA2label)+
+	facet_grid()+
+	geom_text(data=tibble(labl=codpca_ttestlabl2),
+		aes(label=labl,x=Inf,y=Inf),color=I('black'),hjust=1,vjust=1)+
+	theme_bw()
+dev.off()
+message(normalizePath(plotfile))
+
+
+
 
 
 
@@ -53,13 +158,6 @@ telleygnmsplit = telleygdf[,3:4]%>%
 	inner_join(gnm_gid)%>%
 	{split(.$g_id,.$set)}
 
-#load info on dTE genes
-dte_df = readxl::read_xlsx("tables/S2.xlsx",1,col_types=c(time='text'))
-dte_df%<>%filter(time=='3')
-dte_df$time='E175'
-teupgenes = dte_df%>%filter(adj_p_value<0.05,log2fc>0)%>%.$gene_id
-tedowngenes = dte_df%>%filter(adj_p_value<0.05,log2fc<0)%>%.$gene_id
-dtegenes = c(teupgenes,tedowngenes)
 
 #telley 2016 genes
 N_allage=read_tsv('ext_data/telley_2016_neuronallages.tsv',col_names='gnm')%>%inner_join(gnm_gid)%>%.$g_id
