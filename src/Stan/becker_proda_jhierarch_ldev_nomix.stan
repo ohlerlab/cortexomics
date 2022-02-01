@@ -43,39 +43,16 @@ transformed parameters{
         ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
     }
     prot = prot ;
-    // dprot = exp(lribo + rep_matrix(l_st_dev,T) + msdev) + exp(-7);
 }
 model {
-  // l_st ~ normal(0,l_st_priorsd);
-  // l_pihalf ~ normal(l_pihalf_priormu,l_pihalf_priorsd);
   var_l_phalf ~ inv_gamma(1,1);
-  // sd_l_phalf ~ normal(mu_l_pihalf,3)
-  // lKs ~ normal(mu_lks,sd_lks);
   l_pihalf ~ normal(mu_l_pihalf,sd_l_phalf);
-  // l_pihalf ~ normal(mu_l_pihalf,1);
   mu_l_pihalf ~ normal(l_pihalf_priormu,3);
-  // l_pihalf ~ normal(mu_l_pihalf,2);
-   // ~ normal(mu_l_pihalf,2);
-  // theta ~ beta(5,1);
   for(g in 1:G){
     for(t in 1:T){
       lSeqmu[g,t] ~ normal(lribo[g,t],lSeqsigma[g,t]);
-      //     if(dprot[g,t] <= 0){
-      //   print("problem with gene:");
-      //   print(g);
-      //   print("lprot is:");
-      //   print(log(prot[g,]));
-      //   print(" lMSmu is:");
-      //   print(lMSmu[g,]);
-      //   print(" lribo is:");
-      //   print(lribo[g,]);
-      //   print(" l_pihalf is:");
-      //   print(l_pihalf[g]);
-      // }
+      }
       lMSmu[g,t]  ~ normal(log(prot[g,t]),lMSsigma[g,t]);
     }
   }
 }
-// so with free mu_l_pihalf and forced variance of 1 this works very well
-// try prio on mu_l_pihalf still works well
-

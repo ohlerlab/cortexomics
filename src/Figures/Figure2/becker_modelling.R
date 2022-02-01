@@ -1,4 +1,4 @@
-if(!exists('prot_ests'))source('src/becker_modelling_prep.R')
+if(!exists('prot_ests'))source('src/Figures/Figure2/becker_modelling_prep.R')
 model=models[['production']]
 gene=rownames(prot_ests)[1]
 datafun=names(datafuns)[[2]]
@@ -58,7 +58,6 @@ if(!file.exists(here('data/bmodelopts.rds'))){
 # opt = bmodelopts[[gene]][[datafun]][['msdev']]
 # file.remove('data/modeltestdf.rds')
 if(!file.exists(here('data/modeltestdf.rds'))){
-
 	#now let's do a chi squared test
 	# model_tests = mclapply(mc.cores=20,names(bmodelopts)%>%setNames(.,.),safely(function(gene){
 	n_dflist = lapply(names(models)%>%setNames(.,.),function(modname){
@@ -116,6 +115,24 @@ notmsdevgenes = modeltestdf%>%filter(data=='riboseq')%>%group_by(gene)%>%filter(
 
 
 names(bmodelopts)%>%is_in(notmsdevgenes)%>%table
+exgn='Satb2'
+allgnms<-unique(names(bmodelopts))%>%setNames(.,.)
+modelvals <- map_df(.id='gene',allgnms,function(exgn){
+	model=genebmodels[exgn]
+	optres = bmodelopts[[exgn]][['riboseq']][[model]]
+	if(is.null(optres)){return(NULL)}
+	modelests = tibble(assay='prot',estimate=optres$par[['prot']]%>%as.vector)%>%
+		unnest(estimate)%>%
+		mutate(estimate=log2(estimate))%>%
+		mutate(estimate=estimate+protscl)%>%
+		mutate(time=tps,model=model,gene_name=exgn)
+	modelests
+})
+tps = c('E13','E145','E16','E175','P0')
+bmodelvals <- modelvals
+bmodelvals%>%write_tsv(here('data/bmodelvals.tsv'))
+
+
 ################################################################################
 ########DIagnostics
 ################################################################################

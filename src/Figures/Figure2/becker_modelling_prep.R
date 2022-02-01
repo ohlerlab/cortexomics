@@ -2,7 +2,7 @@
 ################################################################################
 base::source(here::here('src/Rprofile.R'))
 library(rstan)
-base::source('src/Archive/R/Functions/rstan_functions.R')
+base::source('src/Figures/Figure2/rstan_functions.R')
 
 if(!exists("tx_countdata")) {
 	# base::source("src/Figures/load_annotation.R")
@@ -22,13 +22,13 @@ countpred_df%<>%mutate(se = (CI.R-CI.L)/3.92)
 
 {
 #Things we want ot sim - production slow half life, production high half life, 
-bmodel <- rstan::stan_model('src/Archive/Stan/becker_proda.stan')
-# bmodel_ribooffset <- rstan::stan_model('src/Archive/Stan/becker_proda_ribooff.stan')
-bmodel_msdev <- rstan::stan_model('src/Archive/Stan/becker_proda_msdev.stan')
-bmodel_stationary <- rstan::stan_model('src/Archive/Stan/becker_proda_stationary.stan')
-bmodel_degonly <- rstan::stan_model('src/Archive/Stan/bmodel_degonly.stan')
-bmodel_linear <- rstan::stan_model('src/Archive/Stan/becker_proda_linear.stan')
-bmodel_accumulation <- rstan::stan_model('src/Archive/Stan/becker_proda_accumulation.stan')
+bmodel <- rstan::stan_model('src/Stan/becker_proda.stan')
+# bmodel_ribooffset <- rstan::stan_model('src/Stan/becker_proda_ribooff.stan')
+bmodel_msdev <- rstan::stan_model('src/Stan/becker_proda_msdev.stan')
+bmodel_stationary <- rstan::stan_model('src/Stan/becker_proda_stationary.stan')
+bmodel_degonly <- rstan::stan_model('src/Stan/bmodel_degonly.stan')
+bmodel_linear <- rstan::stan_model('src/Stan/becker_proda_linear.stan')
+bmodel_accumulation <- rstan::stan_model('src/Stan/becker_proda_accumulation.stan')
 models = list(
 	production = bmodel,
 	# production_offset = bmodel_ribooffset,
@@ -124,4 +124,5 @@ mcshanethalfs$half_life%<>%str_replace('> 300','300')%>%as.numeric
 mcshanethalfs%<>%filter(half_life<299)
 mcshanethalfs$half_life %<>% {./24}
 
-
+saveRDS(protscl,here('data/protscl.rds'))
+saveRDS(countrscl,here('data/countrscl.rds'))

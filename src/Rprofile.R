@@ -621,27 +621,25 @@ apply_cds_offsets<- function(reads_tr,bestscores){
 
 
 take_Fvals_spect<-function(x,n_tapers,time_bw,slepians_values){
-     if(length(x)<25){
-          remain<-50-length(x)
-          x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
-     }
-
-     if(length(x)<1024/2){padding<-1024}
-     if(length(x)>=1024/2){padding<-"default"}
-
-     resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
-     
-     resSpec2<-dropFreqs(resSpec1,0.29,0.39)
-     
-     closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
-     
-     freq_max_3nt<-resSpec1$freq[closestfreqind]
-     Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
-     spect_3nt<-resSpec1$spec[closestfreqind]
-     return(c(Fmax_3nt,spect_3nt))
-     
+  if(length(x)<25){
+      remain<-50-length(x)
+      x<-c(rep(0,as.integer(remain/2)),x,rep(0,remain%%2+as.integer(remain/2)))
+  }
+  #
+  if(length(x)<1024/2){padding<-1024}
+  if(length(x)>=1024/2){padding<-"default"}
+  #
+  resSpec1 <- spec.mtm(as.ts(x), k=n_tapers, nw=time_bw, nFFT = padding, centreWithSlepians = TRUE, Ftest = TRUE, maxAdaptiveIterations = 100,returnZeroFreq=F,plot=F,dpssIN=slepians_values)
+  #
+  resSpec2<-dropFreqs(resSpec1,0.29,0.39)
+  #
+  closestfreqind <- which(abs((resSpec1$freq-(1/3)))==min(abs((resSpec1$freq-(1/3)))))
+  # 
+  freq_max_3nt<-resSpec1$freq[closestfreqind]
+  Fmax_3nt<-resSpec1$mtm$Ftest[closestfreqind]
+  spect_3nt<-resSpec1$spec[closestfreqind]
+  return(c(Fmax_3nt,spect_3nt))
 }
-
 
 ftestvect<-function(psit,k=24,bw=12){
   sl<-dpss(n=length(psit)%>%ifelse(.<25,50,.),k=k,nw=bw)

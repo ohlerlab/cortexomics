@@ -141,7 +141,9 @@ message(normalizePath(plotfile))
 msdevsplitgoterms%>%filter(elimFisher<0.05)%>%head
 
 
-if(!exists('jhopth')) source('src/kinetics_redo/becker_modelling_hierarch.R')
+if(!exists('jhopth')){
+	jhopth <- readRDS(here('data/jhopth.rds'))
+}
 #plotting absolute pihalfs
 #
 high_pihalf_genes <- jhopth$par$l_pihalf[match(notmsdevgenes,combinitvals$gene)]%>%
@@ -160,9 +162,6 @@ goplotlist = msdevsplitgoterms%>%filter(ontology=='BP')%>%split(.,.$cluster)%>%l
 		 	stat_identity(geom='bar')+
 		 	geom_text(aes(label=GO.ID,y=4,color=I('white')))+
 			ggplot2::scale_fill_continuous(
-			      # limits = coltranslims,
-			      # breaks = round(seq(from=min(coltranslims),to=max(coltranslims),len=n_colbreaks)),
-			      # labels = col_label_format,
 			      high = '#231f20',low='#d1d1d1'
 			    )+
 		 	coord_flip()+

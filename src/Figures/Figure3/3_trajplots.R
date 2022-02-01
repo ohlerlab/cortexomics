@@ -6,6 +6,11 @@ if(!exists("cdsgrl")) {
 pdf <- grDevices::pdf
 ms_metadf<-readRDS('data/ms_metadf.rds')
 
+assaynames = c('total'='RNA-seq','ribo'='Ribo-seq','MS'='Mass-Spec','TE'='TE')
+stagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
+tpnames = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
+
+
 rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
@@ -60,10 +65,6 @@ gname='Satb2'
 #now plot
 # dir.create(plotfile%>%dirname,rec=TRUE)
 #
-assaynames = c('total'='RNA-seq','ribo'='Ribo-seq','MS'='Mass-Spec','TE'='TE')
-stagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
-tpnames = names(stagecols)%>%setNames(c('E13','E145','E16','E175','P0'))
-
 getp <- function(sym){
   e=parent.frame(2)
   get(sym,env=e)
@@ -73,7 +74,19 @@ getp <- function(sym){
 # }
 # x=3
 # myfun()
-
+#see becker_modelling for this data
+bmodelvals <- read_tsv(here('data/bmodelvals.tsv'))
+assays2plot=c('total','MS','ribo')
+myymin=-3
+myymax=3
+show_model=TRUE
+modelcols <- c(
+  msdev = '#c64730',
+  production = '#fda27c',
+  linear = '#ba5e47',
+  degredation = '#1d4c9b',
+  stationary = '#6289cc'
+)
 make_trajplot = function(gname,
   myymin=NULL,
   myymax=NULL,
@@ -81,15 +94,18 @@ make_trajplot = function(gname,
   prediction_df=getp('prediction_df'),
   tpnames=getp('tpnames'),
   assaynames=getp('assaynames'),
-  assays2plot=c('total','MS','ribo')){
-
+  assays2plot=c('total','MS','ribo'),
+bmodelvals=getp('bmodelvals'),
+show_model=getp('show_model'),
+modelcols=getp('modelcols')){
+  #
   stopifnot(exists('exprdf'))
   stopifnot(exists('prediction_df'))
-  prediction_df%<>%mutate(passay=assaynames[assay])
-  exprdf%<>%mutate(passay=assaynames[assay])
   if(!gname %in% exprdf$gene_name) return(NULL)
-
-ggpred <- prediction_df%>%filter(gene_name%in%gname)%>%
+    #
+ggpred <- prediction_df%>%
+  filter(gene_name%in%gname)%>%
+  mutate(passay=assaynames[assay])%>%
   filter(assay%in%assays2plot)%>%
   arrange(passay=='TE',passay=='MS',passay=='Ribo-seq')%>%
   ungroup%>%
@@ -100,6 +116,7 @@ ggpred = ggpred%>%left_join(t0sig)%>%mutate_at(vars(estimate,CI.L,CI.R),~ .-t0)
 ggexpr = exprdf%>%
   filter(assay%in%assays2plot)%>%
   filter(gene_name%in%gname)%>%
+  mutate(passay=assaynames[assay])%>%
   arrange(passay=='TE',passay=='MS',passay=='Ribo-seq')%>%
   ungroup%>%
   mutate(passay=as_factor(passay))%>%
@@ -115,36 +132,67 @@ drange[2]%<>%max(.,1)
 if(!is.null(myymin))drange[1] = myymin
 if(!is.null(myymax))drange[2] = myymax
 #
-
-ggexpr%>%
-    # filter(signal < -3)
+gmodeldat <- bmodelvals%>%
+  filter(gene%in%gname)%>%
+  mutate(gene_name=gene)%>%
+  mutate(passay=assaynames['MS'])
+  gmodeldat$passay%<>%factor(levels=assaynames)
+  gmodeldat$estimate = gmodeldat$estimate - (t0sig%>%filter(assay=='MS')%>%.$t0)
+  best_model = gmodeldat$model[1]
+  best_model = paste0('Kinetic Class - ',best_model)
+#
+  labldf=gmodeldat%>%group_by(gene_name)%>%
+    dplyr::slice(1)%>%mutate(labl=paste0('Kinetic Class - ',model))%>%
+    mutate(modelcol=modelcols[model])
+outplot <- ggexpr%>%
   ggplot(.,aes(y=signal,x=as.numeric(as.factor(time)),group=gene_name))+
   geom_point()+
   geom_line(data=ggpred,aes(y=estimate,group=gene_name))+
   geom_ribbon(data=ggpred,aes(y=estimate,ymax=CI.R,ymin=CI.L,group=gene_name),fill='darkgrey',alpha=I(0.5))+
   # geom_line(alpha=I(.8),color=I("black"))+
-  # scale_color_discrete(name='colorname',colorvals)+
   scale_x_continuous(paste0('Time'),labels = exprdf$time%>%unique%>%tpnames[.])+
   scale_y_continuous(paste0('log2(Counts/iBAQ)\n vs E12.5'))+
   coord_cartesian(ylim=drange)+
   ggtitle(str_interp('${gname} - Expression Trajectory'))+
   facet_wrap(~passay,ncol=4)+
-  # geom_line(data=medggdf,aes(group=cat),color=I('black'))+
   theme_bw()
+  if(show_model){
+    outplot = outplot + 
+        geom_line(data=gmodeldat,aes(y=estimate,group=gene_name,color=model),linetype='dashed',size=I(2))+
+        geom_text(data=labldf,aes(label=labl,x=-Inf,y=Inf,color=model),hjust=0,vjust=1)+
+        scale_color_discrete(modelcols,guide=F)
+    outplot
+  }
+  else{
+    outplot
+  }
 }
 }
-
+#
 {
-datafile <- 'src/Shiny/data/make_trajplots_arglist.rds'
+datafile <- here('src/Shiny/data/make_trajplots_arglist.rds')
 trajplot_arglist <- list(
   make_trajplot=make_trajplot ,
   exprdf=exprdf,
   prediction_df=prediction_df,
   tpnames=tpnames,
   assaynames=assaynames[c('total','ribo','MS','TE')],
+  bmodelvals=bmodelvals,modelcols=modelcols,show_model=TRUE,
   assays2plot=c('total','ribo','MS','TE'))
 saveRDS(trajplot_arglist,datafile)
+saveRDS(trajplot_arglist,'data/make_trajplots_arglist.rds')
 }
+#
+pdf<-grDevices::pdf
+{
+  'plots/Figures/Figures5/trajectory.pdf'%>%dirname%>%dir.create
+plotfile<- here('plots/Figures/Figures5/trajectory.pdf')
+pdf(plotfile,w=4*3,h=4*1)
+print(ggarrange(plotlist=map(c('Nes'),make_trajplot,show_model=TRUE),nrow=1))
+dev.off()
+normalizePath(plotfile)
+}
+
 
 
 pdf<-grDevices::pdf

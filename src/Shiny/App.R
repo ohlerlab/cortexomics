@@ -1,6 +1,9 @@
 # install.packages(c('magrittr','stringr','ggpubr','data.table','assertthat','tidyverse','dplyr','here','conflicted','ggplot2'))
 #install.packages('tidyverse')
 
+# to upload after changes
+#  rsync -vazhr  src/Shiny/ dharnet@shiny.mdc-berlin.net:/shinyserver/apps/cortexomics
+
 suppressMessages(library(BiocManager))
 options(repos = BiocManager::repositories())
 suppressMessages(library(shiny))
@@ -15,7 +18,7 @@ suppressMessages(library(GenomicAlignments))
 suppressMessages(library(Gviz))
 suppressMessages(library(magrittr))
 library(ggplot2)
-library(rsconnect)
+# library(rsconnect)
 
 #Note this function contains the expression data, and predictions needed
 #to plot the trajectory plots - so it's very much a closure, rather than
@@ -24,10 +27,16 @@ onserver = (getwd()%>%str_detect('/srv/connect/apps'))
 datafile='data/make_trajplots_arglist.rds'
 
 
-make_trajplots_arglist <- readRDS(datafile)
+getp <- function(sym){
+  e=parent.frame(2)
+  get(sym,env=e)
+}
 
+make_trajplots_arglist <- readRDS(datafile)
+# make_trajplots_arglist <- c(list(show_model=TRUE,make_trajplots_arglist))
 
 tpcols <- c(E13='#214098',E145='#2AA9DF',E16='#F17E22',E175='#D14E28',P0='#ED3124')
+
 
 make_trajplots<-function(gnames,make_trajplot,...){
   ngenes <- length(gnames)
@@ -40,19 +49,21 @@ get_gviztracks <- function(igene,shinytrackfolder='data/Shiny_track_data'){
   tracks
 }
 
-if(getwd()%>%str_detect('AG_Ohler')) { 
+#This is just for test driving locally
+if(FALSE) { 
   #now plot
   plotfile<- here(paste0('plots/','tmp','.pdf'))
   pdf(plotfile)
   print(make_trajplots(c('Satb2','Flna'),myymin=-1,myymax=4))
   dev.off()
+  message(normalizePath(plotfile))
+  stop()
   plotfile<- here(paste0('plots/','tmplocus','.pdf'))
   pdf(plotfile)
   gviztracks <- get_gviztracks('Satb2')
   print(Gviz::plotTracks(gviztracks,col = tpcols))
   dev.off()
   message(normalizePath(plotfile))
-  stop()
   if(TRUE){
   #https://www.shinyapps.io/admin/#/dashboard - see for auth
   appfolder <- here('src/R/Shiny/')
@@ -79,7 +90,7 @@ ui <- fluidPage(
   sidebarLayout(
 
     # Sidebar panel for inputs ----
-    sidebarPanel(
+    sidebarPanel(width=3,
 
   # selectInput('genes2plot', 'Gene For Plotting', genechoices, selected = 'Satb2', multiple = FALSE,
   #     selectize = TRUE, width = NULL, size = NULL)
@@ -126,7 +137,7 @@ server <- function(input, output) {
               alternativelist <- othergenes[head(order((adist(toupper(nonfoundgenes[1]),toupper(othergenes)))),n=5)]
               alternativelist <- paste0(paste0(alternativelist,' ?\n'),collapse='')
               # alternativelist <- get_alternativelist()
-              notfoundtext <- str_interp('Genes ${nonfoundgenecol} Not Found. By ${nonfoundgenes[1]} Did you mean...\n${alternativelist}\n (Case sensitive matching, see table S1 for complete list)')
+              notfoundtext <- str_interp('Genes ${genes2plot} Not Found in e.g. ${plotable_genes[1]}. By ${nonfoundgenes[1]} Did you mean...\n${alternativelist}\n (Case sensitive matching, see table S1 for complete list)')
 
               print(qplot(1,1,label=notfoundtext,geom='text',size=I(10))+theme_bw())
               # renderText(notfoundtext)

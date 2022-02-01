@@ -52,10 +52,6 @@ transformed parameters{
         ((Ks .* m) ./ (exp(lKd*2))) + 
         ((Ks .* m)  ./ exp(lKd)) +
         ((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd));
-        // print((Ks .* ribo[,i-1])./exp(lKd));
-        // print(((Ks .* m) ./ (exp(lKd*2))) );
-        // print(((Ks .* m)  ./ exp(lKd)) );
-        // print(((prot[,i-1])-((Ks .*ribo[,i-1])./exp(lKd))+((Ks .*m)./(exp(lKd*2)))).*exp(-exp(lKd)));
     }
 }
 
