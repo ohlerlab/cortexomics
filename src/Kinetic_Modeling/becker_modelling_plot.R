@@ -1,7 +1,7 @@
 library(here)
 
-if(!exists('genebmodels'))source('src/Figures/Figure2/becker_modelling.R')
-if(!exists('jhopth'))source('src/Figures/Figure2/becker_modelling_hierarch.R')
+if(!exists('genebmodels'))source('src/Kinetic_Modeling/becker_modelling.R')
+if(!exists('jhopth'))source('src/Kinetic_Modeling/becker_modelling_hierarch.R')
 
 ################################################################################
 ########## 
@@ -14,7 +14,7 @@ modelcols <- c(
 	degredation = '#1d4c9b',
 	stationary = '#6289cc'
 )
-plotfile<- here(paste0('plots/','kinetics_redo/becker_trajectory_classes','.pdf'))
+plotfile<- here(paste0('plots/','Kinetic_Modeling/becker_trajectory_classes','.pdf'))
 pdf(plotfile)
 genebmodels%>%enframe%>%
 	mutate(value = factor(value,levels=names(modelcols)))%>%
@@ -44,7 +44,7 @@ dev.off()
 message(normalizePath(plotfile))
 
 	
-source('src/Figures/Figure4/1_go_term_funcs.R')
+source('src/Functions/go_term_funcs.R')
 stopifnot(exists("GTOGO"))
 gid_bmodels = setNames(genebmodels,gnm2gid[[names(genebmodels)]])
 clustvect<-gid_bmodels
@@ -93,7 +93,7 @@ goplotlist = trajclass_goterms%>%split(.,.$cluster)%>%lapply(.%>%
 		 	theme_bw()+
 		 	ggtitle(.$cluster%>%unique)})
 #now plot
-plotfile<- here(paste0('plots/','kinetics_redo/beck_traj_class_goplots','.pdf'))
+plotfile<- here(paste0('plots/','Kinetic_Modeling/beck_traj_class_goplots','.pdf'))
 pdf(plotfile,h=7,w=7*5)
 print(ggarrange(plotlist=goplotlist,ncol=length(goplotlist)))
 dev.off()
@@ -133,7 +133,7 @@ goplotlist = msdevsplitgoterms%>%split(.,.$cluster)%>%.['msdev']%>%lapply(.%>%
 		 	theme_bw()+
 		 	ggtitle(.$cluster%>%unique)})
 #now plot
-plotfile<- here(paste0('plots/','kinetics_redo/msdev_goplot','.pdf'))
+plotfile<- here(paste0('plots/','Kinetic_Modeling/msdev_goplot','.pdf'))
 pdf(plotfile,h=7,w=7*1)
 print(ggarrange(plotlist=goplotlist,ncol=length(goplotlist)))
 dev.off()
@@ -220,7 +220,7 @@ message(normalizePath(plotfile))
 
 msdevsplit = ifelse(names(genebmodels)%in%notmsdevgenes,'not_msdev','msdev')%>%
 	setNames(names(genebmodels))
-plotfile<- here(paste0('plots/kinetics_redo/','NED_vs_notmsdev_barplots','.pdf'))
+plotfile<- here(paste0('plots/Kinetic_Modeling/','NED_vs_notmsdev_barplots','.pdf'))
 pdf(plotfile,h=5,w=3)
 ggdf=msdevsplit%>%enframe('gene','msdev')%>%inner_join(mcshanethalfs)%>%
 	# filter(McShane_deg_cat!='UN')%>%
@@ -263,7 +263,6 @@ model <- modelnms[[1]]
 modelvals <- map_df(.id='gene',gns4plot,function(exgn){
 	map_df(.id='model',modelnms,function(model){
 	optres = bmodelopts[[exgn]][['riboseq']][[model]]
-	# parsds = 1.96*sqrt(diag(solve(-optres$hessian)))
 	modelests = list(
 		prot=log(optres$par[['prot']])%>%as.vector,
 		ribo=optres$par$lribo%>%as.vector)%>%
@@ -289,7 +288,7 @@ g2plotttile = paste0(exampgenes,'\n',names(exampgenes))%>%setNames(exampgenes)
 # modelcols2 <- c(modelcols,data='black')
 modelcols2<-c('data'='black','degredation'='green','production'='blue','stationary'='purple','linear'='lightblue',msdev='red')
 #now plot
-plotfile<- here(paste0('plots/kinetics_redo/','trajectory_example_plots','.pdf'))
+plotfile<- here(paste0('plots/Kinetic_Modeling/','trajectory_example_plots','.pdf'))
 pdf(plotfile,w=5*3,h=1*4)
 # gplotdf$model%>%unique
 plotlist = gplotdf%>%
@@ -356,7 +355,7 @@ message(normalizePath(plotfile))
 ########## Pihalf cors
 ################################################################################
 #now plot
-plotfile<- here(paste0('plots/kinetics_redo/hierarch_tefix_indiv_v_mcshane_pihalf','.pdf'))
+plotfile<- here(paste0('plots/Kinetic_Modeling/hierarch_tefix_indiv_v_mcshane_pihalf','.pdf'))
 dir.create(dirname(plotfile))
 pdf(plotfile)
 ggdf <- jhopth$par%>%.$l_pihalf%>%setNames(combinitvals$gene)%>%enframe('gene','l_pihalf')%>%

@@ -3,3 +3,8 @@ This is the primary code repository for the mouse neocortical translation projec
 
 
 
+
+see here for a flowchart of the important scripts and objects:
+
+
+

@@ -37,17 +37,21 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
 
   ggdf$clustern%<>%factor(clusternames)
 
+  ggdfsum<-ggdf%>%group_by(time,clustern,assay)%>%
+    summarise(med=median(value),lower=quantile(value,0.25),upper=quantile(value,0.75))
+
   clutplot =ggplot(ggdf,aes(x=as_factor(time),y=value,group=gene_name,color=clustern))+
     # geom_line(alpha=I(0.1))+
     facet_grid(clustern ~ assay,scale='free')+
     scale_y_continuous('Centered log2-signal')+
     # coord_cartesian(ylim=c(-limwidth,limwidth))+
-    stat_summary(aes(x=as_factor(time),group=clustern,fill=clustern),alpha=I(1),fun=median, 
-        fun.min = function(x) quantile(x, 0.25), 
-        fun.max  = function(x) quantile(x, 0.75), 
-        geom=c('ribbon'),linetype=0,alpha=I(0.5))+
+    # stat_summary(aes(x=as_factor(time),group=clustern,fill=clustern),fun=median, 
+        # fun.min = function(x) quantile(x, 0.25), 
+        # fun.max  = function(x) quantile(x, 0.75), 
+        # geom='ribbon',alpha=I(0.5))+
+    geom_ribbon(data=ggdfsum,aes(x=as_factor(time),group=clustern,fill=clustern,y=med,ymin=lower,ymax=upper))+
      stat_summary(aes(x=as_factor(time),group=clustern,fill=clustern),alpha=I(1),color=I('black'),fun=median, 
-        geom=c('line'),linetype=2,alpha=I(1))+
+        geom=c('line'),linetype='dashed',alpha=I(1))+
      scale_fill_manual(values = ccols)
     theme_bw()+
     ggtitle(paste0(plotname))
@@ -84,11 +88,12 @@ make_cluster_trajplots<-function(clusts,dteenrichdf){
      ggtitle('dTE Enrichment')
     # enrichplot
     #now save
-    here('plots/clusters/')%>%dir.create(showWarn=F)
-    plotfile = here(paste0('plots/clusters/',plotname,'.pdf'))
-    cairo_pdf(w=9,h=1*n_distinct(ggdf$clustern),plotfile%T>%{normalizePath(.)%>%message})
-    print(ggarrange(ncol=3,plotlist=list(clutplot,enrichplot,dteplot),widths=c(3,2,2)))
-    dev.off()
+    # here('plots/clusters/')%>%dir.create(showWarn=F)
+    # plotfile = here(paste0('plots/clusters/',plotname,'.pdf'))
+    # cairo_pdf(w=9,h=1*n_distinct(ggdf$clustern),plotfile%T>%{normalizePath(.)%>%message})
+    # print(ggarrange(ncol=3,plotlist=list(clutplot,enrichplot,dteplot),widths=c(3,2,2)))
+    # dev.off()
+    ggarrange(ncol=3,plotlist=list(clutplot,enrichplot,dteplot),widths=c(3,2,2))
 
 }
 

@@ -131,7 +131,8 @@ s3cols = c("time", "rep", "codon", "p_site_occ", "a_site_occ",
 stopifnot(setequal(codonstats%>%colnames,s3cols))
 GENETIC_CODEnostop = GENETIC_CODE[GENETIC_CODE!='*']
 #all non stop codons have occupancies
-stopifnot(codonoccs%>%filter(time=='E13')%>%.$codon%>%DNAStringSet%>%translate%>%as.character%>%setequal(GENETIC_CODEnostop))
+stopifnot(codonoccs%>%filter(time=='E13')%>%.$codon%>%
+	DNAStringSet%>%translate%>%as.character%>%setequal(GENETIC_CODEnostop))
 #53 non-stop codons have tRNA measurements
 stopifnot(trnacodonstats%>%filter(time=='E13',is.finite(abundance))%>%
 	filter(codon%in%names(GENETIC_CODEnostop))%>%.$codon%>%n_distinct%>%`==`(50))
@@ -149,10 +150,10 @@ openxlsx::write.xlsx( file = "tables/S3.xlsx")
 read_xlsx("tables/S2.xlsx",'limma_count_lfc')%>%head%>%as.data.frame
 
 #S4
+cluster_goterms <- read_tsv('tables/cluster_go.tsv')
 cluster_genes = read_tsv('tables/gene_clusters.tsv')%>%arrange(cluster)
 cluster_genes$gene_id = gnm2gid[[cluster_genes$gene_name]]
 cluster_genes%<>%filter(gene_id %in% highcountgenes)
-cluster_goterms <- read_tsv('tables/cluster_go.tsv')
 #output clustering reuslts
 list(
 	cluster_genes = cluster_genes ,
@@ -161,18 +162,3 @@ list(
 	pihalf_est_table = read_tsv('tables/est_pihalf_v_mcshane.tsv')
 )%>%
 openxlsx::write.xlsx( file = "tables/S4.xlsx")
-
-
-# #S5
-# musicres <- fread('tables/musicdata.tsv')
-# musicres %<>% add_descrip_lines(
-# 	c('# time - collection stage',
-# 		'#assay - riboseq or rnaseq',
-# 	'#ftset - the flashtag set from telley et al used as a signature',
-# 	'#music_prop - estimated proportion according to MuSiC')
-# )
-# list(
-# 	 music_proportion_data = musicres
-# )%>%
-# openxlsx::write.xlsx( file = "tables/S5.xlsx")
-# normalizePath("tables/S5.xlsx")%>%message

@@ -1,11 +1,16 @@
 ################################################################################
 ################################################################################
 library(ComplexHeatmap)
+library(circlize)
 
 {
 base::source(here::here('src/Rprofile.R'))
+base::source(here::here('src/load_annotation.R'))
+source(here('src/Functions/plotclustfuns.R'))
 
-source(('src/Figures/Figure4/0_plotclustfuns.R'))
+countcontr_df <- readRDS(here('data/countcontr_df.rds'))
+prot_contrdf<-readRDS('data/contrdf.rds')
+
 
 gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
@@ -20,7 +25,7 @@ gg_color_hue <- function(n) {
 # # countpred_df<-readRDS('data/countpred_df.rds')
 # countcontr_df<-readRDS('data/countcontr_df.rds')
 
-allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
+allxtail = Sys.glob(here('pipeline/xtail/*'))%>%map_df(.id='time',fread)%>%group_by(gene_name)
 allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
 techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
   mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
@@ -28,7 +33,7 @@ techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
     up = as.numeric(any(sig & (log2fc > 0))),
     down = as.numeric(any(sig & (log2fc < 0)))
   )
-techangedf%>%write_tsv('tables/xtailTEchange.tsv') 
+techangedf%>%write_tsv(here('tables/xtailTEchange.tsv')) 
 techangegenes = techangedf%>%filter(up==1|down==1)%>%.$gene_name
 teupgenes = techangedf%>%filter(up==1)%>%.$gene_name
 tedowngenes = techangedf%>%filter(down==1)%>%.$gene_name
@@ -75,19 +80,6 @@ techangedf%>%filter(down==1)
 ########contrast data matrices
 ################################################################################
 { 
-countcontr_df <- readRDS(here('data/countcontr_df.rds'))
-# stepcountcontrdf <- readRDS(here('data/stepcountcontrdf.rds'))
-prot_contrdf<-readRDS('data/contrdf.rds')
-# stepstepprotcontrdf<-readRDS('data/stepcontrdf.rds')
-
-# prediction_df = bind_rows(
-#   sel_prodpreds%>%
-#     mutate(assay='MS')%>%
-#     select(gene_id,time,assay,estimate,CI.L,CI.R),
-#   countpred_df%>%
-#     separate(contrast,c('time','assay'))%>%
-#     select(gene_id,time,assay,estimate=logFC,CI.L,CI.R)
-# )
 
 
 #get t0 contrasts
@@ -182,10 +174,10 @@ library(factoextra)
 #   xn
 # }
 
-conttype='stepwise'
-conttype='pca_t0'
-conttype='ribot0'
-conttype='pca_t0_noribo'
+# conttype='stepwise'
+# conttype='pca_t0'
+# conttype='ribot0'
+# conttype='pca_t0_noribo'
 conttype='allPca_t0_noribo'
 # conttype='pca_t0_jribo_changegenes'
 # conttype='pca_step'
@@ -252,17 +244,21 @@ rnames = rownames(clustdata)
 # stopifnot(colnames(clustdata_clust)==colnames(clustdata))
 cnames = colnames(clustdata)
 
-clustdata_clust%>% as.data.frame%>%rownames_to_column('gene.name')%>%write_tsv(here(paste0('data/',conttype,'.tsv')))
+clustdata_clust%>% as.data.frame%>%rownames_to_column('gene.name')%>%
+  write_tsv(here(paste0('data/',conttype,'.tsv')))
 
 
 }
 
 
 
-colorder = t0_contrastdf%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%.[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
+colorder = t0_contrastdf%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%
+  .[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
 
-clustdata_clust %>% as.data.frame%>%rownames_to_column('gene.name')%>%write_tsv(here('data/clustdata_clust.tsv'))
-t0_contrastdf[,colorder] %>% as.data.frame%>%rownames_to_column('gene.name')%>%write_tsv(here('data/t0_clustdat.tsv'))
+clustdata_clust %>% as.data.frame%>%rownames_to_column('gene.name')%>%
+  write_tsv(here('data/clustdata_clust.tsv'))
+t0_contrastdf[,colorder] %>% as.data.frame%>%rownames_to_column('gene.name')%>%
+  write_tsv(here('data/t0_clustdat.tsv'))
 
 library(cluster)
 
@@ -371,8 +367,8 @@ datahm <- colorder%>%split(.,str_extract(.,'(?<=_).*$')) %>%rev%>%imap(function(
 })
 teribostring = names(datahm)%>%str_extract('TE|ribo')%>%na.omit%>%unique
 #now plot
-dir.create('plots/Figures/Figure4/',rec=T,showWarn=F)
-plotfile<- here(paste0('plots/Figures/Figure4/','contrasts_heatmap',str_replace_all(coltitle,' ','_'),'.pdf'))
+dir.create('plots/Hierarch_clust/',rec=T,showWarn=F)
+plotfile<- here(paste0('plots/Hierarch_clust/','contrasts_heatmap',str_replace_all(coltitle,' ','_'),'.pdf'))
 pdf(plotfile,w=10)
 draw(datahm[['all']]+datahm[['ribo']]+datahm[['TE']]+datahm[['MS']]+row_annotation,column_title=coltitle,auto_adjust=F)
 # draw(row_annotation + datahm[['all']]+purrr::reduce(.f='+',.x=datahm[teribostring])+datahm[['MS']],column_title=coltitle)
@@ -456,140 +452,31 @@ dteenrichdf = enrichdf %>%left_join(map_df(.id='cluster',clusters,function(cl){
 }
 
 
-# hclustob%>%make_cluster_trajplots(dteenrichdf)
+{
+#
+plotname = hclustob$name %||% stop()
+here('plots/Hierarch_clust/')%>%dir.create(rec=T,showWarn=F)
+plotfile <- here(paste0('plots/Hierarch_clust/',plotname,'.pdf'))
+plotob <- hclustob%>%make_cluster_trajplots(dteenrichdf)
+cairo_pdf(w=9,h=1*MAXCLUSTNUM,plotfile)
+print(plotob)
+dev.off()
+normalizePath(plotfile,mustWork=T)%>%message
+}
 
-# {
-# library(dendextend)
-# row.dend=as.dendrogram(row.hc)
-# # plot(color_branches(cutree(row.dend,17),17))
-# cutheights = dendextendRcpp::dendextendRcpp_heights_per_k.dendrogram(row.dend)
-# clustercutdend = cutheights[as.character(MAXCLUSTNUM)]
-# cdend = cut(row.dend,h=clustercutdend)
-
-# cdend$lower%<>%setNames(cdend$lower%>%map(labels)%>%map(~ hclusterlist[[MAXCLUSTNUM]][.])%>%map_chr(unique))
-# labels(cdend$upper) <- cdend$lower%>%map(labels)%>%map(~ hclusterlist[[MAXCLUSTNUM]][.])%>%map_chr(unique)
-# labelcols = labels(cdend$upper)%>%as.factor%>%as.numeric%>%{gg_color_hue(max(.))[.]}
-
-# #now plot
-# plotfile<- here(paste0('plots/','clusterdend','.pdf'))
-# pdf(plotfile)
-# print({
-# color_labels(cdend$upper,labels=labels(cdend$upper),col=labelcols)%>%set('labels_cex',2)%>%plot()
-# })
-# dev.off()
-# normalizePath(plotfile)
-
-# }
 
 #now plot
-source("src/Figures/Figure4/1_go_term_funcs.R")
+source("src/Functions/go_term_funcs.R")
 library(topGO)
 clustergos<-get_cluster_gos(hclustob$cluster)
 
 #
-plotfile<- here(paste0('plots/Figures/Figure4/','cluster_go_bp',hclustob$name,'.pdf'));cairo_pdf(h=21,w=21,plotfile)
+plotfile<- here(paste0('plots/Hierarch_clust/','cluster_go_bp',hclustob$name,'.pdf'));cairo_pdf(h=21,w=21,plotfile)
 go_comparison_plot(clustergos%>%filter(ontology=='BP')%>%{split(.,as_factor(.$cluster))})+ggtitle('Biological Process')
 dev.off()
 normalizePath(plotfile)%>%message
 #
 clustergos%>%write_tsv(here('tables/cluster_go.tsv'))
-hclustob$cluster%>%enframe('gene_name','cluster')%>%mutate(gene_id=gnm2gid[[gene_name]])%>%write_tsv('tables/gene_clusters.tsv')
-
-if(FALSE){
-
-  ################################################################################
-  ########Now make split heatmaps with TE classes
-  ################################################################################
-  {
-  teclasses = list(te_up = teupgenes,te_down = tedowngenes, te_nochange=rownames(clustdata)%>%setdiff(c(teupgenes,tedowngenes)))
-  teclasses%<>%map(intersect,rownames(clustdata))
-  teclass = teclasses[[1]]
-  teclassname = names(teclasses)[1]
-
-  hmaps = lapply(teclasses,function(teclass){
-      teclass = teclass[order(hclustob$cluster[teclass])]
-      selclusts = hclustob$cluster[teclass]
-      selclustsn = selclusts%>%unique%>%as.factor%>%as.numeric%>%setNames(selclusts%>%unique)
-      #
-      row_annotation = rowAnnotation(
-      width = unit(4,'cm'),
-      df=as.data.frame(selclusts)%>%set_colnames('grps'),
-      col=list(grps=gg_color_hue(kmax)[selclustsn]%>%setNames(names(selclustsn))),
-      show_legend=F,border=TRUE,na_col='black')
-      genesofinterest=c('Nes','Tle4','Flna','Satb2')
-      library(circlize)
-      # library(dendextend)
-      hmcols = clustdata%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%.[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
-      gs2plot = genesofinterest
-      #
-      colorder = clustdata%>%colnames%>%.[order(str_detect(.,'ribo'))]%>%.[order(str_detect(.,'TE'))]%>%.[order(str_detect(.,'MS'))]
-      #
-      teup2plot = teupgenes%>%intersect(rownames(clustdata))
-      disprownames = rownames(clustdata)%>%setNames(.,.)
-      disprownames[!disprownames%in%genesofinterest]=''
-      datahm <- colorder%>%split(.,str_extract(.,'(?<=_).*$')) %>%rev%>%imap(function(hmcols,i){
-
-       datahm=  Heatmap(
-          column_title=,
-          # name='Min/Max Normed Gene Expression',
-            clustdata%>%.[teclass,hmcols]%>%set_rownames(disprownames[teclass]),
-            row_order=NULL,
-            # cluster_rows = hmclust,
-            col  = colorRamp2(c(-4, 0, 4), c('#8904B1','white','#FF8000')),
-            # col  =  c('#8904B1','white','#FF8000'),
-            # row_labels = gt_render(rownames(clustdata), col = rownames(clustdata)%>%as.factor%>%rainbow(5)[.]),
-            show_row_dend=T,
-            cluster_columns = FALSE,
-            show_row_names = TRUE,
-            row_dend_width = unit(8,'cm'),
-            # na_col = 'black'
-          )
-        if(any(str_detect(hmcols,'MS')))datahm = datahm + row_annotation
-        datahm
-      })
-  })
-  }
-
-  {
-  teribostring = names(datahm)%>%str_extract('TE|ribo')%>%na.omit%>%unique
-  #now plot
-  plotfile<- here(paste0('plots/','contrasts_heatmap',str_replace_all(coltitle,' ','_'),'split..pdf'))
-  pdf(plotfile,w=10,h=10)
-  pushViewport(viewport(layout = grid.layout(nrow=3,ncol=1)))
-  pushViewport(viewport(layout.pos.row = 1, layout.pos.col = 1))
-  teclassname='te_up'
-  draw(hmaps[[teclassname]][['all']]+hmaps[[1]][['MS']],column_title=teclassname,auto_adjust=F,newpage=F)
-  popViewport()
-  teclassname='te_down'
-  pushViewport(viewport(layout.pos.row = 2, layout.pos.col = 1))
-  draw(hmaps[[teclassname]][['all']]+hmaps[[2]][['MS']],column_title=teclassname,auto_adjust=F,newpage=F)
-  popViewport()
-  pushViewport(viewport(layout.pos.row = 3, layout.pos.col = 1))
-  p = hclustob$cluster%>%enframe%>%filter(name%in%unlist(teclasses[1:2]))%>%
-    mutate(te_class=ifelse(name%in%teclasses[[1]],'up','down'))%>%group_by(te_class,value)%>%
-    summarise(n=n())%>%
-    mutate(value = factor(value,hclustob$cluster%>%unique))%>%
-    ggplot(data=.,aes(y=n,fill=value,x=value,color=I('black'),alpha=te_class))+
-      geom_bar(stat='identity',position='dodge',width=0.5)+
-      xlab('cluster')+ylab('n_genes')+theme_minimal()+
-      scale_fill_manual(values = grpcolors )
-  print(p,  vp = viewport(layout.pos.row = 3, layout.pos.col = 1))
-  dev.off()
-  message(normalizePath(plotfile))
-  }
-
-  hclustob %>% saveRDS(here('data/hclustob.rds'))
-
-}
-
-# {
-# #now plot
-# plotfile<- here(paste0('plots/','nb_clust_data','.pdf'))
-# pdf(plotfile)
-# nbclustplot2<-factoextra::fviz_nbclust(clustdata_clust, function(mat,n) list(cluster=hclusterlist[[n]]), method = "wss",k.max = 13) +
-#   labs(subtitle = "Elbow method - processed data")
-# print(nbclustplot2)
-# dev.off()
-# normalizePath(plotfile)%>%message
-# }
-
+hclustob$cluster%>%enframe('gene_name','cluster')%>%
+  mutate(gene_id=gnm2gid[[gene_name]])%>%
+  write_tsv('tables/gene_clusters.tsv')

@@ -2,12 +2,11 @@
 ################################################################################
 base::source(here::here('src/Rprofile.R'))
 library(rstan)
-base::source('src/Figures/Figure2/rstan_functions.R')
+base::source('src/Functions/rstan_functions.R')
 
-if(!exists("tx_countdata")) {
-	# base::source("src/Figures/load_annotation.R")
-	load('data/1_integrate_countdata.R')
-}
+# if(!exists("tx_countdata")) {
+# 	load('data/1_integrate_countdata.R')
+# }
 
 #actually raw data doesn't really show differences in mean IBAQ much
 # rawprotdata = readRDS('data/proteinmsdata.rds')
