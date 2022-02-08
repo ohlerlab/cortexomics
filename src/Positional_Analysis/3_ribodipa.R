@@ -92,7 +92,7 @@ dipabinres%>%
 dev.off()
 message(normalizePath(plotfile))
 #
-dipabinres$gene_id = trid2gid[[dipabinres$tr_id]]
+dipabinres$gene_id = trid2gidv[dipabinrestr_id]]
 dipabinres$is_sig <- dipabinres$pvalue<0.05
 
 #get a data frame of transcripts with the start_up effect
@@ -104,7 +104,7 @@ poseffectdf = left_join(
 	by='tr_id'
 )
 #
-poseffectdf$gene_id<-trid2gid[[poseffectdf$tr_id]]
+poseffectdf$gene_id<-trid2gidv[poseffectdftr_id]]
 poseffectdf%>%write_tsv('tables/ribo_position_effect.tsv')
 
 dirfuncs =list(up = function(x) x > 0,down=function(x) x < 0,both=TRUE)
@@ -162,7 +162,7 @@ if(!file.exists(here('data/poseffgores.rds'))){
 }
 
 
-poseffectdf%<>%mutate(gene_name= gid2gnm[[gene_id]])
+poseffectdf%<>%mutate(gene_name= gid2gnmv[gene_id])
 poseffectdf%>%filter(gene_name%>%is_in(genesofinterest))
 poseffgores[[1]]%>%head(20)%>%write_tsv('tables/startup_poseffect_go.tsv')
 poseffgores[[2]]%>%mutate(direction='down')%>%head(20)%>%write_tsv('tables/startdown_poseffect_go.tsv')
@@ -207,7 +207,7 @@ tubgenes = GTOGO%>%filter(go_id=='GO:1904528')%>%.$ensembl_gene_id
 poseffectdf<-read_tsv('tables/ribo_position_effect.tsv')
 
 ribodipa_up = poseffectdf%>%filter((str_pvalue<0.05)&((str_lfc)>0))%>%.$gene_id
-ribodipa_up = matgenes[trid2gid[[matgenes]]%>%is_in(ribodipa_up)]
+ribodipa_up = matgenes[trid2gidv[matgenes]%>%is_in(ribodipa_up)]
 metasignaldf_stgrp <- get_metasignaldf(mainbindatamats,ribodipa_up) %>% 
 	group_by(stage,section,start)%>%
 	summarise(signal=mean(signal)) 
@@ -220,7 +220,7 @@ dev.off()
 normalizePath(plotfile)%>%message
 }
 ribodipa_notup = poseffectdf%>%filter((between(str_lfc,-0.3,0.3)))%>%.$gene_id
-ribodipa_notup = matgenes[trid2gid[[matgenes]]%>%is_in(ribodipa_notup)]
+ribodipa_notup = matgenes[trid2gidv[matgenes]%>%is_in(ribodipa_notup)]
 metasignaldf_stgrp <- get_metasignaldf(mainbindatamats,ribodipa_notup) %>% 
 	group_by(stage,section,start)%>%
 	summarise(signal=mean(signal)) 
@@ -288,7 +288,7 @@ normalizePath(plotfile)%>%message
 ########Test associations with ebp1 stuff, TE change
 ################################################################################
 allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
+allxtail$gene_id = gnm2gidv[allxtailgene_name]
 techange = allxtail%>%filter(time==3)%>%select(gene_id,log2fc,adj_p_value)
 
 poseffectdf%>%filter(!is.na(str_pvalue),!is.na(end_pvalue))%>%{quicktest(.$str_lfc,.$end_lfc)}
@@ -296,7 +296,7 @@ poseffectdf%>%filter(!is.na(str_pvalue),!is.na(end_pvalue))%>%{quicktest(.$str_l
 #
 #
 library(ggrepel)
-posvtedf = poseffectdf%>%mutate(gene_id=trid2gid[[tr_id]])%>%
+posvtedf = poseffectdf%>%mutate(gene_id=trid2gidv[tr_id])%>%
 	select(-gene_name)%>%
 	filter((str_pvalue)<0.05)%>%
 	left_join(
@@ -462,7 +462,7 @@ message(normalizePath(plotfile))
 #
 posvtedf = poseffectdf%>%
 	select(-gene_name)%>%
-	mutate(gene_id=trid2gid[[tr_id]])%>%
+	mutate(gene_id=trid2gidv[tr_id])%>%
 	filter((end_pvalue)<0.05)%>%
 	left_join(
 		techange%>%
@@ -493,26 +493,26 @@ message(normalizePath(plotfile))
 
 
 
-poseffectdf%>%mutate(gene_id=trid2gid[[tr_id]])%>%
+poseffectdf%>%mutate(gene_id=trid2gidv[tr_id])%>%
 	filter(str_pvalue<0.05)%>%
 	left_join(ebp1_ko_startstop,by='gene_id')%>%
 	filter(log2fold_si_mock%>%between(-5,5))%>%
 	filter(padj<0.05)%>%
 	{quicktest(.$str_lfc,.$log2fold_si_mock)}
 
-poseffectdf%>%mutate(gene_id=trid2gid[[tr_id]])%>%
+poseffectdf%>%mutate(gene_id=trid2gidv[tr_id])%>%
 	filter(str_pvalue<0.05)%>%
-	left_join(ebp1_ip_dex%>%mutate(gene_id=gnm2gid[[gene_name]]),by='gene_id')%>%
+	left_join(ebp1_ip_dex%>%mutate(gene_id=gnm2gidv[gene_name]),by='gene_id')%>%
 	filter(log2fold_Total_IP%>%between(-5,5))%>%
 	{quicktest(.$str_lfc,.$log2fold_Total_IP)}
 
-poseffectdf%>%mutate(gene_id=trid2gid[[tr_id]])%>%
+poseffectdf%>%mutate(gene_id=trid2gidv[tr_id])%>%
 	left_join(ebp1_ko_startstop,by='gene_id')%>%
 	filter(log2fold_si_mock%>%between(-5,5))%>%
 	{quicktest(.$end_lfc,.$log2fold_si_mock)}
 
-poseffectdf%>%mutate(gene_id=trid2gid[[tr_id]])%>%
-	left_join(ebp1_ip_dex%>%mutate(gene_id=gnm2gid[[gene_name]]),by='gene_id')%>%
+poseffectdf%>%mutate(gene_id=trid2gidv[tr_id])%>%
+	left_join(ebp1_ip_dex%>%mutate(gene_id=gnm2gidv[gene_name]),by='gene_id')%>%
 	filter(log2fold_Total_IP%>%between(-5,5))%>%
 	{quicktest(.$end_lfc,.$log2fold_Total_IP)}
 

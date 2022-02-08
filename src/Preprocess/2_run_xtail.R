@@ -19,8 +19,8 @@ samples = fread(sampfile)%>%
   filter(is.na(fraction))%>%
   filter(!str_detect(sample_id,'test'))%>%
   .$sample_id
-gid2gnm <-  ids_nrgname%>%distinct(gene_id,gene_name)%>%{setNames(.$gene_name,.$gene_id)}
-count_tbl$gene_name <- gid2gnm[count_tbl$gene_id]
+gid2gnmv <-  ids_nrgname%>%distinct(gene_id,gene_name)%>%{setNames(.$gene_name,.$gene_id)}
+count_tbl$gene_name <- gid2gnmv[count_tbl$gene_id]
 count_tbl = count_tbl%>%select(gene_name,one_of(samples))
 
 # uorfcounts <- fread(uORFcountfile)

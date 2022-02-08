@@ -1,3 +1,5 @@
+#this data imports teh mass spec data and does some peptide-sequence
+#matching to improve the match up between ids
 {
 library(Biostrings)
 library(GenomicFeatures)
@@ -6,8 +8,8 @@ library(GenomicFeatures)
 mspeptidefile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 msgenefile = here('ext_data/MS_Data_New/Ages_Brain_PG_summ.txt')
 
-gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[2]],.[[1]])}
+gid2gnmv = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{setNames(.$gene_name,.$gene_id)}
 peptidemsdata = fread(mspeptidefile)%>%
 	dplyr::rename('gene_name':=Gene.names)
 proteinmsdata = fread(msgenefile)%>%
@@ -39,7 +41,7 @@ if(!file.exists(here('data/pepmatch.rds'))){
 gnamecompdf <- data.frame(name=1:nrow(peptidemsdata),
 	msgname = peptidemsdata$gene_name)%>%
 	left_join(pepmatch%>%enframe%>%unnest(value),allow_dups=TRUE)%>%
-	mutate(gene_name = trid2gnm[[value]])
+	mutate(gene_name = trid2gnmv[value])
 
 
 gnamecompdf$tr_id <- gnamecompdf$value
@@ -62,16 +64,12 @@ protpepdf <- proteinmsdata%>%{.$Peptide.IDs}%>%str_split(';')%>%
 protpepdf$value <- (protpepdf$value %>%match(peptidemsdata$id))
 protgnmtrids <- setNames(pepmatch[protpepdf$value],protpepdf$name)%>%
 	enframe('gene_name','tr_id')%>%unnest(tr_id)
-table(protgnmtrids$gene_name==trid2gnm[[protgnmtrids$tr_id]])
+table(protgnmtrids$gene_name==trid2gnmv[protgnmtrids$tr_id])
 protgnmtrids <- protgnmtrids%>%semi_join(tibble(tr_id=fmcols(cdsgrl,transcript_id),gene_name=fmcols(cdsgrl,gene_name)))
 
 
-trid2gnm <- ids_nrgname%>%select(transcript_id,gene_name)%>%{hashmap(.[[1]],.[[2]])}
-proteinmsdata$gene_name%>%inclusiontable(trid2gnm[[alltrs]])
-
-gnm2gid <- ids_nrgname%>%distinct(gene_name,gene_id)%>%{hashmap(.[[1]],.[[2]])}
 proteinmsdata%<>%tibble
-proteinmsdata$g_id <- gnm2gid[[proteinmsdata$gene_name]]
+proteinmsdata$g_id <- gnm2gidv[proteinmsdata$gene_name]
 
 
 proteinmsdata%>%saveRDS('data/proteinmsdata.rds')

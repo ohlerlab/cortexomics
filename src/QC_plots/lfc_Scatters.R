@@ -10,9 +10,6 @@ if(!exists('tx_countdata')) {
 	# load('data/1_integrate_countdata.R')
 }
 
-gnm2gid <- ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{setNames(.$gene_id,.$gene_name)}
-
 #
 protgnmtrids<-readRDS('data/protgnmtrids.rds')
 
@@ -102,7 +99,7 @@ tps %<>%setNames(.,.)
 cassays = c('total','ribo')%>%setNames(.,.)
 
 allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[ allxtail$gene_name]
+allxtail$gene_id = gnm2gidv[ allxtail$gene_name]
 
 txnchangedf <- countcontr_df%>%filter(assay=='all')%>%group_by(gene_id)%>%
   mutate(sig = (adj.P.Val < 0.05)& (abs(logFC)>log2(1.25)))%>%
@@ -277,8 +274,6 @@ dev.off()
 normalizePath(plotfile)
 
 
-gnm2gid <- ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{setNames(.$gene_id,.$gene_name)}
 cassaynames = c('RNAseq','Riboseq','TE')%>%setNames(c('all','ribo','TE'))
 
 stepcountcontrdf <- readRDS(here('data/stepcountcontrdf.rds'))
@@ -287,7 +282,7 @@ stepstepprotcontrdf<-readRDS('data/stepprotcontrdf.rds')
 xtail_stepwise <- Sys.glob('pipeline/xtail/xtail*v*')%>%
 	setNames(.,str_extract(.,'(?<=_)[^_]+'))%>%
 	map_df(.id='time',read_tsv)%>%
-	mutate(gene_id = gnm2gid[gene_name])%>%
+	mutate(gene_id = gnm2gidv[gene_name])%>%
 	mutate(assay='TE')%>%
 	select(gene_id,time,logFC=log2fc,assay,adj.P.Val=adj_p_value)
 
@@ -384,5 +379,7 @@ for(cassay in c('all','ribo','TE')){
 	}
 }
 }
+
+
 
 }

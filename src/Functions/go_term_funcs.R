@@ -153,7 +153,7 @@ GTOGO%<>%dplyr::mutate(gene_id=ensembl_gene_id)
 onts = c('BP','MF','CC')
 
 get_cluster_gos <- function(clustvect){
-    names(clustvect) %<>% gnm2gid[[.]]
+    names(clustvect) %<>% gnm2gidv[.]
     out=map_df(.id='ontology',onts%>%setNames(.,.),function(ont){
       lapply(unique(clustvect)%>%setNames(.,.),safely(function(clustval){
             gids <- names(clustvect)

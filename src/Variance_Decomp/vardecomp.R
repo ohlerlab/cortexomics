@@ -4,10 +4,6 @@ base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
 	base::source("src/Figures/load_annotation.R")
 }
-gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
-gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[2]],.[[1]])}
 #We are going off of- https://peerj.com/articles/270/#fig-4
 
 ################################################################################
@@ -16,7 +12,7 @@ gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
 
 
 allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
+allxtail$gene_id = gnm2gidv[ allxtail$gene_name]
 techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
   mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(2)))%>%
   summarise(
@@ -98,7 +94,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 
 #or use ms
 contrdf<-readRDS('data/contrdf.rds')
-contrdf$gene_name <- gid2gnm[[contrdf$gene_id]]
+contrdf$gene_name <- gid2gnmv[contrdf$gene_id]
 mschangedf = contrdf%>%
   group_by(gene_name)%>%
   mutate(sig = (adj_pval < 0.05)& (abs(diff)>log2(2)))%>%
@@ -129,7 +125,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 		counttraj  = countpred_df%>%
 			# separate(contrast,c('time','assay'))%>%
 			filter(assay==cassay%>%str_replace('_kinetic',''))
-		counttraj$gene_name = gid2gnm[[counttraj$gene_id]]
+		counttraj$gene_name = gid2gnmv[counttraj$gene_id]
 		countses = counttraj%>%select(gene_id,time,se)
 	if(!cassay=='ribo_kinetic'){
 	}else{
@@ -142,7 +138,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 			alldrawses = bmodelopts%>%map('riboseq')%>%map('production')%>%map('cov')%>%discard(is.null)%>%map(diag)%>%map(~.[str_subset(names(.),'prot\\[')])%>%
 					map_df(.id='gene_name',enframe,'time','se')
 			alldrawses$time %<>% as.factor%>%as.numeric%>%tps[.]
-			kinetictraj$gene_id = gnm2gid[[kinetictraj$gene_name]]
+			kinetictraj$gene_id = gnm2gidv[kinetictraj$gene_name]
 			# kinetictraj%<>%left_join(countses)	
 			kinetictraj%<>%left_join(alldrawses)	
 			kinetictraj$se = kinetictraj$se*(kinetictraj$logFC^(-2))

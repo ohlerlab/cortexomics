@@ -15,8 +15,6 @@ rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
 
-gid2gnm<-load_hashmap('data/gid2gnm.hmp')
-
 
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
@@ -46,8 +44,8 @@ exprdf = bind_rows(
     separate(dataset,into=c('time','assay','replicate'))
 )
 exprdf%>%head
-exprdf$gene_name = gid2gnm[[exprdf$gene_id]]
-prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
+exprdf$gene_name = gid2gnmv[exprdf$gene_id]
+prediction_df$gene_name = gid2gnmv[prediction_df$gene_id]
 }
 
 teexprdf = left_join(

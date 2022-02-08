@@ -6,11 +6,6 @@ rename<-dplyr::rename
 first<-dplyr::first
 last<-dplyr::last
 
-  gid2gnm<-load_hashmap('gid2gnm.hmp')
-  gnm2gid<-load_hashmap('gnm2gid.hmp')
-  gnm2gid<-load_hashmap('gnm2gid.hmp')
-
-
 sel_prodpreds<-readRDS('data/sel_prodpreds.rds')
 sel_ms_mat<-readRDS('data/sel_ms_mat.rds')
 countpred_df<-readRDS('data/countpred_df.rds')
@@ -40,19 +35,8 @@ exprdf = bind_rows(
     separate(dataset,into=c('time','assay','replicate'))
 )
 exprdf%>%head
-exprdf$gene_name = gid2gnm[[exprdf$gene_id]]
-prediction_df$gene_name = gid2gnm[[prediction_df$gene_id]]
-
-
-#' Thi sis a title with inline R code `r foo`
-
-#' First we load the list of protein IDs, handpicked by Matt, using only the small
-#' or large subunits - no mitochondrial riboproteins  
-#define ambigous protein groups as those which have elements that appear in more than one protein group
-# allpgroups <- mstall$Protein_IDs%>%unique
-# multids<-allpgroups%>%unique%>%str_split_fast(';')%>%unlist%>%table%>%keep(~ . > 1)%>%names
-# all_ambig_pgroups<-allpgroups%>%sep_element_in(multids)
-# library(data.table)
+exprdf$gene_name = gid2gnmv[exprdf$gene_id]
+prediction_df$gene_name = gid2gnmv[prediction_df$gene_id]
 
 rpexprdf = exprdf%>%inner_join(ms_metadf%>%filter(is_rpl|is_rps))
 rpexprdf$cat = case_when(
@@ -78,7 +62,7 @@ ggdf = rpexprdf%>%
 medggdf = ggdf%>%group_by(assay,cat,time)%>%summarise(signal = median(signal))
 
 #now plot
-plotfile<- here('plots/figures/figure1/RP_traj.pdf')
+plotfile<- here('plots/Trajectory_plots/RP_traj.pdf')
 pdf(plotfile,w=14,h=7)
 ggdf%>%
     # filter(signal < -3)

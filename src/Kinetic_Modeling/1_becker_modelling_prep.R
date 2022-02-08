@@ -45,10 +45,8 @@ uptegenes = allTEchangedf%>%filter(up==1)%>%.$gene_name
 # bmodel_stationary = fix_param(bmodel,vars2fix = c('l_st','l_pihalf'))%>%{f='src/Archive/Stan/bmodel_stationary.stan';cat(.,file=f);f}%>%stan_model
 #bmodel_degonly = fix_param(bmodel,vars2fix = c('l_st'))%>%{f='src/Archive/Stan/bmodel_degonly.stan';cat(.,file=f);f}%>%stan_model
 
-gid2gnm = mcols(cds)%>%as.data.frame%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[1]],.[[2]])}
-gnm2gid = mcols(cds)%>%as.data.frame%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]])}
-countpred_df$gene_name = gid2gnm[[countpred_df$gene_id]]
-sel_prodpreds$gene_name = gid2gnm[[sel_prodpreds$gene_id]]
+countpred_df$gene_name = gid2gnmv[countpred_df$gene_id]
+sel_prodpreds$gene_name = gid2gnmv[sel_prodpreds$gene_id]
 
 count_ests = countpred_df%>%distinct(contrast,gene_name,.keep_all=TRUE)%>%select(gene_name,contrast,logFC)%>%spread(contrast,logFC)%>%{set_rownames(as.matrix(.[,-1]),.$gene_name)}
 count_ses = countpred_df%>%distinct(contrast,gene_name,.keep_all=TRUE)%>%select(gene_name,contrast,se)%>%spread(contrast,se)%>%{set_rownames(as.matrix(.[,-1]),.$gene_name)}

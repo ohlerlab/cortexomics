@@ -35,7 +35,8 @@ base::source(here::here('src/Rprofile.R'))
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
 # base::source(here::here('src/Figures/load_annotation.R'))
-trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
+trid2gidvv = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
+	{setNames(.$gene_id,.$transcript_id)}
 
 
 displaystagecols <- c(E12.5='#214098',E14='#2AA9DF',E15.5='#F17E22',E17='#D14E28',P0='#ED3124')
@@ -80,7 +81,7 @@ cds2use <- cdsgrl[ribocovtrs]
 cdsseq <- cds2use%>%{GenomicFeatures::extractTranscriptSeqs(.,x=fafileob)}
 allcodons=getGeneticCode()
 
-highcountcovtrs = ribocovtrs[trid2gid[[ribocovtrs]]%in%highcountgenes]
+highcountcovtrs = ribocovtrs[trid2gidv[ribocovtrs]%in%highcountgenes]
 trlens = exonsgrl%>%width%>%sum
 trlensgr = trlens[ribocovtrs]%>%enframe('seqnames','end')%>%mutate(start=1)%>%GRanges
 

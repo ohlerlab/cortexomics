@@ -9,8 +9,9 @@ if(!exists('safe_left_join'))base::source(here::here('src/Rprofile.R'))
 if(!exists('iso_tx_countdata')) load(here('data/1_integrate_countdata.R'))
 if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
 # base::source(here::here('src/Figures/load_annotation.R'))
-trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 library(GenomicFeatures)
+trid2gidv = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
+    {setNames(.$gene_id,.$transcript_id)}
 
 
 setwd(here())
@@ -481,113 +482,3 @@ tRNAlmlist <- lapply(list(sym('abundance'), sym('availability')),function(sigcol
 #
 tRNAenrichdf <- safe_left_join(tRNAlmlist[[1]],tRNAlmlist[[2]],by=c('time','fraction','codon'))%>%
     dplyr::rename('abundance_enrich':=value.x,'availability_enrich':=value.y)
-
-
-# pdf <- cairo_pdf
-# fractions <- c("Poly", "Total")
-# for (ifraction in fractions) {
-#     plotfile <- str_interp("plots/figures/figure2/trna_codons/trna_abchange_exprusage_${ifraction}.pdf")
-#     pdf(plotfile)
-#     usage_v_abundance_df %>%
-#         filter(!codon %in% c("TAG", "TAA", "TGA")) %>%
-#         filter(fraction == ifraction) %T>%
-#         {
-#             message(nrow(.))
-#         } %>%
-#         nest() %>%
-#         mutate(labl = paste0(
-#             "r = ", map_dbl(data, ~ cor(.$abundancechange, .$weightedusage)) %>% round(3), "\n",
-#             "p = ", map_dbl(data, ~ cor.test(.$abundancechange, .$weightedusage)$p.value %>% round(3))
-#         )) %>%
-#         unnest() %>%
-#         {
-#             print(
-#                 qplot(data = ., x = .$abundancechange, y = .$weightedusage, label = codon, geom = "blank") +
-#                     scale_x_continuous("tRNA Abundance abundance Slope E13 - P0") +
-#                     scale_y_continuous("RiboExpression Weighted E13 ") +
-#                     geom_text(data = distinct(., labl), hjust = 0, vjust = 1, x = -Inf, y = Inf, aes(label = labl)) +
-#                     geom_smooth(method = "lm") +
-#                     # facet_grid(tRNA_time~.)+
-#                     geom_text() +
-#                     geom_text(data = wus_tab_cors, aes(x = 0, y = 0, label = paste0("r = ", round(cor, 2)))) +
-#                     theme_bw()
-#             )
-#         }
-#     dev.off()
-#     message(normalizePath(plotfile))
-# }
-
-
-# # are and global frequency correlated? - AA level?
-# pdf("plots/figures/figure2/trna_codons/AAusage_vs_summed_tRNAab.pdf")
-# allcodsigmean_isomerge %>%
-#     left_join(enframe(codonfreqs %>% colSums(), "codon", "freq")) %>%
-#     group_by(fraction, time, AA) %>%
-#     # slice(which.max(abundance))%>%
-#     # slice(which.max(freq))%>%
-#     summarise(abundance = log2(sum(2^abundance)), freq = sum(freq)) %>%
-#     # summarise(abundance = mean(abundance),freq=sum(freq))%>%
-#     group_by(fraction, time) %>%
-#     nest() %>%
-#     mutate(labl = paste0(
-#         "r = ", map_dbl(data, ~ cor(use = "complete", .$freq, .$abundance)) %>% round(3), "\n",
-#         "p = ", map_dbl(data, ~ cor.test(use = "complete", .$freq, .$abundance)$p.value %>% round(3))
-#     )) %>%
-#     unnest() %>%
-#     {
-#         ggplot(., aes(x = abundance, y = freq)) + geom_point() + facet_grid(time ~ fraction) +
-#             theme_bw() + geom_text(data = distinct(., time, fraction, labl), hjust = 0, vjust = 1, x = -Inf, y = Inf, aes(label = labl))
-#     } +
-#     ggtitle("Amino acid usage frequency vs summed tRNA abundance")
-# dev.off()
-# normalizePath("plots/figures/figure2/trna_codons/AAusage_vs_summed_tRNAab.pdf")
-
-# # Are occupancy and global frequency correlated? - AA level??
-# pdf("plots/figures/figure2/trna_codons/AAweightedusage_vs_summed_tRNAab.pdf")
-# allcodsigmean_isomerge %>%
-#     left_join(weighted_codon_usage) %>%
-#     group_by(fraction, time, AA) %>%
-#     summarise(abundance = log2(sum(2^abundance)), weightedusage = sum(weightedusage)) %>%
-#     filter(is.finite(abundance)) %>%
-#     group_by(fraction, time) %>%
-#     nest() %>%
-#     mutate(labl = paste0(
-#         "r = ", map_dbl(data, ~ cor(use = "complete", .$weightedusage, .$abundance)) %>% round(3), "\n",
-#         "p = ", map_dbl(data, ~ cor.test(use = "complete", .$weightedusage, .$abundance)$p.value %>% round(3))
-#     )) %>%
-#     unnest() %>%
-#     {
-#         ggplot(., aes(x = abundance, y = weightedusage)) + geom_point() + facet_grid(time ~ fraction) +
-#             theme_bw() + geom_text(data = distinct(., time, fraction, labl), hjust = 0, vjust = 1, x = -Inf, y = Inf, aes(label = labl))
-#     } +
-#     ggtitle("Amino acid expr weighted usage frequency vs summed tRNA abundance")
-# dev.off()
-# normalizePath("plots/figures/figure2/trna_codons/AAweightedusage_vs_summed_tRNAab.pdf")
-
-
-# # Are occupancy and global abundance correlated?
-# pdf("plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf")
-# allcodsigmean_isomerge %>%
-#     mutate(abundance = abundance) %>%
-#     left_join(weighted_codon_usage) %>%
-#     filter(is.finite(abundance)) %>%
-#     group_by(fraction, time) %>%
-#     nest() %>%
-#     mutate(labl = paste0(
-#         "r = ", map_dbl(data, ~ cor(use = "complete", .$weightedusage, .$abundance)) %>% round(3), "\n",
-#         "p = ", map_dbl(data, ~ cor.test(use = "complete", .$weightedusage, .$abundance)$p.value %>% round(3))
-#     )) %>%
-#     unnest() %>%
-#     {
-#         ggplot(., aes(x = abundance, y = weightedusage)) + geom_point() + facet_grid(time ~ fraction) +
-#             theme_bw() + geom_text(data = distinct(., time, fraction, labl), hjust = 0, vjust = 1, x = -Inf, y = Inf, aes(label = labl))
-#     } +
-#     ggtitle("Codon usage frequency vs summed tRNA abundance")
-# dev.off()
-# normalizePath("plots/figures/figure2/trna_codons/codon_usage_vs_summed_tRNAab.pdf")
-# allcodsigmean%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-# all_deco_sig%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-# allcodsigmean_isomerge%>%filter(time=='E13',fraction=='Total',is.finite(Ct))%>%.$codon%>%n_distinct
-# fread('tables/isodecoder_data.tsv')%>%filter(sample=='Total E13')%>%filter(is.finite(Ct))%>%.$codon%>%n_distinct
-# allqpcrsig%>%filter(sample=='Total E13',is.finite(Ct))%>%.$anticodon%>%str_subset(neg=T,'rRNA|mt|PPC|Spike|U6|iMet')%>%n_distinct
-# codonstats%>%filter(time=='E13',rep==1)%>%.$codon%>%n_distinct

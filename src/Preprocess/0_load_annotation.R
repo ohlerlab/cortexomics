@@ -56,16 +56,14 @@ if(!exists('ids_nrgname')){
 ################################################################################
 ########Make ID conversion hashmaps
 ################################################################################
-trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
-gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[2]],.[[1]])}
-gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
-trid2gnm = ids_nrgname%>%select(transcript_id,gene_name)%>%
-	{hashmap(.[[1]],.[[2]])}
-gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
-gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
+trid2gidv = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
+	{setNames(.$gene_id,.$transcript_id)}
+gid2gnmv = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{setNames(.$gene_name,.$gene_id)}
+gnm2gidv = ids_nrgname%>%distinct(gene_id,gene_name)%>%
+	{setNames(.$gene_id,.$gene_name)}
+trid2gnmv = ids_nrgname%>%select(transcript_id,gene_name)%>%
+	{setNames(.$gene_name,.$transcript_id)}
+gnm2gidv = ids_nrgname%>%distinct(gene_name,gene_id)%>%
+	{setNames(.$gene_id,.$gene_name)}
 genesofinterest=c('Nes','Tle4','Flna','Satb2','Bcl11b')

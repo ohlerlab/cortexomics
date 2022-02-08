@@ -40,15 +40,6 @@ innercds = trspacecds%>%
 	resize(width(.)-STARTBUFF,'end')%>%
 	resize(width(.)-ENDBUFF,'start')
 FLANKCODS=15
-# telleygenegrps = 
-# zappgngrps = 
-# dtselgenelist = list(
-# 	up = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(teupgenes)],
-# 	down = ribocovtrs[trid2gid[[ribocovtrs]]%>%is_in(tedowngenes)],
-# 	nochangehighe = tr_nochange_highexpr%>%intersect(names(innercds)),
-# 	all = names(innercds)
-# )
-#telley 2019 waves
 }
 
 {

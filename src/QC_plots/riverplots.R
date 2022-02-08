@@ -53,7 +53,7 @@ count_detection_df <-
 
 count_detection_df$gene_id%>%inclusiontable(tx_countdata$counts%>%rownames)
 
-count_detection_df$gene_name=gid2gnm[[count_detection_df$gene_id]]
+count_detection_df$gene_name=gid2gnmv[count_detection_df$gene_id]
 
 # sampprotids <- sample(best_uprotein_ids,10)
 # sampprotids%<>%str_replace('_\\d+$','')
@@ -70,13 +70,13 @@ msdetectdf = proteinmsdata%>%
 	filter(!is.na(gene_name))%>%
  	select(gene_name,matches('iBAQ.*input'))%>%
  	gather(dataset,signal,,-gene_name)%>%
- 	mutate(gene_id=gnm2gid[[gene_name]])%>%
+ 	mutate(gene_id=gnm2gidv[gene_name])%>%
  	separate(dataset,c('sigtype','time','fraction','rep'))%>%
  	group_by(gene_name,gene_id,time)%>%
  	summarise(hascount=any(!is.na(signal)))%>%
  	mutate(time=str_replace(time,'p',''))
 
-msdetectdf$gene_id = gnm2gid[[msdetectdf$gene_name]]
+msdetectdf$gene_id = gnm2gidv[msdetectdf$gene_name]
 timepoints <- count_detection_df$time%>%unique
 allids = count_detection_df%>%distinct(gene_id,gene_name)
 
@@ -98,7 +98,7 @@ countriverdfall <- count_detection_df%>%
 countriverdfall%>%filter(is.na(gene_id))
 countriverdfall%>%filter(is.na(gene_name))
 
-countriverdfall$gene_name=gid2gnm[[countriverdfall$gene_id]]
+countriverdfall$gene_name=gid2gnmv[countriverdfall$gene_id]
 
 stopifnot(countriverdfall$assay%>%is.na%>%`!`%>%all)
 

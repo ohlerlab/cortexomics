@@ -46,7 +46,7 @@ message(normalizePath(plotfile))
 	
 source('src/Functions/go_term_funcs.R')
 stopifnot(exists("GTOGO"))
-gid_bmodels = setNames(genebmodels,gnm2gid[[names(genebmodels)]])
+gid_bmodels = setNames(genebmodels,gnm2gidv[names(genebmodels)])
 clustvect<-gid_bmodels
 if(!'gene_id'%in%colnames(GTOGO))GTOGO%<>%mutate(gene_id=ensembl_gene_id)
 get_cluster_gos = function(clustvect){

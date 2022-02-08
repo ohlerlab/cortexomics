@@ -26,8 +26,6 @@ dftpconv = function(x) x  %>% {colnames(.)%<>%tpconv;.}%>%
 		if('sample'%in%colnames(.)).$contrast%<>%tpconv
 		.
 	}
-gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%
-	{safe_hashmap(.[[1]],.[[2]])}
 message('S1 - writing count and MS raw data...')
 s1counts = readRDS('data/tx_countdata.rds')%>%
 	.$counts%>%
@@ -86,9 +84,8 @@ stepallxtail <- Sys.glob('pipeline/xtail/*')%>%
 				str_replace_all(tp1,'T1')%>%
 				str_replace_all('(E|P)\\d+','T2');
 		x})
-gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%{setNames(.$gene_id,.$gene_name)}
-allxtail$gene_id = gnm2gid[allxtail$gene_name]
-stepallxtail$gene_id = gnm2gid[stepallxtail$gene_name]
+allxtail$gene_id = gnm2gidv[allxtail$gene_name]
+stepallxtail$gene_id = gnm2gidv[stepallxtail$gene_name]
 S2=list(
 	xtail = allxtail,
 	xtail_stepwise = stepallxtail,
@@ -152,7 +149,7 @@ read_xlsx("tables/S2.xlsx",'limma_count_lfc')%>%head%>%as.data.frame
 #S4
 cluster_goterms <- read_tsv('tables/cluster_go.tsv')
 cluster_genes = read_tsv('tables/gene_clusters.tsv')%>%arrange(cluster)
-cluster_genes$gene_id = gnm2gid[[cluster_genes$gene_name]]
+cluster_genes$gene_id = gnm2gidv[cluster_genes$gene_name]
 cluster_genes%<>%filter(gene_id %in% highcountgenes)
 #output clustering reuslts
 list(

@@ -25,7 +25,6 @@ allTEchangedf<-read_tsv('tables/manuscript/go_all_highcount_updown.tsv')
 techanges <- Sys.glob('pipeline/xtail/*.txt')%>%setNames(.,basename(.))%>%map_df(.%>%fread%>%select(log2fc,adj_p_value,gene_name),.id='time')
 techanges$time%<>%str_replace('xtail_','')%>%str_replace('.txt','')
 techanges%<>%filter(!is.na(adj_p_value))
-# techanges%<>%mutate(gene_name==gid2gnm[[gene_id]])
 
 techanges%>%group_by(time)%>%group_slice(1)%>%filter(adj_p_value<0.05)
 

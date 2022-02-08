@@ -32,7 +32,7 @@ dpexprdata%<>%set_colnames(c('sample','transcript_id','TPM','diff','count'))
 dpexprdata%<>%mutate(oldtrid=transcript_id,transcript_id=str_replace(transcript_id,'\\.\\d+',''))
 stopifnot(dpexprdata$transcript_id%>%unique%>%setdiff(alltrs)%>%length%>%`==`(273L))
 dpexprdata%<>%filter(transcript_id%in%alltrs)
-dpexprdata%<>%mutate(gene_id = trid2gid[[transcript_id]])
+dpexprdata%<>%mutate(gene_id = trid2gidv[transcript_id])
 
 notrimtr2g = dpexprdata%>%distinct(oldtrid,gene_id)
 dpexprdata_s = dpexprdata%>%split(.,.$sample)%>%head(1)
@@ -92,7 +92,7 @@ for (i in 1:ncol(tx_countdata$counts)){ tx_countdata$counts[,i]%<>%randomround}
 
 tx_countdata$counts%>%as.data.frame%>%
 	rownames_to_column('gene_id')%>%
-	mutate(gene_name = gid2gnm[[gene_id]])%>%
+	mutate(gene_name = gid2gnmv[gene_id])%>%
 	select(-gene_id)%>%select(gene_name,everything())%>%
 	mutate_at(vars(-gene_name),list(randomround))%>%
 	write_tsv('data/tx_scaled_countData.tsv')
@@ -124,7 +124,7 @@ ishighcount = tx_countdata$counts[,ribosamples]%>%
 ishighcount = ishighcount[rownames(tx_countdata$counts)]
 
 highcountgenes = rownames(tx_countdata$counts)[ishighcount]
-highcountgnms = gid2gnm[[highcountgenes]]
+highcountgnms = gid2gnmv[highcountgenes]
 
 allcountmat <- tx_countdata$counts[,mainsamples]
 allcountdesign = colnames(allcountmat)%>%data.frame(sample=.)%>%
@@ -138,7 +138,7 @@ allcountmat <- allcountmat[,rownames(allcountdesign)]
 
 featuredata = data.frame(
 	gene_id = allcountmat%>%rownames,
-	gene_name = allcountmat%>%rownames%>%{gid2gnm[[.]]},
+	gene_name = allcountmat%>%rownames%>%{gid2gnmv[.]},
 	ishighcount = ishighcount
 )%>%set_rownames(rownames(allcountmat))
 
@@ -154,7 +154,7 @@ colnames(allcountmat)==rownames(allcountdesign)
 ################################################################################
 ########Also get isoform level 
 ################################################################################
-tx2genemap=data.frame(trid2gid$keys(),trid2gid$values())
+tx2genemap=data.frame(trid2gidv$transcript_id,trid2gidv$gene_id)
 iso_tx_countdata = tximport(files=allquantfiles,
 	txOut=TRUE,
 	ignoreTxVersion=TRUE,
@@ -208,7 +208,7 @@ alllimmares =
 #unmangle the gene ids
 alllimmares%<>%rownames_to_column('gene_id')%>%
 	mutate(gene_id=str_replace(gene_id,'\\..*',''))
-alllimmares%<>%mutate(gene_name=gid2gnm[[gene_id]])
+alllimmares%<>%mutate(gene_name=gid2gnmv[gene_id])
 
 
 limmatechangesumtable <- alllimmares%>%
@@ -250,7 +250,7 @@ countpred_df<-	lapply(colnames(tpavdesign)%>%setNames(.,.),function(datagroup){
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
 #
-countpred_df$gene_name = gid2gnm[[countpred_df$gene_id]]
+countpred_df$gene_name = gid2gnmv[countpred_df$gene_id]
 countpred_df%>%saveRDS('data/countpred_df.rds')
 tx_countdata%>%map_if(is.matrix,~.[,mainsamples])%>%saveRDS('data/tx_countdata.rds')
 allvoom%>%saveRDS('data/allvoom.rds')
@@ -368,11 +368,6 @@ highcountgnms %>% saveRDS(here('data/highcountgnms.rds'))
 
 
 save.image('data/1_integrate_countdata.R')
-# load('data/1_integrate_countdata.R')
-
-#next
-# src/R/TE_change/run_xtail.R
-# 
 
 
 ################################################################################
@@ -411,7 +406,7 @@ fr_alllimmares =
 	})
 #unmangle the gene ids
 fr_alllimmares%<>%rownames_to_column('gene_id')%>%mutate(gene_id=str_replace(gene_id,'\\..*',''))
-fr_alllimmares%<>%mutate(gene_name=gid2gnm[[gene_id]])
+fr_alllimmares%<>%mutate(gene_name=gid2gnmv[gene_id])
 
 fr_alllimmares %>% saveRDS(here('data/fr_alllimmares.rds'))
 
@@ -446,7 +441,7 @@ fr_countpred_df<-	lapply(colnames(f_tpavdesign)%>%setNames(.,.),function(datagro
 		as.data.frame%>%rownames_to_column('gene_id')
 	})%>%bind_rows(.id='contrast')	
 #
-fr_countpred_df$gene_name = gid2gnm[[fr_countpred_df$gene_id]]
+fr_countpred_df$gene_name = gid2gnmv[fr_countpred_df$gene_id]
 fr_countpred_df%>%saveRDS('data/fr_countpred_df.rds')
 tx_countdata%>%map_if(is.matrix,~.[,fracsamples])%>%saveRDS('data/fr_tx_countdata.rds')
 allvoom%>%saveRDS('data/allvoom.rds')
@@ -490,7 +485,7 @@ fr_countcontr_df <- bind_rows(fr_countcontr_df,monocontr_df)
 fr_countcontr_df$contrast%>%unique
 fr_countcontr_df %>% saveRDS(here('data/fr_countcontr_df.rds'))
 fr_countcontr_df%>%distinct(time,assay)
-fr_countcontr_df$gene_name = gid2gnm[[fr_countcontr_df$gene_id]]
+fr_countcontr_df$gene_name = gid2gnmv[fr_countcontr_df$gene_id]
 
 }
 ################################################################################

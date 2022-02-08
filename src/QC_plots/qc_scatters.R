@@ -17,15 +17,9 @@ exprs = Biobase::exprs
 HIGHCOUNTTHRESH <- 32
 
 {
-trid2gid = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
-gid2gnm = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[2]],.[[1]])}
-gnm2gid = ids_nrgname%>%distinct(gene_id,gene_name)%>%{safe_hashmap(.[[1]],.[[2]])}
-trid2gnm = ids_nrgname%>%select(transcript_id,gene_name)%>%{hashmap(.[[1]],.[[2]])}
-gnm2gid = ids_nrgname%>%distinct(gene_name,gene_id)%>%{safe_hashmap(.[[1]],.[[2]])}
-gnm2trid = ids_nrgname%>%distinct(gene_name,transcript_id)%>%{safe_hashmap(.[[1]],.[[2]])}
 
-allgids = trid2gid[[alltrs]]%>%unique
-allgnms = trid2gnm[[alltrs]]%>%unique
+allgids = trid2gidv[alltrs]%>%unique
+allgnms = trid2gnmv[alltrs]%>%unique
 }
 #THis statement from dunn and weismann 2013:
 ##A4 size is 8 by 11Remarkably, we find that the range of translation efficiencies for different messages spans four orders of magnitude, a range comparable to that observed for mRNA abundance of well-counted genes (Figure 1D). Moreover, translation efficiency is uncorrelated with mRNA abundance (r2 = 8.29 × 10−5; Figure 1E) and mRNA abundance predicts only one third of the variance in the rate of protein production as measured by ribosome footprint density (Figure 1F). Translational regulation is therefore a major determinant of gene expression in the early embryo (supplementary table 1 at Dryad: Dunn et al., 2013), and ribosome profiling provides a quantitative and robust means to monitor translational regulation during development.
@@ -169,7 +163,7 @@ mRNAvals <- tx_countdata$abundance%>%
 	group_by(time,gene_id)%>%
 	summarise(val=log2(mean(TPM)),type='mRNA')
 
-TEs$gene_id = gnm2gid[[TEs$feature_id]]
+TEs$gene_id = gnm2gidv[TEs$feature_id]
 ggdf = bind_rows(mRNAvals,TEs)
 
 #add high count col

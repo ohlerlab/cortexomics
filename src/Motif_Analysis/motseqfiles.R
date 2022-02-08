@@ -10,7 +10,7 @@ if(!file.exists('iso_tx_countdata.rds')){
 
 highcountgnms <- readRDS(here('data/highcountgnms.rds'))
 allxtail = Sys.glob('pipeline/xtail/*')%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
+allxtail$gene_id = gnm2gidv[ allxtail$gene_name]
 allxtail = allxtail%>%filter(gene_name %in% highcountgnms)
 techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
   mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
@@ -36,26 +36,26 @@ terankedgnms = pcadf%>%select(gene_name=gene.name,PC1_TE)%>%arrange(-PC1_TE)%>%.
 techangescores = pcadf%>%select(gene_name=gene.name,PC1_TE)%>%arrange(-PC1_TE)%>%{setNames(.$PC1_TE,.$gene_name)}
 techangescores%<>%{rank(.)/(length(.)+1)}%>%{qnorm(.)}
 
-long_exons = exons%>%split(.,.$transcript_id)%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gid[[name]])%>%
+long_exons = exons%>%split(.,.$transcript_id)%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gidv[name])%>%
 	group_by(g_id)%>%
 	slice(which.max(value))%>%.$name
 long_exons = (exons%>%split(.,.$transcript_id))[long_exons]
-names(long_exons)%<>%trid2gnm[[.]]
-long_cds = cds%>%split(.,.$transcript_id)%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gid[[name]])%>%
+names(long_exons)%<>%trid2gnmv[.]
+long_cds = cds%>%split(.,.$transcript_id)%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gidv[name])%>%
 	group_by(g_id)%>%
 	slice(which.max(value))%>%.$name
 long_cds = (cds%>%split(.,.$transcript_id))[long_cds]
-names(long_cds)%<>%trid2gnm[[.]]
-long_fputr = fputrs%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gid[[name]])%>%
+names(long_cds)%<>%trid2gnmv[.]
+long_fputr = fputrs%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gidv[name])%>%
 	group_by(g_id)%>%
 	slice(which.max(value))%>%.$name
 long_fputr = fputrs[long_fputr]
-names(long_fputr)%<>%trid2gnm[[.]]
-long_tputr = tputrs%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gid[[name]])%>%
+names(long_fputr)%<>%trid2gnmv[.]
+long_tputr = tputrs%>%width%>%sum%>%enframe%>%filter(!is.na(name))%>%mutate(g_id=trid2gidv[name])%>%
 	group_by(g_id)%>%
 	slice(which.max(value))%>%.$name
 long_tputr = tputrs[long_tputr]
-names(long_tputr)%<>%trid2gnm[[.]]
+names(long_tputr)%<>%trid2gnmv[.]
 
 library(Rsamtools)
 

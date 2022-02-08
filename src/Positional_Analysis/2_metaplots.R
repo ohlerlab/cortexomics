@@ -28,7 +28,5 @@ normalizePath(plotfile)%>%message
 # normalizePath(plotfile)%>%message
 # }
 
-#Let's define a subset of the data - those with the apparently biggest shift over time.
-#Let's also define a 
 inf.omit = function(x) x[is.finite(x)]
 

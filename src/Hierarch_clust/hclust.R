@@ -26,7 +26,7 @@ gg_color_hue <- function(n) {
 # countcontr_df<-readRDS('data/countcontr_df.rds')
 
 allxtail = Sys.glob(here('pipeline/xtail/*'))%>%map_df(.id='time',fread)%>%group_by(gene_name)
-allxtail$gene_id = gnm2gid[[ allxtail$gene_name]]
+allxtail$gene_id = gnm2gidv[allxtail$gene_name]
 techangedf <- allxtail%>%group_by(gene_id,gene_name)%>%
   mutate(sig = (adj_p_value < 0.05)& (abs(log2fc)>log2(1.25)))%>%
   summarise(
@@ -65,14 +65,12 @@ cordist <- function(X){
 }
 techangedf%>%filter(down==1)
 
-# countpred_df$gnm = gid2gnm[[countpred_df$gene_id]]
 
 # clustdata = countpred_df%>%distinct(contrast,logFC,gnm)%>%spread(contrast,logFC)
 # clustdata = tx_countdata$abundance
 # data_scaled = clustdata[,colnames(clustdata)%>%str_detect('total')]
 # colnames(data_scaled)
 # rownames(data_scaled) = clustdata$gnm
-# if(str_detect(rownames(data_scaled),'ENSMUSG')) gid2gnm[[rownames(data_scaled)]]
 # data_scaled %<>% as.matrix
 # col.dd <- hclust(cordist(data_scaled), method="complete")
 
@@ -93,7 +91,7 @@ t0_contrastdf = bind_rows(countcontr_df%>%filter(!is.na(time))%>%select(assay,ge
   unite(contrast,time,assay)%>%
   spread(contrast,logFC)
 t0_contrastdf = as.matrix(t0_contrastdf[,-1])%>%set_rownames(t0_contrastdf[[1]])
-rownames(t0_contrastdf) = gid2gnm[[rownames(t0_contrastdf)]]
+rownames(t0_contrastdf) = gid2gnmv[rownames(t0_contrastdf)]
 
 #get t0 contrasts
 ribo_t0_contrastdf = bind_rows(countcontr_df%>%filter(!is.na(time))%>%select(assay,gene_id,time,logFC),
@@ -105,59 +103,16 @@ ribo_t0_contrastdf = bind_rows(countcontr_df%>%filter(!is.na(time))%>%select(ass
   unite(contrast,time,assay)%>%
   spread(contrast,logFC)
 ribo_t0_contrastdf = as.matrix(ribo_t0_contrastdf[,-1])%>%set_rownames(ribo_t0_contrastdf[[1]])
-rownames(ribo_t0_contrastdf) = gid2gnm[[rownames(ribo_t0_contrastdf)]]
-
-# #and stepwise
-# stepcontrastdf = bind_rows(stepcountcontrdf%>%filter(!is.na(time))%>%select(assay,gene_id,time,logFC),
-#   stepstepprotcontrdf%>%filter(!is.na(time))%>%mutate(assay='MS')%>%select(assay,gene_id,time,logFC=diff))%>%
-#   # filter(!str_detect(assay,'ribo'))%>%
-#   group_by(gene_id)%>%filter(!any(is.na(logFC)))%>%
-#   filter(n()==12)%>%
-#   unite(contrast,time,assay)%>%
-#   spread(contrast,logFC)
-# stepcontrastdf = as.matrix(stepcontrastdf[,-1])%>%set_rownames(stepcontrastdf[[1]])
-# rownames(stepcontrastdf) = gid2gnm[[rownames(stepcontrastdf)]]
-
-# #get t0 contrasts
-# t0_minmax = prediction_df%>%
-#   filter(!str_detect(assay,'ribo'))%>%
-#   group_by(gene_id)%>%
-#   filter(n_distinct(assay)==3)%>%
-#   group_by(gene_id,assay)%>%
-#   mutate(estimate = (2^estimate)%>%{.-min(.)}%>%divide_by(max(.)))%>%
-#   group_by(gene_id)%>%filter(!any(is.na(estimate)))%>%
-#   unite(contrast,time,assay)%>%
-#   distinct(contrast,gene_id,estimate)%>%
-#   spread(contrast,estimate)
-# t0_minmax = as.matrix(t0_minmax[,-1])%>%set_rownames(t0_minmax[[1]])
-# rownames(t0_minmax) = gid2gnm[[rownames(t0_minmax)]]
-
+rownames(ribo_t0_contrastdf) = gid2gnmv[rownames(ribo_t0_contrastdf)]
 
 # predictionmat = prediction_df%>%unite(contrast,time,assay)%>%
 #   select(contrast,estimate,gene_name)
 #   spread(contrast,estimate)
 #We need to perform cluto clustering with filled in data.
 genesets <- readRDS(here('data/genesets.rds'))
-changegenes = genesets[-1]%>%unlist%>%unique%>%gid2gnm[[.]]%>%intersect(rownames(t0_contrastdf))
+changegenes = genesets[-1]%>%unlist%>%unique%>%gid2gnmv[.]%>%intersect(rownames(t0_contrastdf))
 
 }
-
-# exprdf%>%
-#   # mutate(gene_name=gid2gnm[[gene_id]])%>%
-#   # rename('estimate':=diff)%>%
-#   ungroup%>%
-#   # filter(assay=='MS')%>%
-#   mutate(sd=sd(signal,na.rm))%>%
-#   group_by(gene_name)%>%
-#   mutate(estimate = estimate - median(estimate))%>%filter(gene_name%>%str_detect(regex(ignore_case=T,'bcl11b')))
-
-
-# clustdata<-stepcontrastdf[techangegenes%>%intersect(rownames(stepcontrastdf)),]
-# clustdata<-stepcontrastdf[changegenes,]
-# clustdata<-stepcontrastdf[,]
-# clustdata<-t0_contrastdf[,]
-# clustdata<-t0_contrastdf[changegenes,]
-# clustdata <- ribo_t0_contrastdf[changegenes,]
 
 {
 require(ComplexHeatmap)
@@ -478,5 +433,5 @@ normalizePath(plotfile)%>%message
 #
 clustergos%>%write_tsv(here('tables/cluster_go.tsv'))
 hclustob$cluster%>%enframe('gene_name','cluster')%>%
-  mutate(gene_id=gnm2gid[[gene_name]])%>%
+  mutate(gene_id=gnm2gidv[gene_name])%>%
   write_tsv('tables/gene_clusters.tsv')
