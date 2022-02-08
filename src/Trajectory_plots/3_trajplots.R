@@ -1,7 +1,7 @@
 {
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-  base::source("src/Figures/load_annotation.R")
+  base::source("src/Preprocess/0_load_annotation.R")
 }
 pdf <- grDevices::pdf
 ms_metadf<-readRDS('data/ms_metadf.rds')
@@ -183,8 +183,8 @@ saveRDS(trajplot_arglist,'data/make_trajplots_arglist.rds')
 #
 pdf<-grDevices::pdf
 {
-  'plots/Figures/Figures5/trajectory.pdf'%>%dirname%>%dir.create
-plotfile<- here('plots/Figures/Figures5/trajectory.pdf')
+  'plots/Trajectory_plots/trajectory.pdf'%>%dirname%>%dir.create
+plotfile<- here('plots/Trajectory_plots/trajectory.pdf')
 pdf(plotfile,w=4*3,h=4*1)
 print(ggarrange(plotlist=map(c('Nes'),make_trajplot,show_model=TRUE),nrow=1))
 dev.off()
@@ -195,14 +195,14 @@ normalizePath(plotfile)
 
 pdf<-grDevices::pdf
 {
-  'plots/Figures/Figures5/trajectory.pdf'%>%dirname%>%dir.create
-plotfile<- here('plots/Figures/Figures5/trajectory.pdf')
+  'plots/Trajectory_plots/trajectory.pdf'%>%dirname%>%dir.create
+plotfile<- here('plots/Trajectory_plots/trajectory.pdf')
 pdf(plotfile,w=4*3,h=4*5)
 print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot),nrow=5))
 dev.off()
 normalizePath(plotfile)
 
-plotfile<- here('plots/Figures/Figures5/trajectory_te.pdf')
+plotfile<- here('plots/Trajectory_plots/trajectory_te.pdf')
 pdf(plotfile,w=4,h=4*5)
 print(ggarrange(plotlist=map(c('Satb2','Nes','Flna','Tle4','Bcl11b','Pum2'),make_trajplot,assays2plot='TE'),nrow=5))
 dev.off()
@@ -210,7 +210,7 @@ normalizePath(plotfile)
 }
 
 {
-plotfile<- here('plots/Figures/Figures5/pumsatoverlay.pdf')
+plotfile<- here('plots/Trajectory_plots/pumsatoverlay.pdf')
 pdf(plotfile,w=4,h=4*2)
 print(ggarrange(plotlist=list(make_trajplot(c('Satb2','Pum2'),assays2plot='MS'))),nrow=2)
 dev.off()

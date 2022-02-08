@@ -1,5 +1,5 @@
 library(here)
-if(!exists('allcodsig_isomerge')) base::source(here('src/Figures/Figure3/3_tRNA_array_analysis.R'))
+if(!exists('allcodsig_isomerge')) base::source(here('src/Positional_Analysis/3_tRNA_array_analysis.R'))
 if(!exists('kl_df')) base::source(here('src/rust_redo.R'))
 #
 #should perhaps follow supp tables
@@ -281,34 +281,6 @@ codondata_notrna%>%
 
 if(FALSE){
 
-
-################################################################################
-########Process these
-################################################################################
-
-# if(all(fprofilemats_unproc$sample %in% 1:100)) fprofilemats_unproc$sample %<>% {names(fpsitelist)[as.numeric(.)]}
-
-# codonprofiles<-fprofilemats_unproc
-# codonprofiles%<>%filter(!codon %in% c('TAG','TAA','TGA'))
-# codonprofiles%<>%mutate(position = position - 1 - (FLANKCODS*3))
-# codonprofiles%<>%group_by(readlen)%>%filter(any(signal!=0))
-# codonprofiles%<>%group_by(readlen,codon,sample)%>%
-# 	mutate(occ_nonorm=signal)%>%
-# 	mutate(occupancy = signal / median(signal))
-# codonprofiles%<>%select(-signal)
-# stopifnot(codonprofiles$occupancy%>%is.finite%>%all)
-# codonprofiles %>%saveRDS('data/codonprofiles.rds')
-# codonprofiles <- readRDS('data/codonprofiles.rds')
-
-# if(!exists('codonprofiledat')) base::source('src/Figures/Figure1/3_1a_metacodons_tr.R')
-# stopifnot((codonprofiledat$sample%>%n_distinct)==22)
-
-# if(!file.exists(here('data/codonprofiledat.rds'))){
-
-# }else{
-	# codonprofiledat<-readRDS(here('data/codonprofiledat.rds'))
-# }
-
 ################################################################################
 ########Adjacency predicts p-site occupancy?
 ################################################################################
@@ -332,17 +304,6 @@ asiteoccs%>%rename('a_site_occ'=count)%>%
 	left_join(psiteoccs%>%rename('p_site_occ'=count),by='codon')%>%
 	mutate(foo=1)%>%
 	make_quantcompplot_fac(a_site_occ,p_site_occ,foo,fname='plots/atimes_adjecency_vs_psite_occ.pdf')
-
-# adjacencycompplot <- 
-# adjacency_freq_df%>%
-# 		left_join(asiteoccs,by=c('cod2'='codon'))%>%
-# 		group_by(cod1)%>%
-# 		summarise(wsum_asiteocc=weighted.mean(count,freq,na.rm=T))%>%
-# 		left_join(psiteoccs,by=c('cod1'='codon'))%>%
-#         # {quicktest(.$wsum_asiteocc,.$count)}
-#         identity
-
-# adjacencycompplot%>%mutate(foo=1)%>%make_quantcompplot_fac(wsum_asiteocc,count,foo,fname='plots/atimes_adjecency_vs_psite_occ.pdf')
 
 
 psiteoccs = subfpprofilelist[['allhigh']]%>%filter(sample%>%str_detect('P0'),readlen=='rl29')%>%filter(position== -11)%>%

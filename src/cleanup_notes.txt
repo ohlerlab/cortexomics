@@ -31,7 +31,6 @@
    #devtools::install_github('xuranw/MuSiC')
    #devtools::install_github('xuranw/MuSiC')
 
-   R -e 'devtools::install_git(c("https://github.com/nathan-russell/hashmap"))'
    rsync -pravzh dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/pipeline/xtail .
 rsync -pravzh --include '*GSE*' --include '*telley_we*' --exclude '*' dharnet_m@login-2.research.hpc.bihealth.org:/fast/work/groups/ag_ohler/dharnet_m/cortexomics/ext_data/ ext_data/
 

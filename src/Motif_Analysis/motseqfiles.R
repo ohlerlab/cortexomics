@@ -1,6 +1,6 @@
-source("src/Figures/load_annotation.R")
+source("src/Preprocess/0_load_annotation.R")
 if(!file.exists('iso_tx_countdata.rds')){
-	base::source("src/Figures/1_integrate_countdata.R")
+	base::source("src/Preprocess/1_integrate_countdata.R")
 }
 
 

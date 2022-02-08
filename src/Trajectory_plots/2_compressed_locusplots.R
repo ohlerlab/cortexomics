@@ -18,7 +18,7 @@ peptidemsfile = here('ext_data/MS_Data_New/Ages_Brain_PEP_summ.txt')
 
 
 if(!exists("fafileob")) {
-  base::source("src/Figures/load_annotation.R")
+  base::source("src/Preprocess/0_load_annotation.R")
 }
 
 
@@ -293,7 +293,6 @@ tps = names(tpcols)
 
 zhangetal_pum2clip = GRanges('chr1:56794013-56794101:-')
 pum1clip = GRanges('chr1:56796631-56796712')
-dir.create('plots/Figure7')
 
 
 gviztracks <- list(
@@ -315,7 +314,7 @@ if(COMPRESS) saveRDS(gviztracks,str_interp('data/Shiny_track_data/${igene}.rds')
 #now plot
 options(ucscChromosomeNames=FALSE)
 compressstr = if(COMPRESS) '' else '_NONcompressed_'
-plotfile<- here(paste0('plots/Figure7/locusplot_',compressstr,igene,'.pdf'))
+plotfile<- here(paste0('plots/Trajectory_plots/locusplot_',compressstr,igene,'.pdf'))
 pdf(plotfile,w=24,h=12)
 plotTracks(gviztracks,col = tpcols)
 dev.off()

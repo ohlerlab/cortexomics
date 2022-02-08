@@ -86,7 +86,7 @@ for(mydir in c('up','down')){
 		 	theme(axis.text.x=element_text(vjust=-1))+
 		 	theme_bw()
 		stopifnot(length(my_catnm)==1)
-		plotfile <- paste0('plots/figures/figure1/ggoplot_',as.character(my_ontology),'_',my_stat,'_',str_replace_all(my_catnm,' ','_'),'_',mydir,'_',background,'.pdf')
+		plotfile <- paste0('plots/GO_plots/ggoplot_',as.character(my_ontology),'_',my_stat,'_',str_replace_all(my_catnm,' ','_'),'_',mydir,'_',background,'.pdf')
 		pdf(plotfile,w=12,h=4)
 		print(p)
 		dev.off()
@@ -193,7 +193,7 @@ plotfiles <- mclapply(mc.cores=10,1:nrow(paramcombs),function(i){
 		 	theme(axis.text.x=element_text(vjust=-1))+
 		 	theme_bw()
 		stopifnot(length(my_catnm)==1)
-		plotfile <- paste0('plots/figures/figure1/ggoplot_',as.character(my_ontology),'_',my_stat,'_',str_replace_all(my_catnm,' ','_'),'_',mydir,'_',background,'.pdf')
+		plotfile <- paste0('plots/GO_plots/ggoplot_',as.character(my_ontology),'_',my_stat,'_',str_replace_all(my_catnm,' ','_'),'_',mydir,'_',background,'.pdf')
 		pdf(plotfile,w=12,h=4)
 		print(p)
 		dev.off()

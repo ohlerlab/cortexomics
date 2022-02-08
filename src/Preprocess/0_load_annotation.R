@@ -3,6 +3,9 @@ base::source(here::here('src/Rprofile.R'))
 gtf <- here('pipeline/my_gencode.vM12.annotation.gtf')
 fafile <- here('pipeline/my_GRCm38.p5.genome.chr_scaff.fa')
 
+
+
+
 stopifnot(file.exists(fafile))
 salmonfiles <- Sys.glob(here('pipeline/salmon/data/*total*/quant.sf'))
 salmonfiles%T>%{stopifnot(file.exists(.))}
@@ -54,7 +57,7 @@ if(!exists('ids_nrgname')){
 }
 
 ################################################################################
-########Make ID conversion hashmaps
+########Make ID conversion vectors
 ################################################################################
 trid2gidv = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
 	{setNames(.$gene_id,.$transcript_id)}
@@ -67,3 +70,13 @@ trid2gnmv = ids_nrgname%>%select(transcript_id,gene_name)%>%
 gnm2gidv = ids_nrgname%>%distinct(gene_name,gene_id)%>%
 	{setNames(.$gene_id,.$gene_name)}
 genesofinterest=c('Nes','Tle4','Flna','Satb2','Bcl11b')
+
+
+dir.create(showWarn=F,rec=TRUE,'plots/QC_plots')
+dir.create(showWarn=F,rec=TRUE,'plots/Positional_Analysis')
+dir.create(showWarn=F,rec=TRUE,'plots/Motif_Analysis')
+dir.create(showWarn=F,rec=TRUE,'plots/Kinetic_Modeling')
+dir.create(showWarn=F,rec=TRUE,'plots/Hierarch_clust')
+dir.create(showWarn=F,rec=TRUE,'plots/GO_plots')
+dir.create(showWarn=F,rec=TRUE,'plots/Variance_Decomp')
+dir.create(showWarn=F,rec=TRUE,'plots/Trajectory_plots')

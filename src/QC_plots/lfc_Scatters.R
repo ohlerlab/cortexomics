@@ -3,10 +3,10 @@
 
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/load_annotation.R")
+	base::source("src/Preprocess/0_load_annotation.R")
 }
 if(!exists('tx_countdata')) {
-	base::source("src/Figures/1_integrate_countdata.R")
+	base::source("src/Preprocess/1_integrate_countdata.R")
 	# load('data/1_integrate_countdata.R')
 }
 

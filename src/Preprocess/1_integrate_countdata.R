@@ -4,7 +4,7 @@
 ################################################################################
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source(here("src/Figures/load_annotation.R"))
+	base::source(here("src/Preprocess/0_load_annotation.R"))
 }
 
 

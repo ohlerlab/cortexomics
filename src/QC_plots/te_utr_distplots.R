@@ -28,7 +28,7 @@ techanges%<>%filter(!is.na(adj_p_value))
 
 techanges%>%group_by(time)%>%group_slice(1)%>%filter(adj_p_value<0.05)
 
-cairo_pdf('plots/figures/figure2/TEchange_horizontaldist.pdf',w=12,h=6)
+cairo_pdf('plots/QC_plots/TEchange_horizontaldist.pdf',w=12,h=6)
 techanges%>%group_by(time)%>%arrange(log2fc)%>%
 	# filter(adj_p_value<0.05)%>%
 	mutate(xpos = 1:n())%>%
@@ -39,7 +39,7 @@ techanges%>%group_by(time)%>%arrange(log2fc)%>%
 	facet_wrap(time~.,scales='free_x',ncol=1)+
 	theme_bw()
 dev.off()
-normalizePath('plots/figures/figure2/TEchange_horizontaldist.pdf')%>%message
+normalizePath('plots/QC_plots/TEchange_horizontaldist.pdf')%>%message
 
 
 fcdirnums<-techanges%>%filter(gene_name%in%highcountgnms)%>%group_by(time,sign(log2fc))%>%
@@ -171,7 +171,7 @@ stopchangedf<-data.frame(
 
 
 
-cairo_pdf(h=5,w=5,'plots/figures/figure2/cumdist_TEchange_stopchange.pdf')
+cairo_pdf(h=5,w=5,'plots/QC_plots/cumdist_TEchange_stopchange.pdf')
 plot1=allTEchangedf%>%
 	left_join(stopchangedf)%>%
 	ungroup%>%
@@ -186,12 +186,12 @@ plot1=allTEchangedf%>%
 # ggarrange(plot1,)
 plot1
 dev.off()
-normalizePath('plots/figures/figure2/cumdist_TEchange_stopchange.pdf')
+normalizePath('plots/QC_plots/cumdist_TEchange_stopchange.pdf')
 
-cairo_pdf(h=5,w=5,'plots/figures/figure2/stop_madist.pdf')
+cairo_pdf(h=5,w=5,'plots/QC_plots/stop_madist.pdf')
 plotMA(dxr1%>%subset(featureID%>%str_detect('stop')))
 dev.off()
-normalizePath('plots/figures/figure2/stop_madist.pdf')
+normalizePath('plots/QC_plots/stop_madist.pdf')
 
 changesgid<-allTEchangedf%>%filter(up|down)%>%.$gene_id
 
@@ -200,7 +200,7 @@ stop_ma_dist_df<-dxr1%>%subset(!featureID%>%str_detect('stop'))
 stop_ma_dist_df$TEcol <- ifelse(stop_ma_dist_df$groupID%in%changesgid,'red','grey')%>%alpha(.,0.5)
 library(ggExtra)
 # 
-cairo_pdf(h=5,w=5,'plots/figures/figure2/stop_madist.pdf')
+cairo_pdf(h=5,w=5,'plots/QC_plots/stop_madist.pdf')
 p=ggplot(data=as.data.frame(stop_ma_dist_df)%>%arrange(TEcol),aes(y= -log2fold_P0_E13,x=log2(exonBaseMean),color=TEcol))+geom_point(size=I(0.1),alpha=I(0.5))+
 	theme_bw()+coord_cartesian(ylim=c(-2,2))+
 	scale_y_continuous(name='Estimated Pre Stop Codon Fold Change, P0 to E13')+
@@ -208,22 +208,22 @@ p=ggplot(data=as.data.frame(stop_ma_dist_df)%>%arrange(TEcol),aes(y= -log2fold_P
 	scale_color_manual(name='TE Change',values = stop_ma_dist_df$TEcol%>%unique%>%rev,labels=c('No TE Change','TE Change'))
 ggMarginal(p,margins='y',type='hist',groupFill=TRUE,groupColour=TRUE)
 dev.off()
-normalizePath('plots/figures/figure2/stop_madist.pdf')
+normalizePath('plots/QC_plots/stop_madist.pdf')
 
 abstedf <- bestmscountebayes$coef[,'TE']%>%enframe('uprotein_id','TE')%>%left_join(ms_id2protein_id%>%distinct(uprotein_id,gene_id))
 
-cairo_pdf('plots/figures/figure1/abs_TE_vs_start_occ.pdf')
+cairo_pdf('plots/QC_plots/abs_TE_vs_start_occ.pdf')
 stop_ma_dist_df%>%as.data.frame%>%left_join(abstedf,by=c('groupID'='gene_id'))%>%qplot(data=.,log2fold_P0_E13,TE)%>%print
 dev.off()
-normalizePath('plots/figures/figure1/abs_TE_vs_start_occ.pdf')
+normalizePath('plots/QC_plots/abs_TE_vs_start_occ.pdf')
 
 
 as.data.frame(stop_ma_dist_df)%>%{split(.$log2fold_P0_E13,.$TEcol)}%>%{wilcox.test(.[[1]],.[[2]])}
 
-# cairo_pdf(h=5,w=5,'plots/figures/figure2/stop_madist_hist.pdf')
+# cairo_pdf(h=5,w=5,'plots/QC_plots/stop_madist_hist.pdf')
 # %>%{.$TEchange<-.$groupID%in%changesgid;.}%>%as.data.frame%>%filter(padj<0.05)%>%qplot(data=.,x=log2fold_E16_E13,fill=TEchange,geom='histogram')
 # dev.off()
-# normalizePath('plots/figures/figure2/stop_madist_hist.pdf')
+# normalizePath('plots/QC_plots/stop_madist_hist.pdf')
 
 dxr1%>%as.data.frame%>%filter(padj<0.05)%>%filter(log2fold_E16_E13< -5)%>%.$featureID
 
@@ -274,7 +274,7 @@ startchangedf<-data.frame(
 
 
 
-cairo_pdf(h=5,w=5,'plots/figures/figure2/cumdist_TEchange_startchange.pdf')
+cairo_pdf(h=5,w=5,'plots/QC_plots/cumdist_TEchange_startchange.pdf')
 plot1=allTEchangedf%>%
 	left_join(startchangedf)%>%
 	ungroup%>%
@@ -289,14 +289,14 @@ plot1=allTEchangedf%>%
 # ggarrange(plot1,)
 plot1
 dev.off()
-normalizePath('plots/figures/figure2/cumdist_TEchange_startchange.pdf')
+normalizePath('plots/QC_plots/cumdist_TEchange_startchange.pdf')
 
 library(scales)
 start_ma_dist_df<-startdxr1%>%subset(!featureID%>%str_detect('start'))
 start_ma_dist_df$TEcol <- ifelse(start_ma_dist_df$groupID%in%changesgid,'red','grey')%>%alpha(.,0.5)
 library(ggExtra)
 # 
-cairo_pdf(h=5,w=5,'plots/figures/figure2/start_madist.pdf')
+cairo_pdf(h=5,w=5,'plots/QC_plots/start_madist.pdf')
 p=ggplot(data=as.data.frame(start_ma_dist_df)%>%arrange(TEcol),aes(y= -log2fold_P0_E13,x=log2(exonBaseMean),color=TEcol))+geom_point(size=I(0.1),alpha=I(0.5))+
 	theme_bw()+coord_cartesian(ylim=c(-2,2))+
 	scale_y_continuous(name='Estimated Start Codon Fold Change, P0 to E13')+
@@ -304,7 +304,7 @@ p=ggplot(data=as.data.frame(start_ma_dist_df)%>%arrange(TEcol),aes(y= -log2fold_
 	scale_color_manual(name='TE Change',values = start_ma_dist_df$TEcol%>%unique%>%rev,labels=c('No TE Change','TE Change'))
 ggMarginal(p,margins='y',type='hist',groupFill=TRUE,groupColour=TRUE)
 dev.off()
-normalizePath('plots/figures/figure2/start_madist.pdf')
+normalizePath('plots/QC_plots/start_madist.pdf')
 
 
 

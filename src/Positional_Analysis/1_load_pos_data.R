@@ -32,9 +32,9 @@ TOTBINS = (STARTWINDSIZE)+(STOPWINDSIZE)+1
 {
 library(GenomicFeatures)
 base::source(here::here('src/Rprofile.R'))
-if(!exists('cdsgrl')) base::source(here::here('src/Figures/load_annotation.R'))
+if(!exists('cdsgrl')) base::source(here::here('src/Preprocess/0_load_annotation.R'))
 if(!exists('iso_tx_countdata')) load('data/1_integrate_countdata.R')
-# base::source(here::here('src/Figures/load_annotation.R'))
+# base::source(here::here('src/Preprocess/0_load_annotation.R'))
 trid2gidvv = cds%>%mcols%>%as.data.frame%>%select(transcript_id,gene_id)%>%
 	{setNames(.$gene_id,.$transcript_id)}
 

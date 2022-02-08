@@ -28,33 +28,8 @@ library(splines)
 library(GenomicRanges)
 library(limma)
 library(broom)
-library(hashmap)
 library(txtplot)
 library(multitaper)
-
-safe_hashmap<-setRefClass("Safe_Rcpp_Hashmap",
-      contains="Rcpp_Hashmap",
-      inheritPackage=TRUE
-)
-setMethod('[[','Safe_Rcpp_Hashmap',function (x, i, j, default,...){
-  hashmapname = ''
-    .local <- function (x, i, j, ..., exact = TRUE)
-    {
-        x$`[[`(i)
-    }
-    out <- .local(x, i, j, ...)
-    if(missing(default)){
-      if(any(is.na(out))){
-        keymissingtxt = as.character(i[is.na(out)])%>%head%>%{ifelse(nchar(.)>15,paste0(substr(.,0,13),'...'),.)}%>%paste0(collapse='...')
-        stop(paste0('Keys missing from safe hashmap: ',hashmapname,':',keymissingtxt))        
-      }
-    } else if(length(default)==1){
-      out[is.na(out)] <- default
-    }else{
-      out[is.na(out)] <- default[is.na(out)]
-    }
-    return(out)
-})
 
 # #
 # conflict_prefer('setdiff','BiocGenerics')
@@ -854,7 +829,6 @@ setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
 #function to get GRanges objects of the psites
 get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'='chrM')) {
   require(GenomicAlignments)
-  require(hashmap)
   riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
   reads <- readGAlignments(bam,param=riboparam)
   mcols(reads)$length <- qwidth(reads)
@@ -871,7 +845,7 @@ get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'
     #define our compartment for all of the seqnames in the object
     comps = comps[names(comps)%in%seqnames(reads)]
     useqnms <- as.character(unique(seqnames(reads)))%>%setdiff(names(comps))
-    compmap = safe_hashmap(c(useqnms,names(comps)),c(rep('nucl',length(useqnms)),comps))
+    compmap = setNames(c(rep('nucl',length(useqnms)),comps),c(useqnms,names(comps)))
     stopifnot(all(compmap$values()%in%offsets$comp))
     #now fetch an offset for all of our 
     mcols(reads)$offset <-
@@ -1054,7 +1028,6 @@ setMethod('apply_psite_offset','GAlignments',function(offsetreads,offset){
 #function to get GRanges objects of the psites
 get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'='chrM')) {
   require(GenomicAlignments)
-  require(hashmap)
   riboparam<-ScanBamParam(scanBamFlag(isDuplicate=FALSE,isSecondaryAlignment=FALSE),mapqFilter=mapqthresh,which=windows)
   reads <- readGAlignments(bam,param=riboparam)
   # browser()
@@ -1071,12 +1044,12 @@ get_genomic_psites <- function(bam,windows,offsets,mapqthresh=200,comps=c('chrM'
 
     #define our compartment for all of the seqnames in the object
     useqnms <- as.character(unique(seqnames(reads)))%>%setdiff(names(comps))
-    compmap = safe_hashmap(c(useqnms,names(comps)),c(rep('nucl',length(useqnms)),comps))
+    compmap = setNames(c(rep('nucl',length(useqnms)),comps),c(useqnms,names(comps)),)
     stopifnot(all(compmap$values()%in%offsets$comp))
     #now fetch an offset for all of our 
     mcols(reads)$offset <-
       data.frame(length=mcols(reads)$length,
-        comp=compmap[[as.character(seqnames(reads))]])%>%
+        comp=compmap[as.character(seqnames(reads))])%>%
       safe_left_join(offsets%>%select(offset,length,comp),allow_missing=TRUE,by=c('length','comp'))%>%.$offset
   }
   #get rid of the reads that have no offset

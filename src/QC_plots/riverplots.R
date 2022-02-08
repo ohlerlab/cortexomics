@@ -12,7 +12,6 @@ library(ggalluvial)
 #> 6   2nd Female Child       No    0
 
 
-# 'plots/figures/figureS1'%>%dir.create
 plotfile%>%dirname%>%dir.create(rec=TRUE)
 
 # LOWCOUNTLIM <- 32
@@ -220,7 +219,7 @@ imap(filterfuncs,function(filterfunc,filtername){
 
 	countriverdflong
 
-	plotfile <- paste0('plots/figures/figureS1/detection_riverplot',filtername,'.pdf')
+	plotfile <- paste0('plots/QC_plots/detection_riverplot',filtername,'.pdf')
 	pdf(plotfile,w=24*.6,h=24*.6)
 	p=ggplot(data = countriverdflong,
 	       aes(x = Time, stratum = stratum, alluvium = alluvium,

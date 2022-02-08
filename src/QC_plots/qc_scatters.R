@@ -3,7 +3,7 @@
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
 	load('data/1_integrate_countdata.R')
-	base::source("src/Figures/load_annotation.R")
+	base::source("src/Preprocess/0_load_annotation.R")
 }
 library(scales)
 library(dplyr)
@@ -192,7 +192,6 @@ ggplot(
 	l10scales+
 	theme_bw()
 dev.off()
-# 'plots/figures/fig1.pdf'%>%dirname%>%dir.create
 plotfile%>%normalizePath%>%message
 
 }
@@ -284,11 +283,6 @@ plotfile%>%normalizePath%>%message
 
 }
 # countexprdata %>% saveRDS(here('data/fig1countexprdata_w_high.rds'))
-
-
-# save.image('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')
-# load('/fast/groups/ag_ohler/work/dharnet_m/cortexomics/data/figure1_scatters.Rdata')
-
 
 # tx_countdata$abundance%>%as.data.frame%>%
 # 	rownames_to_column('gene_id')%>%

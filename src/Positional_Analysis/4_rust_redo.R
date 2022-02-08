@@ -1,9 +1,9 @@
 {
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source(here("src/Figures/load_annotation.R"))
+	base::source(here("src/Preprocess/0_load_annotation.R"))
 }
-if(!exists('fpcovlist')) base::source('src/Figures/Figure2/1_load_pos_data.R')
+if(!exists('fpcovlist')) base::source('src/Positional_Analysis/1_load_pos_data.R')
 #
 limmadf = readxl::read_xlsx("tables/S2.xlsx",4,col_types=c(time='text'))
 txnchangegenes = limmadf%>%filter(assay=='all')%>%filter(adj.P.Val<0.05)%>%.$gene_id%>%unique

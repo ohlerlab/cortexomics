@@ -2,7 +2,7 @@
 ################################################################################
 base::source(here::here('src/Rprofile.R'))
 if(!exists("cdsgrl")) {
-	base::source("src/Figures/load_annotation.R")
+	base::source("src/Preprocess/0_load_annotation.R")
 }
 #We are going off of- https://peerj.com/articles/270/#fig-4
 
@@ -172,7 +172,7 @@ map_df(.id='assay',c('total','ribo')%>%setNames(.,.),function(cassay){
 })
 
 #now plot
-plotfile<- here(paste0('plots/','figures/figure3/within_tp_var_explained','.pdf'))
+plotfile<- here(paste0('plots/','Variance_Decomp/within_tp_var_explained','.pdf'))
 cairo_pdf(plotfile)
 withinstage_varexpldf%>%
 	ggplot(.,aes(y=var_explained,x=assay,fill=assay))+
@@ -188,7 +188,7 @@ normalizePath(plotfile)
 
 
 #now plot
-plotfile<- here(paste0('plots/','figures/figure3/tp_var_explained','.pdf'))
+plotfile<- here(paste0('plots/','Variance_Decomp/tp_var_explained','.pdf'))
 cairo_pdf(plotfile)
 betweenstagevardf%>%
 	ggplot(.,aes(y=var_explained,x=assay,fill=assay))+

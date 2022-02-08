@@ -805,14 +805,6 @@ maintotalsamples = [s for s in totalsamples if '_total_' in s]
 rule alltr_salmon:
   input: expand('salmon_alltrs/data/{sample}/.done',sample=maintotalsamples)
 
-# cdstrimfasta = 'gencode.vM12.trimtrs.fa'
-ribofilter_fa = 'gencode.vM12.trimtrs.fa'
-
-rule trim_cds_forsalmon:
-  threads:8
-  output: 'gencode.vM12.trimtrs.fa'
-  shell:'Rscript src/Figures/Figure1/0_trim_cds_forsalmon.R'
-
 rule make_salmon_index:
   threads: 8
   input:  lambda wc: ALLTRFASTA if wc['seqs'] == '_alltrs' else TRFASTA

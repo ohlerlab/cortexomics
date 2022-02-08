@@ -4,11 +4,11 @@
 ########to quantify Riboseq data
 ################################################################################
 if(!exists('fafileob')) {
-	base::source("src/Figures/load_annotation.R")
+	base::source("src/Preprocess/0_load_annotation.R")
 }
 #
 if(!file.exists(here('data/protgnmtrids.rds'))){
-	source('src/Figures/Figure0/1_ms_data_import.R')
+	source('src/Preprocess/1_ms_data_import.R')
 }
 protgnmtrids<-readRDS(here('data/protgnmtrids.rds'))
 proteinmsdata<-readRDS('data/proteinmsdata.rds')
