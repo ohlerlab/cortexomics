@@ -1,6 +1,7 @@
 ################################################################################
 ########Metagene plots and positions specific analysis
 ################################################################################
+dir.create('plots/Positional_Analysis',showWarnings=F,rec=TRUE)
 
 {	
 

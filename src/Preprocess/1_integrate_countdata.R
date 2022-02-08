@@ -20,6 +20,13 @@ dpfiles = Sys.glob(here('pipeline/deepshapeprime/*/run*'))%>%
 	arrange(desc(as.numeric(number)))%>%
 	group_by(sample)%>%slice(1)%>%{setNames(.$file,.$sample)}
 
+stopifnot(length(dpprimefiles)>0)
+dptrs <- dpfiles%>%head(1)%>%fread%>%.[[1]]%>%str_extract('ENSMUST\\w+')
+#
+stopifnot(dptrs%>%setdiff(salmontrs)%>%length%>%`==`(273))
+stopifnot(salmontrs%>%setdiff(dptrs)%>%length%>%`==`(0L))
+
+
 dpexprdata = dpfiles%>%map_df(.id='sample',fread)
 dpexprdata%<>%set_colnames(c('sample','transcript_id','TPM','diff','count'))
 dpexprdata%<>%mutate(oldtrid=transcript_id,transcript_id=str_replace(transcript_id,'\\.\\d+',''))
@@ -98,7 +105,7 @@ tx_countdata$counts%>%as.data.frame%>%
 # stopifnot(tx_countdata$abundance%>%rownames%>%setequal(allgids))
 
 ################################################################################
-########Save as exprset object
+########Create count matrix
 ################################################################################
 ribosamples = str_subset(colnames(tx_countdata$counts),'ribo')
 rnasamples = str_subset(colnames(tx_countdata$counts),'total')
@@ -141,14 +148,6 @@ dim(featuredata)
 colnames(allcountmat)
 
 colnames(allcountmat)==rownames(allcountdesign)
-
-countexprdata <- ExpressionSet(
-	allcountmat,
-	AnnotatedDataFrame(allcountdesign),
-	AnnotatedDataFrame(featuredata)
-)
-
-countexprdata%>%saveRDS(here('data/countexprset.rds'))
 
 }
 
@@ -257,10 +256,6 @@ tx_countdata%>%map_if(is.matrix,~.[,mainsamples])%>%saveRDS('data/tx_countdata.r
 allvoom%>%saveRDS('data/allvoom.rds')
 
 
-# contrnames = as.list(contrnames)
-# contrnames = c(contrnames,lapply(tps[-1],function(tp){
-	# contrnames%>%str_subset(tp)
-# })%>%setNames(paste0('ribo_',tps[-1])))
 ################################################################################
 ########Contrasts df, (including riboseq, rather than TE)
 ################################################################################
@@ -381,7 +376,7 @@ save.image('data/1_integrate_countdata.R')
 
 
 ################################################################################
-########Run Limma (different variances)
+########Run Limma using fraction riboseq
 ################################################################################
 satb2trid = 'ENSMUST00000177424'
 iso_tx_countdata$counts[satb2trid,]
@@ -499,7 +494,7 @@ fr_countcontr_df$gene_name = gid2gnm[[fr_countcontr_df$gene_id]]
 
 }
 ################################################################################
-########Stepwise
+########Stepwise fraction fold changes
 ################################################################################
 	
 {

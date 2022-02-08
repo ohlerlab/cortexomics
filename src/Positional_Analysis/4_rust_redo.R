@@ -371,3 +371,77 @@ message(normalizePath(plotfile))
 #
 
 kl_offsets2plot%>%select(offset,length=nreadlen)%>%write_tsv('ext_data/offsets_rustvar.tsv')
+
+
+################################################################
+########## Plots of individual codon profiles for supplement
+################################################################################
+
+pdf('plots/Positional_Analysis/metametacodon_supp.pdf',w=12,h=7)
+fprustprofilelist%>%
+	inner_join(offsets)%>%
+	mutate(stage=samplestage[sample])%>%
+	# mutate(position = position+offset)%>%
+	filter(readlen=='rl29')%>%
+	mutate(read_length=readlen%>%str_extract('\\d+'))%>%
+	group_by(sample,stage,read_length,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
+	left_join(codonoccs%>%filter(fraction=='total')%>%select(stage=time,codon,sumocc=occupancy),by=c('stage','codon'))%>%
+	# .$sumocc%>%unique%>%rank%>%sort
+	filter(sample%in%c('E13_ribo_1','P0_ribo_2'))%>%
+	filter(codon %in% topbottomcods)%>%
+	# .$codon%>%n_distinct
+	# group_by(codon,sample)%>%group_slice(1)
+	{print(ggplot(.,aes(x=position,y=occupancy,
+		color=codon,group=codon))+
+		# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+		# scale_color_manual(values=codonspeed[codon])+
+		scale_y_continuous("Normalized RPF-5'-edge Density ")+
+		# scale_color_gradient(name='Dwell Time',low='blue',high='red')+
+		scale_color_discrete(name='codon')+
+		scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+			minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+		facet_grid(sample~read_length)+
+		geom_line()+
+		# geom_vline(xintercept=,linetype=2)+
+		# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+		# coord_cartesian(xlim=c(-21,21))+
+		coord_cartesian(xlim=c(-36,6))+
+		geom_vline(data=offsets%>%filter(length=='29'),aes(xintercept= -offset-3),color=I('blue'),linetype=2)+
+		theme_bw())}
+dev.off()
+normalizePath('plots/Positional_Analysis/metametacodon_supp.pdf')
+
+
+pdf('plots/Positional_Analysis/metametacodon_supp_grad.pdf',w=12,h=7)
+codonprofiles%>%
+	inner_join(offsets)%>%
+	mutate(stage=samplestage[sample])%>%
+	# mutate(position = position+offset)%>%
+	filter(readlen=='rl29')%>%
+	mutate(read_length=readlen%>%str_extract('\\d+'))%>%
+	group_by(sample,stage,read_length,codon,position)%>%summarise(occupancy=sum(occupancy))%>%
+	left_join(codonoccs%>%filter(fraction=='total')%>%select(stage=time,codon,sumocc=occupancy),by=c('stage','codon'))%>%
+	# .$sumocc%>%unique%>%rank%>%sort
+	filter(sample%in%c('E13_ribo_1','P0_ribo_2'))%>%
+	# filter(codon %in% topbottomcods)%>%
+	# .$codon%>%n_distinct
+	# group_by(codon,sample)%>%group_slice(1)
+	{print(ggplot(.,aes(x=position,y=occupancy,
+		color=sumocc,group=codon))+
+		# geom_rect(color=I('black'),alpha = I(0.3),aes(xmin= -6, xmax = 3, ymin = 0 ,ymax = Inf))+
+		# scale_color_manual(values=codonspeed[codon])+
+		scale_y_continuous("Normalized RPF-5'-edge Density ")+
+		scale_color_gradient(name='Dwell Time',low='blue',high='red')+
+		# scale_color_discrete(name='codon')+
+		scale_x_continuous(name = "Position of RPF 5' end relative to codon first nt",
+			minor_breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=3),breaks = seq(0-(3*FLANKCODS),2+(3*FLANKCODS),by=9) )+
+		facet_grid(sample~read_length)+
+		geom_line(alpha=I(0.5))+
+		# geom_vline(xintercept=,linetype=2)+
+		# geom_vline(data=codonproftppos,aes(xintercept=tppos),linetype=2)+
+		# coord_cartesian(xlim=c(-21,21))+
+		coord_cartesian(xlim=c(-36,6))+
+		geom_vline(data=offsets%>%filter(length=='29'),aes(xintercept= -offset-3),color=I('blue'),linetype=2)+
+		theme_bw())}
+dev.off()
+normalizePath('plots/Positional_Analysis/metametacodon_supp_grad.pdf')

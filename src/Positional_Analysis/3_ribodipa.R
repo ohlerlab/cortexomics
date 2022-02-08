@@ -1,6 +1,7 @@
 ################################################################################
 ########Run tests for positional effects with Ribodipa
 ################################################################################
+
 if(!exists('patterngenes')) patterngenes = longcdstrs	
 # use main samples only
 mainbindatamats = bindatamats[mainsamps]
@@ -180,7 +181,7 @@ tubgenes = GTOGO%>%filter(go_id=='GO:1904528')%>%.$ensembl_gene_id
 		 	theme(axis.text.x=element_text(vjust=-1))+
 		 	theme_bw()
 		stopifnot(length(my_catnm)==1)
-		plotfile <- paste0('plots/figures/figure1/ggoplot_',as.character(my_ontology),'_',my_stat,'_','start_poseff','_','up','_','.pdf')
+		plotfile <- paste0('plots/Positional_Analysis/ggoplot_',as.character(my_ontology),'_',my_stat,'_','start_poseff','_','up','_','.pdf')
 		pdf(plotfile,w=12,h=4)
 		print(p)
 		dev.off()
@@ -197,7 +198,7 @@ tubgenes = GTOGO%>%filter(go_id=='GO:1904528')%>%.$ensembl_gene_id
 		 	theme(axis.text.x=element_text(vjust=-1))+
 		 	theme_bw()
 		stopifnot(length(my_catnm)==1)
-		plotfile <- paste0('plots/figures/figure1/ggoplot_',as.character(my_ontology),'_',my_stat,'_','start_poseff','_','down','_','.pdf')
+		plotfile <- paste0('plots/Positional_Analysis/ggoplot_',as.character(my_ontology),'_',my_stat,'_','start_poseff','_','down','_','.pdf')
 		pdf(plotfile,w=12,h=4)
 		print(p)
 		dev.off()
@@ -212,7 +213,7 @@ metasignaldf_stgrp <- get_metasignaldf(mainbindatamats,ribodipa_up) %>%
 	summarise(signal=mean(signal)) 
 {
 library(rlang)
-plotfile<-'plots/figures/figure1/metaplottesribodipaup.pdf'%T>%pdf(h=6,w=12)
+plotfile<-'plots/Positional_Analysis/metaplottesribodipaup.pdf'%T>%pdf(h=6,w=12)
 rwplot <- metasignaldf_stgrp%>%get_metaplot(c(0,0.012))
 print(rwplot+ggtitle('ribodipa - sig start up genes'))
 dev.off()
@@ -225,7 +226,7 @@ metasignaldf_stgrp <- get_metasignaldf(mainbindatamats,ribodipa_notup) %>%
 	summarise(signal=mean(signal)) 
 {
 library(rlang)
-plotfile<-'plots/figures/figure1/metaplottesribodipa_notup.pdf'%T>%pdf(h=6,w=12)
+plotfile<-'plots/Positional_Analysis/metaplottesribodipa_notup.pdf'%T>%pdf(h=6,w=12)
 rwplot <- metasignaldf_stgrp%>%get_metaplot(c(0,0.012))
 print(rwplot+ggtitle('ribodipa - start nochange genes'))
 dev.off()
@@ -253,7 +254,7 @@ metasignaldf_stgrp <- metasignaldf_stgrp %>%
 
 {
 library(rlang)
-plotfile<-'plots/figures/figure1/metaplottesribodipa_notup_polymono.pdf'%T>%pdf(h=6,w=12)
+plotfile<-'plots/Positional_Analysis/metaplottesribodipa_notup_polymono.pdf'%T>%pdf(h=6,w=12)
 rwplot <- metasignaldf_stgrp%>%get_metaplot()
 print(rwplot+ggtitle('ribodipa - start nochange genes'))
 dev.off()
@@ -380,7 +381,7 @@ message(normalizePath(plotfile))
 }
 
 #now plot
-plotfile<- here(paste0('plots/','te_startup_density','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','te_startup_density','.pdf'))
 pdf(plotfile)
 tevals%>%
 	# filter(time=='E13')%>%
@@ -398,7 +399,7 @@ message(normalizePath(plotfile))
 
 
 #now plot
-plotfile<- here(paste0('plots/','te_startdown_density','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','te_startdown_density','.pdf'))
 pdf(plotfile)
 tevals%>%
 	# filter(time=='E13')%>%
@@ -438,7 +439,7 @@ if(!file.exists(here('data/startrlcountdf.rds'))){
 
 
 #now plot
-plotfile<- here(paste0('plots/','startrldistplot','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','startrldistplot','.pdf'))
 pdf(plotfile,w=15,h=3)
 startrlcountdf%>%group_by(length,sample)%>%summarise(count=sum(count))%>%
 	group_by(sample)%>%mutate(freq = count/sum(count))%>%
@@ -470,7 +471,7 @@ posvtedf = poseffectdf%>%
 	,by='gene_id')%>%
 	filter(log2fc>-5)
 #now plot
-plotfile<- here(paste0('plots/','end_up_vs_TEchange','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','end_up_vs_TEchange','.pdf'))
 pdf(plotfile)
 	# filter(padj<0.05)%>%
 	ggplot(data=posvtedf,aes(end_lfc,log2fc))+
@@ -521,7 +522,7 @@ ebp1_ip_dex = read_tsv('../Ebp1_ribo/data/ip_dexdf_s100.tsv')
 
 
 #now plot
-plotfile<- here(paste0('plots/','ribodipares','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','ribodipares','.pdf'))
 pdf(plotfile)
 plotTest(result = result.pst, genes.list = ribodipares$tr_id%>%head(2), threshold = 0.05)[[1]]+scale_x_continuous(limits=c(1,50))
 dev.off()
@@ -550,7 +551,7 @@ startgrpdf%<>%group_by(negcount,startgrp)%>%tally
 
 
 #now plot
-plotfile<- here(paste0('plots/','startgrp_vsnegnum','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','startgrp_vsnegnum','.pdf'))
 pdf(plotfile,w=14)
 startgrpdf%>%
 	filter(startgrp!='start_down')%>%
@@ -574,7 +575,7 @@ poseffneuritedf = poseffectdf%>%
 	))
 
 #now plot
-plotfile<- here(paste0('plots/','zapp_violin_startgrps','.pdf'))
+plotfile<- here(paste0('plots/Positional_Analysis/','zapp_violin_startgrps','.pdf'))
 pdf(plotfile)
 poseffneuritedf%>%
 	ggplot(.,aes(y=RiboSeq_log2FC_Neurite_Soma,x=startgrp,))+
@@ -600,7 +601,3 @@ aacontentmat%<>%set_rownames(names(allaatable))
 aacontentmat[-1,]%>%sweep(2,STAT=colSums(.),F='/')%>%as.data.frame%>%mutate(l2ratio=log2(V2/V1))
 aacontentmat%>%set_rownames()
 
-
-
-
-fr_alllimmares%>%filter(gene_name=='Satb2')

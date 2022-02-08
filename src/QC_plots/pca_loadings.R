@@ -1,8 +1,8 @@
-stopifnot(exists('ribo_t0_contrastdf'))
+hclustdata <- read_tsv(here('data/t0_clustdat.tsv'))
 #perform pca
-pcafit <- princomp(ribo_t0_contrastdf%>%as.data.frame%>%select(-matches('ribo'))%>%as.matrix)
+pcafit <- princomp(hclustdata%>%as.data.frame%>%select(-matches('gene.name'))%>%as.matrix)
 #make plots of the pcas
-pcaplot<-here('plots/pcafit_limmafcs_stepwise.pdf')
+pcaplot<-here('plots/QC_plots/')
 pdf(pcaplot)
 # plot(pcafit,main='Fold Change Over Time - PCA')
 plot(pcafit$scores[,1:2],ylim=pcafit$scores[,1:2]%>%range,xlim=pcafit$scores[,1:2]%>%range)
@@ -40,4 +40,3 @@ pdf(h=5,w=8,pcaloadingsplot%T>%{normalizePath(.)%>%message})
 ggpubr::ggarrange(ncol=2,plotlist=lapply(1:4,FUN=plotpcafit,pcafit))
 dev.off()
 pcaloadingsplot%>%normalizePath%>%message
-pcafit%>%summary

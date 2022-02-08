@@ -43,69 +43,6 @@ TEs = bind_rows(
 	TEs%>%select(-E13_log2TE)%>%gather(time,val,-feature_id)%>%mutate(time = str_extract(time,'[^_]+'))
 )
 
-# # TEs%<>%select(feature_id = gene_name,everything())
-
-# # TEs <- itimecountebayes$coef%>%as.data.frame%>%select(dplyr::matches('riboTRUE'))%>%
-# # 	gather(time,val)%>%
-# # 	mutate(time = str_replace(time,'riboTRUE:?',''))%>%
-# # 	mutate(time = ifelse(time=='','timeE13',time))%>%
-# # 	mutate(time = str_replace(time,'time',''))
-
-# TEs %<>%mutate(type='TE')
-
-# # countexprdata%>%saveRDS(here('data/fig1countexprdata.rds'))
-# # countexprdata <- readRDS(here('data/fig1countexprdata.rds'))
-
-# fData(countexprdata)$gene_id%>%n_distinct
-
-# mscountrows <- (fData(countexprdata)$protein_id %in% ms_id2protein_id$protein_id) & fData(countexprdata)$is_gid_highest
-
-# conflict_prefer('rowMedians','Biobase')
-
-# exprs(countexprdata)[mscountrows,'E13_ribo_1',drop=F]%>%rowMedians%>%add(1)%>%log2%>%txtdensity
-
-# fData(countexprdata)$protein_id%>%intersect(rownames(exprs(countexprdata)))
-# mRNAvals = exprs(countexprdata)[,]
-
-# mRNAvals <- countvoom$E[fData(countexprdata)$protein_id,][fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%
-# 	as.data.frame%>%
-# 	rownames_to_column('protein_id')%>%
-# 	select(protein_id,dplyr::matches('total'))%>%
-# 	gather(dataset,val,-protein_id)%>%
-# 	mutate(time = str_extract(dataset,'[^_]+'),type='mRNA')
-
-# counttbl_reps<-exprs(countexprdata)[fData(countexprdata)$is_gid_highest,]%>%
-# 	as.data.frame%>%
-# 	rownames_to_column('feature_id')%>%
-# 	gather(dataset,count,-feature_id)%>%
-# 	separate(dataset,c('time','assay','replicate'))%>%
-# 	mutate(replicate = paste0('Replicate_',letters[as.numeric(replicate)]))%>%
-# 	spread(replicate,count)%>%
-# 	group_by(feature_id)
-
-# counttbl_reps$highcount = HIGHCOUNTTHRESH <= counttbl_reps$Replicate_1+counttbl_reps$Replicate_2
-
-# tetbl_reps <- countvoom$E[fData(countexprdata)$protein_id[fData(countexprdata)$is_gid_highest],]%>%as.data.frame%>%
-# 	rownames_to_column('protein_id')%>%
-# 	gather(dataset,val,-protein_id)%>%
-# 	mutate(time = str_extract(dataset,'[^_]+'),type='mRNA')%>%
-# 	separate(dataset,into=c('time','assay','replicate'))%>%
-# 	spread(assay,val)%>%
-# 	mutate(te = ribo - total)%>%
-# 	select(protein_id,time,replicate,te)%>%
-# 	mutate(replicate = ifelse(replicate==1,'Replicate_1','Replicate_2'))%>%
-# 	spread(replicate,te)
-
-# tetbl_reps%<>%safe_left_join(x=.,y=counttbl_reps%>%filter(assay=='total')%>%distinct(protein_id=feature_id,time,highcount))
-
-# tetbl_reps%>%head
-
-
-# # tetbl_reps<-data.frame(
-# # 	counttbl_reps[counttbl_reps$assay=='ribo',]%>%select(-dplyr::matches('Replic')),
-# # 	Replicate_1 = counttbl_reps[counttbl_reps$assay=='ribo',]$Replicate_1 / counttbl_reps[counttbl_reps$assay=='total',]$Replicate_1,
-# # 	Replicate_2 =counttbl_reps[counttbl_reps$assay=='ribo',]$Replicate_2 / counttbl_reps[counttbl_reps$assay=='total',]$Replicate_2
-# # )
 
 HIGHCOUNTTHRESH =32
 
@@ -143,7 +80,7 @@ terepcors = txi_tetbl_reps%>%group_by(time)%>%filter(highcount)%>%filter(is.fini
 
 txi_tetbl_reps%>%filter(gene_id==testgn)
 
-plotfile <- 'plots/figures/figure1/fig1b_b_tete.pdf'
+plotfile <- 'plots/QC_plots/fig1b_b_tete.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 txi_tetbl_reps%>%arrange(highcount)%>%
 	filter(Replicate_1%>%between(-12,12))%>%
@@ -163,7 +100,7 @@ message(normalizePath(plotfile))
 
 
 #
-plotfile <- 'plots/figures/figure1/fig1b_rpfrpf.pdf'
+plotfile <- 'plots/QC_plots/fig1b_rpfrpf.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(txi_counttbl_reps%>%filter(assay=='ribo')%>%arrange(highcount),aes(x=(1+Replicate_1),y=(1+Replicate_2),color=highcount))+
 	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
@@ -178,7 +115,7 @@ ggplot(txi_counttbl_reps%>%filter(assay=='ribo')%>%arrange(highcount),aes(x=(1+R
 dev.off()
 message(normalizePath(plotfile))
 #
-plotfile <- 'plots/figures/figure1/fig1b_b_rnarna.pdf'
+plotfile <- 'plots/QC_plots/fig1b_b_rnarna.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(txi_counttbl_reps%>%filter(assay=='total')%>%arrange(highcount),aes(x=(1+Replicate_1),y=(1+Replicate_2),color=highcount))+
 	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
@@ -205,8 +142,8 @@ mRNA_ribo_cortbl<-repavexprtbl%>%filter(highcount)%>%group_by(time)%>%summarise(
 
 
 
-'plots/figures/figure1/fig1b_b_rna_rpf.pdf'%>%dirname%>%dir.create(rec=TRUE)
-plotfile <- 'plots/figures/figure1/fig1b_b_rna_rpf.pdf'
+'plots/QC_plots/fig1b_b_rna_rpf.pdf'%>%dirname%>%dir.create(rec=TRUE)
+plotfile <- 'plots/QC_plots/fig1b_b_rna_rpf.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(repavexprtbl%>%arrange(highcount),aes(x=mRNA,y=ribo,color=highcount))+
 	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
@@ -245,7 +182,7 @@ library(scales)
 
 l10scales =   scale_x_log10(name = 'TE / TPM',breaks = trans_breaks("log10", function(x) 10^x),
               labels = trans_format("log10", math_format(10^.x)))
-plotfile <- 'plots/figures/figure1/fig1b_c_TE_rna_dists.pdf'
+plotfile <- 'plots/QC_plots/fig1b_c_TE_rna_dists.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(
 	data = ggTPMvals,
@@ -304,8 +241,8 @@ ribo_TE_tbl_cor<-ribo_TE_tbl%>%filter(highcount)%>%group_by(time)%>%filter(is.fi
 TErange = mRNA_TE_tbl%>%filter(highcount)%>%.$TE%>%2^.%>%range
 TPMrange = mRNA_TE_tbl%>%filter(highcount)%>%.$TPM%>%2^.%>%range
 
-'plots/figures/figure1/fig1b_d_te_rna.pdf'%>%dirname%>%dir.create(rec=TRUE)
-plotfile <- 'plots/figures/figure1/fig1b_TE_rna.pdf'
+'plots/QC_plots/fig1b_d_te_rna.pdf'%>%dirname%>%dir.create(rec=TRUE)
+plotfile <- 'plots/QC_plots/fig1b_TE_rna.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(mRNA_TE_tbl%>%arrange(highcount),aes(x=2^TPM,y=2^TE,color=highcount))+
 	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
@@ -334,8 +271,8 @@ ribo_TE_tbl_cor<-ribo_TE_tbl%>%filter(highcount)%>%group_by(time)%>%summarise(co
 TErange = ribo_TE_tbl%>%filter(highcount)%>%.$TE%>%2^.%>%range
 TPMrange = ribo_TE_tbl%>%filter(highcount)%>%.$TPM%>%2^.%>%range
 
-'plots/figures/figure1/fig1b_d_te_ribo.pdf'%>%dirname%>%dir.create(rec=TRUE)
-plotfile <- 'plots/figures/figure1/fig1b_d_TE_ribo.pdf'
+'plots/QC_plots/fig1b_d_te_ribo.pdf'%>%dirname%>%dir.create(rec=TRUE)
+plotfile <- 'plots/QC_plots/fig1b_d_TE_ribo.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ggplot(ribo_TE_tbl%>%arrange(highcount),aes(x=2^TPM,y=2^TE,color=highcount))+
 	scale_color_manual(values = setNames(c('black','grey'),c('TRUE','FALSE')))+
@@ -371,8 +308,8 @@ plotfile%>%normalizePath%>%message
 
 ribo_TE_tbl%>%filter(TE==Inf)
 
-'plots/figures/figure1/TE_outliers.pdf'%>%dirname%>%dir.create(rec=TRUE)
-plotfile <- 'plots/figures/figure1/TE_outliers.pdf'
+'plots/QC_plots/TE_outliers.pdf'%>%dirname%>%dir.create(rec=TRUE)
+plotfile <- 'plots/QC_plots/TE_outliers.pdf'
 cairo_pdf(plotfile,w=12,h=3)
 ribo_TE_tbl = ribo_TE_tbl%>%arrange(highcount)%>%mutate(isTEoutlier = (2^TE)>50)
 ribo_TE_tbl_cor<-ribo_TE_tbl%>%filter(highcount,!isTEoutlier)%>%group_by(time)%>%summarise(cor = cor(TPM,TE))
@@ -416,7 +353,7 @@ for(myontology in c('BP','MF','CC')){
     #
     results.tab%>%write_tsv(str_interp('tables/TEoutlier_${myontology}.'))
 
-    goplotfile=str_interp('plots/figures/figure1/TEoutlier_goplot_minsize${minnodesize}_Ontology_${myontology}_stat_${my_stat}.pdf')
+    goplotfile=str_interp('plots/QC_plots/TEoutlier_goplot_minsize${minnodesize}_Ontology_${myontology}_stat_${my_stat}.pdf')
     cairo_pdf(goplotfile,w=6)
     print(plot_go_enrich(results.tab,sort_var = 'elimFisher',goplotfile))
     dev.off()
@@ -426,5 +363,3 @@ for(myontology in c('BP','MF','CC')){
 
 results.tab<-read_tsv(str_interp('tables/TEoutlier_MF.pdf'))
 results.tab%>%as.data.frame%>%arrange(elimFisher)%>%head
-
-#next src/R/Psite_offsets/figure1_foldchangescatters.R
