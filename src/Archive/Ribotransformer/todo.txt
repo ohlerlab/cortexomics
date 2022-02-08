@@ -1,5 +1,0 @@
-
-get the liu et al data reprocessed
-get the relevant gtf files reprocessed
-run the processing script on all that data
-get the yeast data reprocessed
